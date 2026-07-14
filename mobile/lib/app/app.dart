@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import '../features/auth/presentation/pages/login_page.dart';
+
+import '../core/theme/app_theme.dart';
+import 'router.dart';
 
 class OkeyXApp extends StatelessWidget {
   const OkeyXApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'OkeyX',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-      ),
-      home: const LoginPage(),
+      theme: AppTheme.darkTheme,
+
+      routerConfig: appRouter,
     );
   }
 }
