@@ -1,0 +1,5 @@
+.git
+mobile
+deploy/backend_bundle_*.b64
+**/__pycache__
+**/.pytest_cache
