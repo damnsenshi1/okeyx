@@ -10,5 +10,5 @@ RUN tar -xzf /tmp/backend.tar.gz -C /app \
     && rm -f /tmp/backend.tar.gz /tmp/backend_v11.patch
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 18765
-# Railway health probes use /healthz; uvicorn must bind every interface.
+# OkeyX public multiplayer release backend. Railway health probes use /healthz.
 CMD ["sh","-c","exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-18765}"]
