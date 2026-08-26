@@ -8,15 +8,8 @@ WORKDIR /app
 
 COPY deploy/backend_v11_0_23_fixed.tar.gz /tmp/backend.tar.gz
 
-RUN python - <<'PY'
-import gzip
-with gzip.open('/tmp/backend.tar.gz', 'rb') as fh:
-    while fh.read(1024 * 1024):
-        pass
-print('OKEYX_BACKEND_ARCHIVE_OK')
-PY
-
-RUN tar -xzf /tmp/backend.tar.gz -C /app \
+RUN gzip -t /tmp/backend.tar.gz \
+    && tar -xzf /tmp/backend.tar.gz -C /app \
     && rm -f /tmp/backend.tar.gz \
     && mkdir -p /app/data
 
