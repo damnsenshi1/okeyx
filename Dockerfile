@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# OkeyX V11.0.23 production backend
 COPY deploy/backend_v11_0_23_fixed.tar.gz /tmp/backend.tar.gz
 
 RUN gzip -t /tmp/backend.tar.gz \
