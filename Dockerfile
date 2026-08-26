@@ -6,13 +6,22 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Railway runtime reconstructs the exact OkeyX V11.0.23 backend bundle from
-# BUNDLE_* environment variables in the service start command. Do not unpack
-# repository tarballs here: truncated binary artifacts caused Railway builds
-# to fail with `gzip: unexpected end of file` before the app could start.
-# Keeping the image stage intentionally minimal makes GitHub-triggered builds
-# deterministic; dependencies are installed after the runtime bundle is restored.
+COPY deploy/backend_v11_0_23_fixed.tar.gz /tmp/backend.tar.gz
+
+RUN python - <<'PY'
+import gzip
+with gzip.open('/tmp/backend.tar.gz', 'rb') as fh:
+    while fh.read(1024 * 1024):
+        pass
+print('OKEYX_BACKEND_ARCHIVE_OK')
+PY
+
+RUN tar -xzf /tmp/backend.tar.gz -C /app \
+    && rm -f /tmp/backend.tar.gz \
+    && mkdir -p /app/data
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 18765
 
-CMD ["python", "-c", "print('OkeyX runtime image ready')"]
+CMD ["sh","-c","exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-18765}"]
