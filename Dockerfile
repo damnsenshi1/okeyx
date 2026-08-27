@@ -6,12 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# OkeyX V11.0.23 production backend
-COPY deploy/backend_v11_0_23_fixed.tar.gz /tmp/backend.tar.gz
+# Text-safe OkeyX backend payload. No gzip/tar.gz binary artifacts.
+COPY deploy/backend_source.b64 /tmp/backend_source.b64
 
-RUN gzip -t /tmp/backend.tar.gz \
-    && tar -xzf /tmp/backend.tar.gz -C /app \
-    && rm -f /tmp/backend.tar.gz \
+RUN python -c "import base64,io,pathlib,tarfile; p=pathlib.Path('/tmp/backend_source.b64'); data=base64.b64decode(p.read_text(), validate=True); tarfile.open(fileobj=io.BytesIO(data), mode='r:xz').extractall('/app'); print('OKEYX_BACKEND_SOURCE_OK')" \
+    && rm -f /tmp/backend_source.b64 \
     && mkdir -p /app/data
 
 RUN pip install --no-cache-dir -r requirements.txt
