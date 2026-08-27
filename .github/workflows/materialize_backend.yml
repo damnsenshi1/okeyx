@@ -1,0 +1,59 @@
+name: Materialize OkeyX backend source
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore verified final chunk
+        shell: bash
+        run: |
+          cat > deploy/render_backend_09.b64 <<'OKEYX_CHUNK'
+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
+OKEYX_CHUNK
+      - name: Reconstruct verified backend
+        shell: bash
+        run: |
+          cat deploy/render_backend_*.b64 | tr -d '\r\n ' > /tmp/backend.b64
+          base64 -d /tmp/backend.b64 > /tmp/backend.tar.xz
+          echo "569ee854dc4b130e3698b85afac79bbd66a19d7ebf31e1288a283ff5e6b356ca  /tmp/backend.tar.xz" | sha256sum -c -
+          rm -rf backend
+          mkdir -p backend
+          tar -xJf /tmp/backend.tar.xz -C backend
+          test -f backend/app/main.py
+          test -f backend/requirements.txt
+      - name: Replace deploy with direct source
+        shell: bash
+        run: |
+          cat > Dockerfile <<'DOCKERFILE'
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=10000
+WORKDIR /app
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/app ./app
+RUN mkdir -p /app/data
+EXPOSE 10000
+CMD ["sh","-c","exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
+DOCKERFILE
+          rm -rf deploy
+      - name: Commit direct-source backend
+        shell: bash
+        run: |
+          git config user.name "OkeyX Deploy Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add backend Dockerfile deploy
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Materialize direct-source Render multiplayer backend"
+          git push origin HEAD:main
