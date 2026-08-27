@@ -1,6 +1,9 @@
 name: Materialize OkeyX backend source
 
 on:
+  push:
+    paths:
+      - .github/workflows/materialize_backend.yml
   workflow_dispatch:
 
 permissions:
