@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: okeyx-mp
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: RUNTIME_SNAPSHOT_PATH
+        value: /app/data/active_rooms.bin
+      - key: RUNTIME_SECRET
+        generateValue: true
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: ALLOW_TEST_BILLING
+        value: "false"
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
