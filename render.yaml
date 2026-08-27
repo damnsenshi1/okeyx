@@ -5,7 +5,6 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
-    autoDeployTrigger: commit
     envVars:
       - key: PORT
         value: 10000
@@ -21,5 +20,9 @@ services:
         generateValue: true
       - key: ALLOW_TEST_BILLING
         value: "false"
+      - key: SUPABASE_URL
+        value: https://ofajtgacffxfdaylcgex.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_7DI7vp9jfRBprYG-4rmdJw_bp6lq2s8
       - key: SUPABASE_JWT_AUDIENCE
         value: authenticated
