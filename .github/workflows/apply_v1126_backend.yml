@@ -1,0 +1,69 @@
+name: Apply OkeyX V11.0.26 backend polish
+
+on:
+  push:
+    paths:
+      - .github/workflows/apply_v1126_backend.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply gameplay, economy and cosmetic polish
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          game = Path('backend/app/services/game_runtime.py')
+          s = game.read_text()
+          s = s.replace(
+              "rng=random.Random(seed);tiles=build_tiles();rng.shuffle(tiles)",
+              "rng=random.Random(seed) if seed is not None else random.SystemRandom();tiles=build_tiles();rng.shuffle(tiles)",
+          )
+          old = '''    def recalculate_turbo(self):\n        \"\"\"Masaya gerçekten açılmış yıldızları say. Geri toplama olursa x de geri iner.\"\"\"\n        if not self.state.turbo:\n            self.state.turbo_stars_on_table=0\n            self.state.multiplier=1\n            return\n        count=sum(1 for m in self.state.melds for t in m.tiles if self._is_turbo_star(t))\n        self.state.turbo_stars_on_table=count\n        self.state.multiplier=max(1,count)\n'''
+          new = '''    def recalculate_turbo(self):\n        \"\"\"Turbo yıldızı bir kez masaya kredilendiyse x geri düşmez.\n\n        Açılmış yıldızın okey olarak geri alınması, perin geri toplanması veya\n        taşın başka bir geçerli yere taşınması daha önce kazanılmış masa\n        çarpanını geri silmez. Yeni yıldızlar x değerini yalnızca yükseltir.\n        \"\"\"\n        if not self.state.turbo:\n            self.state.turbo_stars_on_table=0\n            self.state.multiplier=1\n            return\n        count=sum(1 for m in self.state.melds for t in m.tiles if self._is_turbo_star(t))\n        previous=max(1,int(getattr(self.state,'multiplier',1) or 1))\n        self.state.turbo_stars_on_table=max(int(getattr(self.state,'turbo_stars_on_table',0) or 0),count)\n        self.state.multiplier=max(previous,count,1)\n'''
+          if old not in s and new not in s:
+              raise SystemExit('turbo patch target not found')
+          s = s.replace(old, new)
+          game.write_text(s)
+
+          account = Path('backend/app/services/account_store.py')
+          s = account.read_text()
+          s = s.replace('WHEEL_REWARDS=[500,1000,1500,2500,5000,10000,25000]', 'WHEEL_REWARDS=[1500,2500,5000,7500,10000,25000,50000]')
+          s = s.replace('weights=[28,24,18,13,9,6,2]', 'weights=[24,22,20,14,10,7,3]')
+          account.write_text(s)
+
+          phase = Path('backend/app/services/phase4_service.py')
+          s = phase.read_text()
+          additions = [
+              ('        {"id": "rack_marble", "category": "rack", "name": "Mermer Salon", "currency": "diamonds", "price": 55, "rarity": "epic"},',
+               '        {"id": "rack_serpent", "category": "rack", "name": "Zümrüt Yılan", "currency": "diamonds", "price": 110, "rarity": "legendary"},\n        {"id": "rack_dragon", "category": "rack", "name": "Ejderha Ateşi", "currency": "diamonds", "price": 140, "rarity": "legendary"},'),
+              ('        {"id": "tiles_carbon", "category": "tiles", "name": "Karbon Taşlar", "currency": "diamonds", "price": 85, "rarity": "legendary"},',
+               '        {"id": "tiles_serpent", "category": "tiles", "name": "Yılan Taşları", "currency": "diamonds", "price": 120, "rarity": "legendary"},\n        {"id": "tiles_dragon", "category": "tiles", "name": "Ejderha Taşları", "currency": "diamonds", "price": 150, "rarity": "legendary"},'),
+              ('        {"id": "cloth_neon", "category": "cloth", "name": "Neon Gece", "currency": "diamonds", "price": 90, "rarity": "legendary"},',
+               '        {"id": "cloth_serpent", "category": "cloth", "name": "Zümrüt Tapınak", "currency": "diamonds", "price": 115, "rarity": "legendary"},\n        {"id": "cloth_dragon", "category": "cloth", "name": "Ejderha Sarayı", "currency": "diamonds", "price": 145, "rarity": "legendary"},'),
+          ]
+          for anchor, extra in additions:
+              if extra.splitlines()[0].strip() not in s:
+                  if anchor not in s:
+                      raise SystemExit(f'catalog anchor not found: {anchor}')
+                  s = s.replace(anchor, anchor + '\n' + extra)
+          phase.write_text(s)
+          PY
+          python -m pytest -q backend
+      - name: Commit patched backend and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name "OkeyX Deploy Bot"
+          git config user.email "actions@users.noreply.github.com"
+          rm -f .github/workflows/apply_v1126_backend.yml
+          git add -A backend .github/workflows/apply_v1126_backend.yml
+          git commit -m "Ship V11.0.26 gameplay economy and cosmetics polish"
+          git push origin HEAD:main
