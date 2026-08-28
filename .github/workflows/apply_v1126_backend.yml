@@ -24,8 +24,8 @@ jobs:
 
           game = Path('backend/app/services/game_runtime.py')
           s = game.read_text()
-          s = s.replace('rng = random.Random(seed)\n        tiles = build_tiles()', 'rng = random.Random(seed) if seed is not None else random.SystemRandom()\n        tiles = build_tiles()')
-          pattern = re.compile(r"    def recalculate_turbo\(self\):\n        if not self\.state\.turbo:\n            self\.state\.turbo_stars_on_table = 0\n            self\.state\.multiplier = 1\n            return\n        count = sum\(\(1 for m in self\.state\.melds for t in m\.tiles if self\._is_turbo_star\(t\)\)\)\n        self\.state\.turbo_stars_on_table = count\n        self\.state\.multiplier = max\(1, count\)\n")
+          s = re.sub(r'rng\s*=\s*random\.Random\(seed\)', "rng = random.Random(seed) if seed is not None else random.SystemRandom()", s, count=1)
+          pattern = re.compile(r"    def recalculate_turbo\(self\):\n(?:(?!    def ).)*?        self\.state\.multiplier = max\(1, count\)\n", re.S)
           replacement = '''    def recalculate_turbo(self):\n        \"\"\"Once a turbo star is credited on table, its x value never rolls back.\"\"\"\n        if not self.state.turbo:\n            self.state.turbo_stars_on_table = 0\n            self.state.multiplier = 1\n            return\n        count = sum((1 for m in self.state.melds for t in m.tiles if self._is_turbo_star(t)))\n        previous = max(1, int(getattr(self.state, 'multiplier', 1) or 1))\n        self.state.turbo_stars_on_table = max(int(getattr(self.state, 'turbo_stars_on_table', 0) or 0), count)\n        self.state.multiplier = max(previous, count, 1)\n'''
           if 'x value never rolls back' not in s:
               s, n = pattern.subn(replacement, s, count=1)
@@ -35,25 +35,27 @@ jobs:
 
           account = Path('backend/app/services/account_store.py')
           s = account.read_text()
-          s = s.replace('WHEEL_REWARDS=[500,1000,1500,2500,5000,10000,25000]', 'WHEEL_REWARDS=[1500,2500,5000,7500,10000,25000,50000]')
-          s = s.replace('weights=[28,24,18,13,9,6,2]', 'weights=[24,22,20,14,10,7,3]')
+          s, n1 = re.subn(r'WHEEL_REWARDS\s*=\s*\[[^\]]+\]', 'WHEEL_REWARDS = [1500, 2500, 5000, 7500, 10000, 25000, 50000]', s, count=1)
+          s, n2 = re.subn(r'reward\s*=\s*random\.choices\(WHEEL_REWARDS,\s*weights\s*=\s*\[[^\]]+\],\s*k\s*=\s*1\)\[0\]', 'reward = random.choices(WHEEL_REWARDS, weights=[24, 22, 20, 14, 10, 7, 3], k=1)[0]', s, count=1)
+          if not n1 or not n2:
+              raise SystemExit(f'wheel patch target missing rewards={n1} weights={n2}')
           account.write_text(s)
 
           phase = Path('backend/app/services/phase4_service.py')
           s = phase.read_text()
           additions = [
-              ('        {"id": "rack_marble", "category": "rack", "name": "Mermer Salon", "currency": "diamonds", "price": 55, "rarity": "epic"},',
-               ['        {"id": "rack_serpent", "category": "rack", "name": "Zümrüt Yılan", "currency": "diamonds", "price": 110, "rarity": "legendary"},', '        {"id": "rack_dragon", "category": "rack", "name": "Ejderha Ateşi", "currency": "diamonds", "price": 140, "rarity": "legendary"},']),
-              ('        {"id": "tiles_carbon", "category": "tiles", "name": "Karbon Taşlar", "currency": "diamonds", "price": 85, "rarity": "legendary"},',
-               ['        {"id": "tiles_serpent", "category": "tiles", "name": "Yılan Taşları", "currency": "diamonds", "price": 120, "rarity": "legendary"},', '        {"id": "tiles_dragon", "category": "tiles", "name": "Ejderha Taşları", "currency": "diamonds", "price": 150, "rarity": "legendary"},']),
-              ('        {"id": "cloth_neon", "category": "cloth", "name": "Neon Gece", "currency": "diamonds", "price": 90, "rarity": "legendary"},',
-               ['        {"id": "cloth_serpent", "category": "cloth", "name": "Zümrüt Tapınak", "currency": "diamonds", "price": 115, "rarity": "legendary"},', '        {"id": "cloth_dragon", "category": "cloth", "name": "Ejderha Sarayı", "currency": "diamonds", "price": 145, "rarity": "legendary"},']),
+            ('rack_marble', "{'id': 'rack_serpent', 'category': 'rack', 'name': 'Zümrüt Yılan', 'currency': 'diamonds', 'price': 110, 'rarity': 'legendary'}, {'id': 'rack_dragon', 'category': 'rack', 'name': 'Ejderha Ateşi', 'currency': 'diamonds', 'price': 140, 'rarity': 'legendary'}, "),
+            ('tiles_carbon', "{'id': 'tiles_serpent', 'category': 'tiles', 'name': 'Yılan Taşları', 'currency': 'diamonds', 'price': 120, 'rarity': 'legendary'}, {'id': 'tiles_dragon', 'category': 'tiles', 'name': 'Ejderha Taşları', 'currency': 'diamonds', 'price': 150, 'rarity': 'legendary'}, "),
+            ('cloth_neon', "{'id': 'cloth_serpent', 'category': 'cloth', 'name': 'Zümrüt Tapınak', 'currency': 'diamonds', 'price': 115, 'rarity': 'legendary'}, {'id': 'cloth_dragon', 'category': 'cloth', 'name': 'Ejderha Sarayı', 'currency': 'diamonds', 'price': 145, 'rarity': 'legendary'}, "),
           ]
-          for anchor, lines in additions:
-              if lines[0].strip() not in s:
-                  if anchor not in s:
-                      raise SystemExit(f'catalog anchor not found: {anchor}')
-                  s = s.replace(anchor, anchor + '\n' + '\n'.join(lines))
+          for anchor_id, extra in additions:
+              first_id = extra.split("'id': '", 1)[1].split("'", 1)[0]
+              if f"'id': '{first_id}'" in s:
+                  continue
+              pat = re.compile(r"(\{'id': '" + re.escape(anchor_id) + r"'[^}]*\},\s*)")
+              s, n = pat.subn(r'\1' + extra, s, count=1)
+              if n != 1:
+                  raise SystemExit(f'catalog anchor not found: {anchor_id}')
           phase.write_text(s)
           PY
           cd backend
