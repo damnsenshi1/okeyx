@@ -20,18 +20,17 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           game = Path('backend/app/services/game_runtime.py')
           s = game.read_text()
-          s = s.replace(
-              "rng=random.Random(seed);tiles=build_tiles();rng.shuffle(tiles)",
-              "rng=random.Random(seed) if seed is not None else random.SystemRandom();tiles=build_tiles();rng.shuffle(tiles)",
-          )
-          old = '''    def recalculate_turbo(self):\n        \"\"\"Masaya gerçekten açılmış yıldızları say. Geri toplama olursa x de geri iner.\"\"\"\n        if not self.state.turbo:\n            self.state.turbo_stars_on_table=0\n            self.state.multiplier=1\n            return\n        count=sum(1 for m in self.state.melds for t in m.tiles if self._is_turbo_star(t))\n        self.state.turbo_stars_on_table=count\n        self.state.multiplier=max(1,count)\n'''
-          new = '''    def recalculate_turbo(self):\n        \"\"\"Turbo yıldızı bir kez masaya kredilendiyse x geri düşmez.\n\n        Açılmış yıldızın okey olarak geri alınması, perin geri toplanması veya\n        taşın başka bir geçerli yere taşınması daha önce kazanılmış masa\n        çarpanını geri silmez. Yeni yıldızlar x değerini yalnızca yükseltir.\n        \"\"\"\n        if not self.state.turbo:\n            self.state.turbo_stars_on_table=0\n            self.state.multiplier=1\n            return\n        count=sum(1 for m in self.state.melds for t in m.tiles if self._is_turbo_star(t))\n        previous=max(1,int(getattr(self.state,'multiplier',1) or 1))\n        self.state.turbo_stars_on_table=max(int(getattr(self.state,'turbo_stars_on_table',0) or 0),count)\n        self.state.multiplier=max(previous,count,1)\n'''
-          if old not in s and new not in s:
-              raise SystemExit('turbo patch target not found')
-          s = s.replace(old, new)
+          s = s.replace('rng = random.Random(seed)\n        tiles = build_tiles()', 'rng = random.Random(seed) if seed is not None else random.SystemRandom()\n        tiles = build_tiles()')
+          pattern = re.compile(r"    def recalculate_turbo\(self\):\n        if not self\.state\.turbo:\n            self\.state\.turbo_stars_on_table = 0\n            self\.state\.multiplier = 1\n            return\n        count = sum\(\(1 for m in self\.state\.melds for t in m\.tiles if self\._is_turbo_star\(t\)\)\)\n        self\.state\.turbo_stars_on_table = count\n        self\.state\.multiplier = max\(1, count\)\n")
+          replacement = '''    def recalculate_turbo(self):\n        \"\"\"Once a turbo star is credited on table, its x value never rolls back.\"\"\"\n        if not self.state.turbo:\n            self.state.turbo_stars_on_table = 0\n            self.state.multiplier = 1\n            return\n        count = sum((1 for m in self.state.melds for t in m.tiles if self._is_turbo_star(t)))\n        previous = max(1, int(getattr(self.state, 'multiplier', 1) or 1))\n        self.state.turbo_stars_on_table = max(int(getattr(self.state, 'turbo_stars_on_table', 0) or 0), count)\n        self.state.multiplier = max(previous, count, 1)\n'''
+          if 'x value never rolls back' not in s:
+              s, n = pattern.subn(replacement, s, count=1)
+              if n != 1:
+                  raise SystemExit('turbo patch target not found')
           game.write_text(s)
 
           account = Path('backend/app/services/account_store.py')
@@ -44,20 +43,21 @@ jobs:
           s = phase.read_text()
           additions = [
               ('        {"id": "rack_marble", "category": "rack", "name": "Mermer Salon", "currency": "diamonds", "price": 55, "rarity": "epic"},',
-               '        {"id": "rack_serpent", "category": "rack", "name": "Zümrüt Yılan", "currency": "diamonds", "price": 110, "rarity": "legendary"},\n        {"id": "rack_dragon", "category": "rack", "name": "Ejderha Ateşi", "currency": "diamonds", "price": 140, "rarity": "legendary"},'),
+               ['        {"id": "rack_serpent", "category": "rack", "name": "Zümrüt Yılan", "currency": "diamonds", "price": 110, "rarity": "legendary"},', '        {"id": "rack_dragon", "category": "rack", "name": "Ejderha Ateşi", "currency": "diamonds", "price": 140, "rarity": "legendary"},']),
               ('        {"id": "tiles_carbon", "category": "tiles", "name": "Karbon Taşlar", "currency": "diamonds", "price": 85, "rarity": "legendary"},',
-               '        {"id": "tiles_serpent", "category": "tiles", "name": "Yılan Taşları", "currency": "diamonds", "price": 120, "rarity": "legendary"},\n        {"id": "tiles_dragon", "category": "tiles", "name": "Ejderha Taşları", "currency": "diamonds", "price": 150, "rarity": "legendary"},'),
+               ['        {"id": "tiles_serpent", "category": "tiles", "name": "Yılan Taşları", "currency": "diamonds", "price": 120, "rarity": "legendary"},', '        {"id": "tiles_dragon", "category": "tiles", "name": "Ejderha Taşları", "currency": "diamonds", "price": 150, "rarity": "legendary"},']),
               ('        {"id": "cloth_neon", "category": "cloth", "name": "Neon Gece", "currency": "diamonds", "price": 90, "rarity": "legendary"},',
-               '        {"id": "cloth_serpent", "category": "cloth", "name": "Zümrüt Tapınak", "currency": "diamonds", "price": 115, "rarity": "legendary"},\n        {"id": "cloth_dragon", "category": "cloth", "name": "Ejderha Sarayı", "currency": "diamonds", "price": 145, "rarity": "legendary"},'),
+               ['        {"id": "cloth_serpent", "category": "cloth", "name": "Zümrüt Tapınak", "currency": "diamonds", "price": 115, "rarity": "legendary"},', '        {"id": "cloth_dragon", "category": "cloth", "name": "Ejderha Sarayı", "currency": "diamonds", "price": 145, "rarity": "legendary"},']),
           ]
-          for anchor, extra in additions:
-              if extra.splitlines()[0].strip() not in s:
+          for anchor, lines in additions:
+              if lines[0].strip() not in s:
                   if anchor not in s:
                       raise SystemExit(f'catalog anchor not found: {anchor}')
-                  s = s.replace(anchor, anchor + '\n' + extra)
+                  s = s.replace(anchor, anchor + '\n' + '\n'.join(lines))
           phase.write_text(s)
           PY
-          python -m pytest -q backend
+          cd backend
+          python -m pytest -q
       - name: Commit patched backend and remove one-time workflow
         shell: bash
         run: |
