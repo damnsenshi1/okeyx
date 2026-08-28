@@ -168,7 +168,7 @@ def pair_plan_including(rules: Rules101, hand: list[Tile], minimum: int, require
 class Room:
 
     def __init__(self, seed: int | None=None, variant: str='non_fold', *, entry_fee: int=5000, assisted: bool=True, room_name: str='OkeyX Masası', turbo: bool=False, max_rounds: int=3, waiting: bool=False, turn_seconds: int=35, team_mode: str='solo', random_starter: bool=False, intro_seconds: int=0):
-        rng = random.Random(seed)
+        rng = random.Random(seed) if seed is not None else random.SystemRandom()
         tiles = build_tiles()
         rng.shuffle(tiles)
         ind_idx = next((i for i, t in enumerate(tiles) if not t.fake_joker))
@@ -313,13 +313,15 @@ class Room:
         return int(self.service.rules._norm(tile).number or 0) == int(self.state.joker.joker_number)
 
     def recalculate_turbo(self):
+        """Once a turbo star is credited on table, its x value never rolls back."""
         if not self.state.turbo:
             self.state.turbo_stars_on_table = 0
             self.state.multiplier = 1
             return
         count = sum((1 for m in self.state.melds for t in m.tiles if self._is_turbo_star(t)))
-        self.state.turbo_stars_on_table = count
-        self.state.multiplier = max(1, count)
+        previous = max(1, int(getattr(self.state, 'multiplier', 1) or 1))
+        self.state.turbo_stars_on_table = max(int(getattr(self.state, 'turbo_stars_on_table', 0) or 0), count)
+        self.state.multiplier = max(previous, count, 1)
 
     def turbo_star_distribution(self) -> dict[int, int]:
         return {seat: sum((1 for t in p.hand if self._is_turbo_star(t))) for seat, p in self.state.players.items()}

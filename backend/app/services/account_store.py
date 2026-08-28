@@ -5,7 +5,7 @@ from pathlib import Path
 DATA_PATH = Path(os.getenv('OKEYX_DATA_PATH') or Path(__file__).resolve().parents[2] / 'data' / 'accounts.json')
 DAILY_REWARDS = [2500, 3000, 3500, 4000, 5000, 6500, 10000]
 GIFT_CATALOG = {'tea': {'name': 'Çay', 'cost': 250, 'emoji': '🫖', 'reaction': False, 'persistent': False}, 'coffee': {'name': 'Türk Kahvesi', 'cost': 500, 'emoji': '☕', 'reaction': False, 'persistent': False}, 'nazar': {'name': 'Nazar Boncuğu', 'cost': 750, 'emoji': '🧿', 'reaction': False, 'persistent': False}, 'rose': {'name': 'Gül', 'cost': 1000, 'emoji': '🌹', 'reaction': False, 'persistent': False}, 'simit': {'name': 'Simit', 'cost': 1500, 'emoji': '🥨', 'reaction': False, 'persistent': False}, 'cake': {'name': 'Pasta', 'cost': 5000, 'emoji': '🎂', 'reaction': False, 'persistent': True}, 'trophy': {'name': 'Altın Kupa', 'cost': 25000, 'emoji': '🏆', 'reaction': False, 'persistent': True}, 'fireworks': {'name': 'Havai Fişek', 'cost': 50000, 'emoji': '🎆', 'reaction': False, 'persistent': True}, 'punch': {'name': 'Yumruk', 'cost': 0, 'emoji': '👊', 'reaction': True, 'persistent': False, 'hidden': True}, 'applause': {'name': 'Alkış', 'cost': 0, 'emoji': '👏', 'reaction': True, 'persistent': False, 'hidden': True}, 'slipper': {'name': 'Terlik', 'cost': 5000, 'emoji': '🩴', 'reaction': False, 'persistent': False, 'hidden': True}, 'fish': {'name': 'Balık Tokadı', 'cost': 7500, 'emoji': '🐟', 'reaction': False, 'persistent': False, 'hidden': True}, 'rubber_chicken': {'name': 'Lastik Tavuk', 'cost': 10000, 'emoji': '🐔', 'reaction': False, 'persistent': False, 'hidden': True}, 'plunger': {'name': 'Pompa', 'cost': 12500, 'emoji': '🪠', 'reaction': False, 'persistent': False, 'hidden': True}, 'censored_banana': {'name': 'Sansürlü Muz', 'cost': 15000, 'emoji': '🍌', 'reaction': False, 'persistent': False, 'hidden': True}, 'money_rain': {'name': 'Para Yağmuru', 'cost': 25000, 'emoji': '💸', 'reaction': False, 'persistent': False, 'hidden': True}, 'crown': {'name': 'Altın Taç', 'cost': 40000, 'emoji': '👑', 'reaction': False, 'persistent': False, 'hidden': True}, 'rocket': {'name': 'Roket', 'cost': 75000, 'emoji': '🚀', 'reaction': False, 'persistent': False, 'hidden': True}, 'sports_car': {'name': 'Spor Araba', 'cost': 150000, 'emoji': '🏎️', 'reaction': False, 'persistent': False, 'hidden': True}, 'dragon': {'name': 'Ejderha', 'cost': 250000, 'emoji': '🐉', 'reaction': False, 'persistent': False, 'hidden': True}}
-WHEEL_REWARDS = [500, 1000, 1500, 2500, 5000, 10000, 25000]
+WHEEL_REWARDS = [1500, 2500, 5000, 7500, 10000, 25000, 50000]
 CHEST_REWARDS = [750, 1250, 2000, 3500, 5000, 7500, 15000]
 SEASON_ID = '2026-S1'
 SEASON_MILESTONES = [{'id': 's1_5', 'points': 5, 'chips': 1500}, {'id': 's1_15', 'points': 15, 'chips': 3500}, {'id': 's1_30', 'points': 30, 'chips': 7500}, {'id': 's1_60', 'points': 60, 'chips': 15000}]
@@ -586,7 +586,7 @@ class AccountStore:
             w = a.setdefault('wheel', {'last_spin_day': None, 'last_reward': 0, 'spins': 0})
             if w.get('last_spin_day') == today:
                 return {'ok': False, 'code': 'already_spun', 'wheel': deepcopy(w)}
-            reward = random.choices(WHEEL_REWARDS, weights=[28, 24, 18, 13, 9, 6, 2], k=1)[0]
+            reward = random.choices(WHEEL_REWARDS, weights=[24, 22, 20, 14, 10, 7, 3], k=1)[0]
             w.update({'last_spin_day': today, 'last_reward': reward, 'spins': int(w.get('spins', 0)) + 1})
             a['chips'] += reward
             a['stats']['chips_won'] += reward
