@@ -22,6 +22,7 @@ jobs:
           set -euo pipefail
           base64 -d .okeyx_sync/v1128_patch.b64 > /tmp/patch.py.xz
           xz -d -c /tmp/patch.py.xz > /tmp/patch_v1128_backend.py
+          sed -i "s#root=Path('/mnt/data/okeyx_v1128_work/OkeyX/backend')#root=Path('backend')#" /tmp/patch_v1128_backend.py
           python /tmp/patch_v1128_backend.py
       - name: Test backend
         shell: bash
