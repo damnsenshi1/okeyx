@@ -1,0 +1,39 @@
+name: Apply OkeyX V11.0.27 backend
+
+on:
+  push:
+    branches:
+      - sync-v1127-final4
+    paths:
+      - .github/workflows/apply_v1127_backend.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Materialize and test backend
+        shell: bash
+        run: |
+          rm -rf backend
+          tar -xzf .okeyx_sync/v1127_backend.tgz
+          python -m compileall -q backend/app
+          python -m pip install -r backend/requirements.txt
+          pytest -q backend/tests
+
+      - name: Commit tested backend
+        shell: bash
+        run: |
+          git config user.name "OkeyX Deploy Bot"
+          git config user.email "actions@users.noreply.github.com"
+          rm -rf .okeyx_sync
+          rm -f .github/workflows/apply_v1127_backend.yml
+          git add -A backend .okeyx_sync .github/workflows/apply_v1127_backend.yml
+          git commit -m "Ship V11.0.27 full multiplayer quality backend"
+          git push origin HEAD:sync-v1127-final4
