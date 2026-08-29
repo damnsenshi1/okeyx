@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
 
+# exact archive rollout v2
 jobs:
   apply-test-ship:
     runs-on: ubuntu-latest
