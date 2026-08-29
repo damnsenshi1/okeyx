@@ -9,7 +9,6 @@ on:
 permissions:
   contents: write
 
-# exact archive rollout v2
 jobs:
   apply-test-ship:
     runs-on: ubuntu-latest
@@ -21,8 +20,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f .okeyx_sync/v1128_backend.tar.xz
-          tar -xJf .okeyx_sync/v1128_backend.tar.xz
+          materialize() {
+            src=".okeyx_sync/$1"
+            dst="$2"
+            test -f "$src"
+            mkdir -p "$(dirname "$dst")"
+            base64 -d "$src" | xz -d > "$dst"
+          }
+          materialize account.py.xz.b64 backend/app/api/account.py
+          materialize game.py.xz.b64 backend/app/api/game.py
+          materialize phase4.py.xz.b64 backend/app/api/phase4.py
+          materialize account_store.py.xz.b64 backend/app/services/account_store.py
+          materialize phase4_service.py.xz.b64 backend/app/services/phase4_service.py
+          materialize test_v1128_product_pass.py.xz.b64 backend/tests/test_v1128_product_pass.py
       - name: Test backend
         shell: bash
         run: |
