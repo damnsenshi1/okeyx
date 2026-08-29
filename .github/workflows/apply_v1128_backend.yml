@@ -5,6 +5,7 @@ on:
     branches: [sync-v1128-final]
     paths:
       - .okeyx_sync/trigger_v1128.txt
+      - .github/workflows/apply_v1128_backend.yml
 
 permissions:
   contents: write
