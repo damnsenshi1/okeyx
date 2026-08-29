@@ -4,7 +4,7 @@ on:
   push:
     branches: [sync-v1128-final]
     paths:
-      - .okeyx_sync/v1128_patch.b64
+      - .okeyx_sync/trigger_v1128.txt
 
 permissions:
   contents: write
