@@ -21,8 +21,10 @@ jobs:
       - name: Materialize and test backend
         shell: bash
         run: |
-          rm -rf backend
-          tar -xzf .okeyx_sync/v1127_backend.tgz
+          set -euo pipefail
+          cat .okeyx_sync/changed_*.b64 | tr -d '\r\n ' > /tmp/v1127.b64
+          base64 -d /tmp/v1127.b64 > /tmp/v1127.tar.xz
+          tar -xJf /tmp/v1127.tar.xz
           python -m compileall -q backend/app
           python -m pip install -r backend/requirements.txt
           pytest -q backend/tests
