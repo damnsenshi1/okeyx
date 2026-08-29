@@ -1,0 +1,45 @@
+name: Apply OkeyX V11.0.28 backend
+
+on:
+  push:
+    branches: [sync-v1128-final]
+    paths:
+      - .okeyx_sync/v1128_patch.b64
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-ship:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply backend patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .okeyx_sync/v1128_patch.b64 > /tmp/patch.py.xz
+          xz -d -c /tmp/patch.py.xz > /tmp/patch_v1128_backend.py
+          python /tmp/patch_v1128_backend.py
+      - name: Test backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q backend/app
+          python -m pip install -q -r backend/requirements.txt
+          PYTHONPATH=backend pytest -q backend/tests
+      - name: Ship to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "OkeyX Deploy Bot"
+          git config user.email "actions@users.noreply.github.com"
+          rm -rf .okeyx_sync
+          rm -f .github/workflows/apply_v1128_backend.yml
+          find backend -type d -name __pycache__ -prune -exec rm -rf {} + || true
+          rm -rf backend/.pytest_cache .pytest_cache
+          git add -A backend .okeyx_sync .github/workflows/apply_v1128_backend.yml
+          git commit -m "Ship V11.0.28 full product backend"
+          git push origin HEAD:main
