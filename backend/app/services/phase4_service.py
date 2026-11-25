@@ -53,13 +53,13 @@ DEFAULT_PHASE4_CONFIG: dict[str, Any] = {
     },
     "chance_controls": {"enabled": True, "purchasable_tickets": False, "chip_multiplier": True},
     "billing_products": [
-        {"sku":"okeyx.gold.50000","kind":"consumable","title":"800.000 Altın","coins":800000,"diamonds":0,"slot_vouchers":{"1000":3,"5000":1},"price_hint":"₺39,90","first_purchase":False},
-        {"sku":"okeyx.gold.180000","kind":"consumable","title":"2.000.000 Altın","coins":2000000,"diamonds":0,"slot_vouchers":{"5000":3,"10000":1},"price_hint":"₺89,90","first_purchase":False},
-        {"sku":"okeyx.gold.500000","kind":"consumable","title":"5.000.000 Altın","coins":5000000,"diamonds":0,"slot_vouchers":{"10000":3,"25000":2},"price_hint":"₺179,90","first_purchase":False},
-        {"sku":"okeyx.gold.1200000","kind":"consumable","title":"12.000.000 Altın","coins":12000000,"diamonds":0,"slot_vouchers":{"50000":2,"100000":2},"price_hint":"₺349,90","first_purchase":False},
-        {"sku":"okeyx.gold.3000000","kind":"consumable","title":"30.000.000 Altın","coins":30000000,"diamonds":0,"slot_vouchers":{"100000":3,"250000":2},"price_hint":"₺699,90","first_purchase":False},
+        {"sku":"okeyx.gold.50000","kind":"consumable","title":"750.000 Altın","coins":750000,"diamonds":0,"slot_vouchers":{"1000":3,"5000":1},"price_hint":"₺39,90","value_label":"BAŞLANGIÇ","first_purchase":False},
+        {"sku":"okeyx.gold.180000","kind":"consumable","title":"2.000.000 Altın","coins":2000000,"diamonds":0,"slot_vouchers":{"5000":3,"10000":1},"price_hint":"₺79,90","value_label":"POPÜLER","first_purchase":False},
+        {"sku":"okeyx.gold.500000","kind":"consumable","title":"5.000.000 Altın","coins":5000000,"diamonds":0,"slot_vouchers":{"10000":3,"25000":2},"price_hint":"₺159,90","value_label":"AVANTAJLI","first_purchase":False},
+        {"sku":"okeyx.gold.1200000","kind":"consumable","title":"15.000.000 Altın","coins":15000000,"diamonds":0,"slot_vouchers":{"50000":2,"100000":2},"price_hint":"₺349,90","value_label":"SÜPER DEĞER","first_purchase":False},
+        {"sku":"okeyx.gold.3000000","kind":"consumable","title":"40.000.000 Altın","coins":40000000,"diamonds":0,"slot_vouchers":{"100000":3,"250000":2},"price_hint":"₺699,90","value_label":"EN İYİ DEĞER","first_purchase":False},
         {"sku":"okeyx.diamond.80","kind":"consumable","title":"80 Elmas","coins":0,"diamonds":80,"slot_vouchers":{"1000":2},"price_hint":"₺49,90","first_purchase":False},
-        {"sku":"okeyx.diamond.250","kind":"consumable","title":"250 Elmas","coins":0,"diamonds":250,"slot_vouchers":{"5000":2},"price_hint":"₺119,90","first_purchase":False},
+        {"sku":"okeyx.diamond.250","kind":"consumable","title":"250 Elmas","coins":0,"diamonds":250,"slot_vouchers":{"5000":2},"price_hint":"₺119,90","value_label":"DAHA AVANTAJLI","first_purchase":False},
         {"sku":"okeyx.starter.1","kind":"consumable","title":"Hoş Geldin VIP Paketi","coins":300000,"diamonds":10,"slot_vouchers":{"5000":1},"inventory":["frame_founder"],"price_hint":"₺4,99","first_purchase":True},
         {"sku":"okeyx.daily.300k","kind":"consumable","title":"Günlük Mini • 300K","coins":300000,"diamonds":0,"slot_vouchers":{"1000":4},"price_hint":"₺9,99","first_purchase":False,"daily_offer":True},
         {"sku":"okeyx.daily.400k","kind":"consumable","title":"Günlük Plus • 400K","coins":400000,"diamonds":10,"slot_vouchers":{"5000":2},"price_hint":"₺19,99","first_purchase":False,"daily_offer":True},
@@ -119,8 +119,12 @@ DEFAULT_PHASE4_CONFIG: dict[str, Any] = {
         {"id": "avatar_samurai", "category": "avatar", "name": "Samuray", "currency": "diamonds", "price": 40, "rarity": "epic"},
         {"id": "avatar_cat", "category": "avatar", "name": "Masa Kedisi", "currency": "coins", "price": 42000, "rarity": "rare"},
         {"id": "avatar_phoenix", "category": "avatar", "name": "Anka", "currency": "diamonds", "price": 55, "rarity": "epic"},
-
-
+        # Emoji packs are a standard entitlement, not store products. Every player
+        # owns all four and can choose the active set from inventory.
+        {"id": "emoji_cafe", "category": "emoji_pack", "name": "Kahvehane Klasikleri", "currency": "coins", "price": 0, "rarity": "common", "default": True, "standard_entitlement": True, "store_hidden": True},
+        {"id": "emoji_party", "category": "emoji_pack", "name": "Kutlama Paketi", "currency": "coins", "price": 0, "rarity": "common", "standard_entitlement": True, "store_hidden": True},
+        {"id": "emoji_troll", "category": "emoji_pack", "name": "Tatlı Troll Paketi", "currency": "coins", "price": 0, "rarity": "common", "standard_entitlement": True, "store_hidden": True},
+        {"id": "emoji_neon", "category": "emoji_pack", "name": "Neon Reaksiyonlar", "currency": "coins", "price": 0, "rarity": "common", "standard_entitlement": True, "store_hidden": True},
 
         {"id": "sound_classic", "category": "sound_pack", "name": "Klasik Masa Sesleri", "currency": "coins", "price": 0, "rarity": "common", "default": True},
         {"id": "sound_retro", "category": "sound_pack", "name": "Retro Masa Sesleri", "currency": "diamonds", "price": 35, "rarity": "rare"},
@@ -144,6 +148,10 @@ DEFAULT_PHASE4_CONFIG: dict[str, Any] = {
         {"id": "victory_fx_ice", "category": "victory_fx", "name": "Buz Kırılması", "currency": "coins", "price": 72000, "rarity": "epic"},
         {"id": "victory_fx_ember", "category": "victory_fx", "name": "Kor Patlaması", "currency": "diamonds", "price": 80, "rarity": "legendary"},
         {"id": "victory_fx_crown", "category": "victory_fx", "name": "Şampiyon Tacı", "currency": "diamonds", "price": 110, "rarity": "legendary"},
+        {"id": "spawn_classic", "category": "spawn_fx", "name": "Klasik Oturuş", "currency": "coins", "price": 0, "rarity": "common", "default": True},
+        {"id": "spawn_lightning", "category": "spawn_fx", "name": "Şimşek Girişi", "currency": "coins", "price": 68000, "rarity": "epic"},
+        {"id": "spawn_fire", "category": "spawn_fx", "name": "Alevler İçinde", "currency": "diamonds", "price": 70, "rarity": "legendary"},
+        {"id": "spawn_royal", "category": "spawn_fx", "name": "Kraliyet Sahnesi", "currency": "diamonds", "price": 95, "rarity": "legendary"},
         {"id": "title_none", "category": "title", "name": "Unvansız", "currency": "coins", "price": 0, "rarity": "common", "default": True},
         {"id": "title_okey_hunter", "category": "title", "name": "Okey Avcısı", "currency": "coins", "price": 25000, "rarity": "rare"},
         {"id": "title_pair_master", "category": "title", "name": "Çift Ustası", "currency": "coins", "price": 25000, "rarity": "rare"},
@@ -201,12 +209,29 @@ class Phase4Service:
             cfg["vip"] = deepcopy(DEFAULT_PHASE4_CONFIG["vip"])
             cfg["chance_schema_version"] = 4
             cfg["version"] = max(4, int(cfg.get("version", 1)) + 1)
-        if int(cfg.get("living_schema_version", 0)) < 1:
+        if int(cfg.get("pricing_schema_version", 0)) < 2:
+            pricing={
+                "okeyx.gold.50000":("750.000 Altın",750000,"₺39,90","BAŞLANGIÇ"),
+                "okeyx.gold.180000":("2.000.000 Altın",2000000,"₺79,90","POPÜLER"),
+                "okeyx.gold.500000":("5.000.000 Altın",5000000,"₺159,90","AVANTAJLI"),
+                "okeyx.gold.1200000":("15.000.000 Altın",15000000,"₺349,90","SÜPER DEĞER"),
+                "okeyx.gold.3000000":("40.000.000 Altın",40000000,"₺699,90","EN İYİ DEĞER"),
+            }
+            for product in cfg.get("billing_products",[]):
+                if not isinstance(product,dict):continue
+                row=pricing.get(str(product.get("sku") or ""))
+                if row:
+                    product["title"],product["coins"],product["price_hint"],product["value_label"]=row
+                elif str(product.get("sku") or "")=="okeyx.diamond.250":
+                    product["price_hint"],product["value_label"]="₺119,90","DAHA AVANTAJLI"
+            cfg["pricing_schema_version"]=2
+            cfg["version"]=max(7,int(cfg.get("version",1))+1)
+        if int(cfg.get("living_schema_version", 0)) < 2:
             existing={str(x.get("id")) for x in cfg.get("cosmetics",[]) if isinstance(x,dict)}
             for item in DEFAULT_PHASE4_CONFIG.get("cosmetics",[]):
                 if str(item.get("id")) not in existing:cfg.setdefault("cosmetics",[]).append(deepcopy(item))
             cfg.setdefault("chance_controls",deepcopy(DEFAULT_PHASE4_CONFIG.get("chance_controls",{})))
-            cfg["living_schema_version"]=1
+            cfg["living_schema_version"]=2
             cfg["version"]=max(5,int(cfg.get("version",1))+1)
         root.setdefault("receipts", {})
         root.setdefault("refund_events", [])
@@ -271,6 +296,11 @@ class Phase4Service:
             if item["id"] not in a["inventory"]:
                 a["inventory"].append(item["id"])
             a["equipped"].setdefault(item["category"], item["id"])
+        # Standard entitlements are owned by everyone but only one default per
+        # category is equipped. This is used for free selectable emoji packs.
+        for item in self._global()["config"].get("cosmetics", []):
+            if item.get("standard_entitlement") and item["id"] not in a["inventory"]:
+                a["inventory"].append(item["id"])
         self._sync_pass(a)
         self._recompute_vip(a)
         return a
@@ -390,7 +420,7 @@ class Phase4Service:
             a = self._ensure_account(player_id)
             cfg = self._global()["config"]
             inventory = set(a["inventory"])
-            cosmetics = [{**deepcopy(item), "owned": item["id"] in inventory, "equipped": a["equipped"].get(item["category"]) == item["id"]} for item in cfg.get("cosmetics", []) if item.get("category") != "emoji_pack" and (not item.get("store_hidden") or item["id"] in inventory)]
+            cosmetics = [{**deepcopy(item), "owned": item["id"] in inventory, "equipped": a["equipped"].get(item["category"]) == item["id"]} for item in cfg.get("cosmetics", []) if (not item.get("store_hidden") or item["id"] in inventory)]
             first_purchase_done = any(r.get("player_id") == player_id and r.get("status") == "verified" for r in self._global()["receipts"].values())
             offers = []
             for offer in cfg.get("offers", []):

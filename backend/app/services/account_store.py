@@ -2,6 +2,7 @@ from __future__ import annotations
 import json, os, threading, time, uuid, secrets, hashlib, random, re
 from copy import deepcopy
 from pathlib import Path
+from app.services.remote_store import SupabaseKV, RemoteSync, split_state, merge_state
 
 DATA_PATH=Path(os.getenv('OKEYX_DATA_PATH') or (Path(__file__).resolve().parents[2]/'data'/'accounts.json'))
 
@@ -16,6 +17,11 @@ GIFT_CATALOG={
     'cake': {'name':'Pasta','cost':0,'emoji':'🎂','reaction':False,'persistent':True},
     'trophy': {'name':'Altın Kupa','cost':0,'emoji':'🏆','reaction':False,'persistent':True},
     'fireworks': {'name':'Havai Fişek','cost':0,'emoji':'🎆','reaction':False,'persistent':True},
+    # Masada fırlatılan eğlenceli tepkiler (oyunu etkilemez).
+    'tomato': {'name':'Domates','cost':0,'emoji':'🍅','reaction':True,'persistent':False,'hidden':False},
+    'egg': {'name':'Yumurta','cost':0,'emoji':'🥚','reaction':True,'persistent':False,'hidden':False},
+    'heart': {'name':'Kalp','cost':0,'emoji':'❤️','reaction':False,'persistent':False,'hidden':False},
+    'fire': {'name':'Ateş','cost':0,'emoji':'🔥','reaction':False,'persistent':False,'hidden':False},
     # Hidden aliases keep sessions from an older APK from failing mid-table.
     'punch': {'name':'Yumruk','cost':0,'emoji':'👊','reaction':True,'persistent':False,'hidden':False},
     'applause': {'name':'Alkış','cost':0,'emoji':'👏','reaction':True,'persistent':False,'hidden':False},
@@ -117,12 +123,14 @@ def _base_account(player_id:str,name:str='Oyuncu',email:str|None=None,avatar_url
         'referral':{'code':_referral_code(player_id),'redeemed_code':None,'referrals':[]},
         'league':{'week':_week_key(),'points':0,'city':'Denizli','tier':'Bronz'},
         'club_id':None,
+        'club_rewards':{'claimed_weeks':[]},
         'season':{'id':SEASON_ID,'points':0,'claimed':[]},
         'push_tokens':[],
         'device_ids':[],
         'security':{'risk_flags':[],'device_account_count':1},
         'match_history':[],
         'settings':{'notifications':True,'friend_requests':True,'invites':True,'gifts':True,'chat':True},
+        'coin_transfers':{'day':_day_key(),'sent_today':0,'received_today':0,'history':[]},
     }
 
 DAILY_MISSIONS=[
@@ -137,12 +145,114 @@ WEEKLY_MISSIONS=[
 ]
 
 class AccountStore:
-    def __init__(self,path:Path=DATA_PATH):
+    def __init__(self,path:Path=DATA_PATH,remote:'SupabaseKV|None'=None):
         self.path=path
         self.path.parent.mkdir(parents=True,exist_ok=True)
         self._lock=threading.RLock()
-        self._data={'accounts':{},'clubs':{},'reports':[],'referral_devices':{},'device_accounts':{},'canak':{'balance':0,'history':[]},'activity':[]}
+        self._data=self._empty_data()
+        self._sync:RemoteSync|None=None
+        self._remote_error:str|None=None
+        # remote verilmezse ve ortamda Supabase service anahtarı varsa otomatik bağlanır.
+        if remote is None:
+            from app.core.config import settings
+            if settings.remote_store_enabled:
+                remote=SupabaseKV(settings.supabase_url,settings.supabase_service_role_key)
         self._load()
+        if remote is not None:
+            self._sync=RemoteSync(remote,self._snapshot_rows)
+            self._remote_error='not_loaded'
+            self._load_remote()
+            self._sync.start()
+
+    @staticmethod
+    def _empty_data()->dict:
+        return {'accounts':{},'clubs':{},'reports':[],'referral_devices':{},'device_accounts':{},'canak':{'balance':0,'history':[]},'activity':[]}
+
+    @property
+    def ready(self)->bool:
+        """Uzak depo tanımlıysa yalnızca başarıyla yüklendikten sonra hazırdır.
+
+        Hazır değilken hesap açmak/okumak, oyuncuya sıfırdan (taze coinli) hesap
+        vermek ve sonra gerçek hesabı ezmek demek olurdu; bu yüzden 503 döneriz."""
+        return self._sync is None or self._sync.loaded
+
+    def _snapshot_rows(self)->dict:
+        with self._lock:
+            return split_state(deepcopy(self._data))
+
+    def _load_remote(self)->bool:
+        """Supabase'den tüm veriyi çeker. Başarısızsa False; arka planda yeniden denenir."""
+        sync=self._sync
+        if sync is None:return True
+        try:
+            rows=sync.kv.load_all()
+        except Exception as exc:
+            self._remote_error=str(exc)[:300]
+            print(f'OKEYX_REMOTE_LOAD_FAIL {self._remote_error}',flush=True)
+            threading.Thread(target=self._retry_remote_load,name='okeyx-remote-load-retry',daemon=True).start()
+            return False
+        with self._lock:
+            if rows:
+                self._data=merge_state(rows,self._empty_data())
+                for key,default in self._empty_data().items():
+                    self._data.setdefault(key,default)
+            # rows boşsa: ilk kurulum; yerel (varsa) veri ilk flush'ta yüklenir.
+            sync.mark_known(rows)
+            sync.loaded=True
+            self._remote_error=None
+        sync.mark_dirty()
+        print(f'OKEYX_REMOTE_LOADED rows={len(rows)}',flush=True)
+        return True
+
+    def _retry_remote_load(self):
+        delay=3.0
+        while self._sync is not None and not self._sync.loaded:
+            time.sleep(delay)
+            try:
+                if self._load_remote_quiet():return
+            except Exception:
+                pass
+            delay=min(delay*2,60.0)
+
+    def _load_remote_quiet(self)->bool:
+        sync=self._sync
+        try:
+            rows=sync.kv.load_all()
+        except Exception as exc:
+            self._remote_error=str(exc)[:300];return False
+        with self._lock:
+            if rows:
+                local_only={k:v for k,v in self._data.get('accounts',{}).items() if f'account:{k}' not in rows}
+                self._data=merge_state(rows,self._empty_data())
+                for key,default in self._empty_data().items():
+                    self._data.setdefault(key,default)
+                self._data['accounts'].update(local_only)
+            sync.mark_known(rows);sync.loaded=True;self._remote_error=None
+        sync.mark_dirty();print(f'OKEYX_REMOTE_LOADED rows={len(rows)}',flush=True)
+        return True
+
+    def flush(self)->int:
+        """Bekleyen değişiklikleri hemen Supabase'e yazar (kapanışta çağrılır)."""
+        if self._sync is None:return 0
+        try:return self._sync.flush()
+        except Exception as exc:
+            self._remote_error=str(exc)[:300];return 0
+
+    def remote_status(self)->dict:
+        return {'enabled':self._sync is not None,'loaded':self.ready,'error':self._remote_error,'accounts':len(self._data.get('accounts',{}))}
+
+    def purge_account(self,player_id:str)->bool:
+        """Hesabı ve diğer oyuncuların listelerindeki izini siler (KVKK / hesap silme)."""
+        with self._lock:
+            existed=self._data['accounts'].pop(player_id,None) is not None
+            for a in self._data['accounts'].values():
+                for key in ('friends','friend_requests','sent_friend_requests','recent_players','blocked','muted'):
+                    if isinstance(a.get(key),list):a[key]=[x for x in a[key] if x!=player_id and (not isinstance(x,dict) or x.get('id')!=player_id)]
+            for club in self._data.get('clubs',{}).values():
+                if isinstance(club.get('members'),list):
+                    club['members']=[m for m in club['members'] if (m if isinstance(m,str) else (m or {}).get('id'))!=player_id]
+            self._save()
+            return existed
 
     def _load(self):
         with self._lock:
@@ -162,8 +272,12 @@ class AccountStore:
 
     def _save(self):
         with self._lock:
+            if self._sync is not None:
+                # Kalıcılık Supabase'de; yerel disk geçici olduğu için yazılmaz.
+                self._sync.mark_dirty()
+                return
             tmp=self.path.with_suffix('.tmp')
-            tmp.write_text(json.dumps(self._data,ensure_ascii=False,indent=2),encoding='utf-8')
+            tmp.write_text(json.dumps(self._data,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
             tmp.replace(self.path)
 
     def verify(self,player_id:str,token:str|None)->bool:
@@ -270,9 +384,18 @@ class AccountStore:
         return {
             'id':a['id'],'public_id':a.get('public_id') or _public_id(a['id']),'is_guest':bool(a.get('is_guest',False)),'name':a['name'],'avatar_url':a.get('avatar_url'),'level':a['level'],'xp':a['xp'],
             'stats':a['stats'],'achievements':a['achievements'][-8:],
-            'league':deepcopy(a.get('league',{})),'club_id':a.get('club_id'),
+            'league':deepcopy(a.get('league',{})),'club_id':a.get('club_id'),'last_seen':float(a.get('last_seen',0) or 0),
             'gifts_received':deepcopy([x for x in a.get('gifts_received',[]) if bool(x.get('persistent',False))][:12]),
         }
+
+    def touch_presence(self,player_id:str)->None:
+        with self._lock:
+            a=self._data['accounts'].get(player_id)
+            if not a:return
+            a['last_seen']=_now()
+            # Presence heartbeats are intentionally not fsynced every second;
+            # the in-memory value is enough for live friend cards and the next
+            # normal account mutation persists it.
 
     def update_profile(self,player_id:str,*,name:str|None=None,avatar_url:str|None=None)->dict:
         with self._lock:
@@ -324,6 +447,63 @@ class AccountStore:
             a=self._data['accounts'][player_id]
             a['chips']+=amount;a['stats']['chips_won']+=amount
             self._save()
+
+    def transfer_coins(self,from_id:str,to_id:str,amount:int)->dict:
+        """Server-authoritative friend-to-friend chip transfer.
+
+        Chips are social currency only; diamonds are deliberately non-transferable.
+        The relationship, sender balance and daily anti-abuse ceiling are checked
+        under one lock so two simultaneous taps cannot duplicate money.
+        """
+        amount=int(amount or 0)
+        if from_id==to_id:return {'ok':False,'code':'cannot_transfer_self'}
+        if amount<1_000:return {'ok':False,'code':'transfer_minimum','minimum':1_000}
+        if amount>2_000_000:return {'ok':False,'code':'transfer_too_large','maximum':2_000_000}
+        with self._lock:
+            sender=self._data.get('accounts',{}).get(from_id)
+            receiver=self._data.get('accounts',{}).get(to_id)
+            if not sender or not receiver:return {'ok':False,'code':'user_not_found'}
+            self._normalize(sender);self._normalize(receiver)
+            if to_id not in sender.get('friends',[]) or from_id not in receiver.get('friends',[]):
+                return {'ok':False,'code':'friends_only'}
+            today=_day_key()
+            st=sender.setdefault('coin_transfers',{'day':today,'sent_today':0,'received_today':0,'history':[]})
+            rt=receiver.setdefault('coin_transfers',{'day':today,'sent_today':0,'received_today':0,'history':[]})
+            if st.get('day')!=today:st.update({'day':today,'sent_today':0,'received_today':0})
+            if rt.get('day')!=today:rt.update({'day':today,'sent_today':0,'received_today':0})
+            daily_limit=5_000_000
+            already=int(st.get('sent_today',0) or 0)
+            if already+amount>daily_limit:
+                return {'ok':False,'code':'transfer_daily_limit','daily_limit':daily_limit,'remaining_today':max(0,daily_limit-already)}
+            if int(sender.get('chips',0) or 0)<amount:return {'ok':False,'code':'insufficient_balance'}
+            sender['chips']=int(sender.get('chips',0))-amount
+            receiver['chips']=int(receiver.get('chips',0))+amount
+            sender.setdefault('stats',{})['chips_spent']=int(sender.get('stats',{}).get('chips_spent',0))+amount
+            receiver.setdefault('stats',{})['chips_won']=int(receiver.get('stats',{}).get('chips_won',0))+amount
+            st['sent_today']=already+amount
+            rt['received_today']=int(rt.get('received_today',0) or 0)+amount
+            transfer_id=uuid.uuid4().hex[:12]
+            created=_now()
+            sent_row={'id':transfer_id,'direction':'sent','other_id':to_id,'other_name':receiver.get('name','Oyuncu'),'amount':amount,'created_at':created}
+            recv_row={'id':transfer_id,'direction':'received','other_id':from_id,'other_name':sender.get('name','Oyuncu'),'amount':amount,'created_at':created}
+            st.setdefault('history',[]).insert(0,sent_row);st['history']=st['history'][:40]
+            rt.setdefault('history',[]).insert(0,recv_row);rt['history']=rt['history'][:40]
+            receiver.setdefault('notifications',[]).insert(0,{
+                'id':uuid.uuid4().hex[:12],
+                'title':'Altın geldi 🪙',
+                'message':f'{sender.get("name","Arkadaşın")} sana {amount:,} altın gönderdi.'.replace(',', '.'),
+                'kind':'social_transfer',
+                'data':{'from_id':from_id,'amount':amount,'transfer_id':transfer_id},
+                'read':False,'created_at':created,
+            })
+            receiver['notifications']=receiver['notifications'][:80]
+            self._save()
+            return {
+                'ok':True,'transfer_id':transfer_id,'amount':amount,
+                'sender_chips':sender['chips'],'receiver_chips':receiver['chips'],
+                'sent_today':st['sent_today'],'daily_limit':daily_limit,
+                'remaining_today':max(0,daily_limit-int(st['sent_today'])),
+            }
 
     def add_xp(self,player_id:str,amount:int,reason:str='')->dict:
         amount=max(0,int(amount))
@@ -802,6 +982,8 @@ class AccountStore:
                 games=sum(self._data['accounts'][pid]['stats']['games'] for pid in mine.get('members',[]) if pid in self._data['accounts'])
                 wins=sum(self._data['accounts'][pid]['stats']['wins'] for pid in mine.get('members',[]) if pid in self._data['accounts'])
                 mine['tasks']=[{'id':'club_games_20','title':'Kulüpçe 20 oyun oyna','progress':min(games,20),'target':20,'complete':games>=20},{'id':'club_wins_8','title':'Kulüpçe 8 galibiyet al','progress':min(wins,8),'target':8,'complete':wins>=8}]
+                claimed_weeks=a.setdefault('club_rewards',{}).setdefault('claimed_weeks',[])
+                mine['weekly_event']={'id':f'{_week_key()}-club-rally','title':'Kulüp Rallisi','week':_week_key(),'reward_chips':15000,'complete':games>=20 and wins>=8,'claimed':_week_key() in claimed_weeks}
             listing=[{'id':c['id'],'name':c['name'],'members':len(c.get('members',[])),'season_points':int(c.get('season_points',0))} for c in clubs.values()]
             listing.sort(key=lambda x:(-x['season_points'],-x['members'],x['name'].lower()))
             for rank,row in enumerate(listing,1):row['rank']=rank
@@ -814,6 +996,22 @@ class AccountStore:
                 'my_rank':mine_rank,
             }
             return {'club':mine,'clubs':deepcopy(listing[:50]),'tournament':tournament}
+
+
+    def club_claim_weekly(self,player_id:str)->dict:
+        with self._lock:
+            a=self._data['accounts'].get(player_id)
+            if not a:return {'ok':False,'code':'account_not_found'}
+            cid=a.get('club_id');club=self._data.setdefault('clubs',{}).get(cid) if cid else None
+            if not club:return {'ok':False,'code':'not_in_club'}
+            games=sum(self._data['accounts'][pid]['stats']['games'] for pid in club.get('members',[]) if pid in self._data['accounts'])
+            wins=sum(self._data['accounts'][pid]['stats']['wins'] for pid in club.get('members',[]) if pid in self._data['accounts'])
+            if games<20 or wins<8:return {'ok':False,'code':'club_event_not_complete'}
+            week=_week_key();state=a.setdefault('club_rewards',{});claimed=state.setdefault('claimed_weeks',[])
+            if week in claimed:return {'ok':False,'code':'club_event_already_claimed'}
+            reward=15000;claimed.append(week);state['claimed_weeks']=claimed[-12:];a['chips']=int(a.get('chips',0))+reward;a['stats']['chips_won']=int(a['stats'].get('chips_won',0))+reward
+            self.add_notification(player_id,'Kulüp Rallisi tamamlandı!',f'{reward:,} altın kulüp ödülünü aldın.'.replace(',','.'),'club_reward',{'club_id':cid,'week':week})
+            self._save();return {'ok':True,'reward':reward,'chips':a['chips'],'week':week}
 
     def club_chat(self,player_id:str,text:str)->dict:
         text=_sanitize_social_text(text,160)

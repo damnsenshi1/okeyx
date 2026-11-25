@@ -47,7 +47,7 @@ class JoinRoomIn(BaseModel):
 class ChatIn(BaseModel):
     seat:int
     reconnect_token:str
-    kind:str='quick'  # quick | emoji | text | gift
+    kind:str='quick'  # quick | emoji | text | voice | gift
     value:str
     to_seat:int|None=None
 
@@ -59,11 +59,13 @@ class ReconnectIn(BaseModel):
     player_id:str
     account_token:str
 
+class SpectatorIn(BaseModel):
+    player_id:str
+    account_token:str
+    action:str='join'  # join | leave | react | predict
+    value:str=''
+    to_seat:int|None=None
 
-class ReadyIn(BaseModel):
-    seat:int
-    reconnect_token:str
-    ready:bool=True
 
 class ManageRoomIn(BaseModel):
     seat:int=0
@@ -133,7 +135,11 @@ def _human_count(room_id:str)->int:
 def _free_human_seat(room_id:str)->int|None:
     room=ROOMS.get(room_id)
     if not room:return None
-    return next((seat for seat,p in room.state.players.items() if p.bot),None)
+    meta=_ensure_meta(room_id,legacy=True)
+    explicit=set(meta.get('bot_seats') or set())
+    # Hostun bilinçli eklediği bot dolu koltuktur. Gerçek oyuncu yalnızca
+    # gerçekten boş placeholder koltuğa oturabilir; botu ezmek için host önce kaldırır.
+    return next((seat for seat,p in room.state.players.items() if p.bot and seat not in explicit and seat not in meta.get('player_ids',{})),None)
 
 def _account(player_id:str,account_token:str):
     a=STORE.get(player_id)
@@ -154,7 +160,7 @@ def _ensure_meta(room_id:str,legacy:bool=False)->dict:
         'afk_strikes':{0:0,1:0,2:0,3:0},'action_times':{},'chat_times':{},'dedupe':{},
         'economy_charged':False,'settled':False,'recorded_rounds':set(),'chat':[],'reactions':[],'legacy':legacy,'created_at':_now(),
         'password_hash':None,'invited_player_ids':set(),'chat_enabled':True,'gifts_enabled':True,'auto_rematch':False,
-        'state_version':1,'quick_match':False,'ready':{},'bot_seats':set()
+        'state_version':1,'quick_match':False,'bot_seats':set(),'spectators':{},'spectator_events':[]
     }
     ROOM_META[room_id]=m
     return m
@@ -164,7 +170,7 @@ def _bind_human(room_id:str,seat:int,player_id:str,name:str)->str:
     token=m['seat_tokens'].get(seat) or _token()
     m['seat_tokens'][seat]=token;m['player_ids'][seat]=player_id
     m['connected'].setdefault(seat,False);m['afk_strikes'][seat]=0
-    m.setdefault('ready',{})[seat]=bool(m.get('quick_match',False));m.setdefault('bot_seats',set()).discard(seat)
+    m.setdefault('bot_seats',set()).discard(seat)
     room.set_player_identity(seat,player_id,STORE.get(player_id)['name'],bot=False)
     _touch(room_id)
     return token
@@ -190,7 +196,7 @@ def _rate_limit(m:dict,token:str|None):
 
 def _chat_rate_limit(m:dict,token:str,kind:str):
     now=_now();last=m.setdefault('chat_times',{}).get(token,0.0)
-    wait=0.70 if kind=='gift' else (0.80 if kind=='text' else 0.40)
+    wait=1.80 if kind=='voice' else (0.70 if kind=='gift' else (0.80 if kind=='text' else 0.40))
     if now-last<wait:raise HTTPException(429,'chat_cooldown')
     m['chat_times'][token]=now
 
@@ -210,7 +216,6 @@ def _state(room_id:str,viewer:int)->dict:
         p['explicit_bot']=explicit_bot
         if p['empty']:
             p['name']='Boş Koltuk'
-        p['ready']=bool(m.setdefault('ready',{}).get(seat, bool(p.get('bot'))))
         acc=STORE.get(pid) if pid else None
         p['avatar_url']=acc.get('avatar_url') if acc else None
         if acc:
@@ -229,6 +234,7 @@ def _state(room_id:str,viewer:int)->dict:
                 'wins':int(stats.get('wins',0) or 0),
                 'losses':int(stats.get('losses',0) or 0),
                 'best_streak':int(stats.get('best_streak',0) or 0),
+                'current_streak':int(stats.get('current_streak',0) or 0),
                 'city':str(league.get('city','Denizli') or 'Denizli'),
                 'tier':str(league.get('tier','Bronz') or 'Bronz'),
             }
@@ -244,6 +250,7 @@ def _state(room_id:str,viewer:int)->dict:
                 'wins':{'easy':9,'medium':57,'hard':196,'afk':0}.get(bot_level,57),
                 'losses':{'easy':29,'medium':89,'hard':216,'afk':0}.get(bot_level,89),
                 'best_streak':{'easy':2,'medium':5,'hard':11,'afk':0}.get(bot_level,5),
+                'current_streak':0,
                 'city':'OkeyX','tier':{'easy':'Bronz','medium':'Gümüş','hard':'Altın','afk':'—'}.get(bot_level,'Gümüş'),
             }
         else:
@@ -251,7 +258,7 @@ def _state(room_id:str,viewer:int)->dict:
             p['chips']=0
             p['vip_level']=0;p['vip_badge']='';p['name_color']='';p['profile_frame']='';p['loadout']={}
             p['gifts_received']=[]
-            p['public_stats']={'games':0,'wins':0,'losses':0,'best_streak':0,'city':'—','tier':'—'}
+            p['public_stats']={'games':0,'wins':0,'losses':0,'best_streak':0,'current_streak':0,'city':'—','tier':'—'}
     state['viewer_seat']=viewer
     # The room owner's selected table cloth is authoritative for every client,
     # so cosmetics render consistently instead of each device choosing locally.
@@ -272,6 +279,51 @@ def _state(room_id:str,viewer:int)->dict:
     state['server_time_ms']=int(time.time()*1000)
     state['human_count']=_human_count(room_id)
     state['quick_match']=bool(m.get('quick_match',False))
+    state['spectator_count']=len(m.setdefault('spectators',{}))
+    return state
+
+def _settle_spectator_predictions(room_id:str)->None:
+    room=ROOMS.get(room_id);m=ROOM_META.get(room_id) or {}
+    if not room or room.state.phase!='finished':return
+    round_index=int(room.state.round_index)
+    winner=int(room.state.winner_seat) if room.state.winner_seat is not None else -1
+    flags=dict(room.state.round_finish_flags or {})
+    changed=False
+    for row in m.setdefault('spectators',{}).values():
+        prediction=row.get('prediction') or {}
+        if int(prediction.get('round',-1))!=round_index or prediction.get('settled'):continue
+        value=str(prediction.get('value') or '')
+        correct=(value==f'winner:{winner}' or (value=='joker_finish' and flags.get('joker_finish') is True) or (value=='pair_finish' and flags.get('pair_finish') is True))
+        reward=150 if correct and value in ('joker_finish','pair_finish') else (100 if correct else 0)
+        row['points']=int(row.get('points',0) or 0)+reward
+        prediction.update({'settled':True,'correct':correct,'reward':reward})
+        row['prediction']=prediction;changed=True
+    if changed:_persist_runtime()
+
+def _spectator_state(room_id:str,player_id:str)->dict:
+    room=ROOMS.get(room_id)
+    if not room:raise HTTPException(404,'room_not_found')
+    _settle_spectator_predictions(room_id)
+    m=_ensure_meta(room_id,legacy=True)
+    now=_now()
+    spectators=m.setdefault('spectators',{})
+    for pid,row in list(spectators.items()):
+        if now-float(row.get('last_seen',now))>150:spectators.pop(pid,None)
+    spectator=spectators.get(player_id)
+    if not spectator:raise HTTPException(403,'spectator_not_joined')
+    spectator['last_seen']=now
+    state=_state(room_id,0)
+    for p in state.get('players',[]):
+        p['hand']=[]
+        for key in ('pending_left_tile_id','rack_value','turbo_star_count','can_undo_layoff','can_undo_opening'):
+            p.pop(key,None)
+    for key in ('available_actions','left_opening_opportunity','left_useful_tile_id','left_useful_reason','penalty_tile_ids','opening_preview_score','opening_preview_used','opening_preview_pairs','assisted_series_score','assisted_series_groups','assisted_series_used_ids','useful_tile_ids','viewer_afk_bot','viewer_chips','required_balance'):
+        state.pop(key,None)
+    state['viewer_seat']=-1
+    state['spectator_points']=int(spectator.get('points',0) or 0)
+    state['spectator_prediction']=dict(spectator.get('prediction') or {})
+    state['spectator_events']=list(m.setdefault('spectator_events',[])[-12:])
+    state['can_predict']=bool(room.state.started and room.state.phase not in ('waiting','finished') and int(room.state.turn_no)<=2)
     return state
 
 async def _broadcast(room_id:str,skip_seat:int|None=None):
@@ -343,7 +395,7 @@ def _settle_if_finished(room_id:str):
     stake=max(0,int(room.state.entry_fee))
 
     def remaining(seat:int)->int:
-        return int(room.state.round_breakdown.get(seat,{}).get('rack',0))
+        return int(room.state.round_breakdown.get(seat,{}).get('remaining_points',room.state.round_breakdown.get(seat,{}).get('rack',0)))
 
     # Tek elde direkt elde kalan puana göre; çok elde toplam puan, eşitlikte son elde kalan.
     def rank_key(seat:int):
@@ -460,6 +512,8 @@ def _settle_if_finished(room_id:str):
         rankings.append({
             'rank':rank_by_seat[seat],'seat':seat,'name':room.state.players[seat].name,
             'score':int(scores.get(seat,0)),'remaining':remaining(seat),
+            'remaining_points':remaining(seat),
+            'remaining_tile_count':int(room.state.round_breakdown.get(seat,{}).get('remaining_tile_count',len(room.state.players[seat].hand))),
             'delta':int(net_deltas.get(seat,0)),'gross_delta':int(gross_deltas.get(seat,0)),
             'commission':int(commissions.get(seat,0)),
             'balance_after':int((acc or {}).get('chips',0) or 0) if acc else None,
@@ -512,15 +566,91 @@ def list_rooms():
     out=[]
     for rid,r in ROOMS.items():
         st=r.state;m=_ensure_meta(rid,legacy=True)
-        human=sum(1 for p in st.players.values() if not p.bot)
+        human=_human_count(rid)
+        bot_count=len(set(m.get('bot_seats') or set()))
+        occupied=min(4,human+bot_count)
         if st.phase!='waiting':continue
         out.append({
             'room_id':rid,'name':st.room_name,'variant':st.variant,'entry_fee':st.entry_fee,
-            'assisted':st.assisted,'turbo':st.turbo,'rounds':st.max_rounds,'players':human,
+            'assisted':st.assisted,'turbo':st.turbo,'rounds':st.max_rounds,'players':occupied,'human_players':human,'bot_players':bot_count,
             'capacity':4,'multiplier':st.multiplier,'phase':st.phase,'started':st.started,'pot':st.pot,'game_mode':('turbo' if st.turbo else 'standard'),'team_mode':st.team_mode,
             'turn_seconds':st.turn_seconds,'locked':bool(m.get('password_hash')),'required_balance':_required_balance(st.entry_fee,st.turbo)
         })
     return {'rooms':out}
+
+@router.get('/lobby/live-tables')
+def list_live_tables():
+    out=[]
+    for room_id,room in ROOMS.items():
+        state=room.state;m=_ensure_meta(room_id,legacy=True)
+        if not state.started or state.match_finished:continue
+        players=[]
+        for seat in range(4):
+            player=state.players[seat]
+            players.append({'seat':seat,'name':player.name,'bot':bool(player.bot),'opened':bool(player.opened)})
+        out.append({
+            'room_id':room_id,'name':state.room_name,'variant':state.variant,
+            'turbo':bool(state.turbo),'team_mode':state.team_mode,'entry_fee':int(state.entry_fee),
+            'round_index':int(state.round_index),'max_rounds':int(state.max_rounds),
+            'phase':state.phase,'players':players,'spectators':len(m.setdefault('spectators',{})),
+            'pot':int(state.pot),'turn_seconds':int(state.turn_seconds),
+        })
+    out.sort(key=lambda row:(-int(row['spectators']),-int(row['entry_fee'])))
+    return {'tables':out[:30]}
+
+@router.post('/game/{room_id}/spectate')
+async def spectate_room(room_id:str,body:SpectatorIn):
+    room=ROOMS.get(room_id)
+    if not room:raise HTTPException(404,'room_not_found')
+    account=_account(body.player_id,body.account_token)
+    m=_ensure_meta(room_id,legacy=True);spectators=m.setdefault('spectators',{})
+    if body.action=='join':
+        if body.player_id in set(m.get('player_ids',{}).values()):raise HTTPException(409,'already_at_table')
+        previous=spectators.get(body.player_id) or {}
+        spectators[body.player_id]={
+            'player_id':body.player_id,'name':str(account.get('name') or 'Yancı')[:24],
+            'avatar_url':account.get('avatar_url'),'points':int(previous.get('points',0) or 0),
+            'prediction':dict(previous.get('prediction') or {}),'joined_at':float(previous.get('joined_at') or _now()),'last_seen':_now(),
+        }
+        _touch(room_id)
+        return {'ok':True,'state':_spectator_state(room_id,body.player_id)}
+    if body.action=='leave':
+        spectators.pop(body.player_id,None);_touch(room_id)
+        return {'ok':True}
+    spectator=spectators.get(body.player_id)
+    if not spectator:raise HTTPException(403,'spectator_not_joined')
+    spectator['last_seen']=_now()
+    if body.action=='state':
+        return {'ok':True,'state':_spectator_state(room_id,body.player_id)}
+    if body.action=='react':
+        allowed={
+            'nazar':('Nazar Boncuğu','totem'),'tea':('Çay','gift'),
+            'coffee':('Türk Kahvesi','gift'),'applause':('Alkış','reaction'),
+        }
+        if body.value not in allowed:raise HTTPException(400,'spectator_reaction_not_allowed')
+        if body.to_seat not in range(4):raise HTTPException(400,'target_required')
+        last=float(spectator.get('last_reaction_at',0) or 0)
+        if _now()-last<1.2:raise HTTPException(429,'spectator_reaction_cooldown')
+        spectator['last_reaction_at']=_now();label,reaction_kind=allowed[body.value]
+        event={
+            'id':uuid.uuid4().hex[:10],'seat':-1,'player_id':body.player_id,
+            'name':f"Yancı • {spectator['name']}",'kind':'gift','value':label,
+            'reaction_kind':reaction_kind,'spectator':True,'to_seat':body.to_seat,
+            'to_name':room.state.player(body.to_seat).name,'created_at':int(_now()),
+        }
+        m.setdefault('reactions',[]).append(event);m['reactions']=m['reactions'][-20:]
+        m.setdefault('spectator_events',[]).append(event);m['spectator_events']=m['spectator_events'][-20:]
+        _touch(room_id);await _broadcast(room_id)
+        return {'ok':True,'event':event,'state':_spectator_state(room_id,body.player_id)}
+    if body.action=='predict':
+        if not room.state.started or room.state.phase in ('waiting','finished') or int(room.state.turn_no)>2:
+            return {'ok':False,'code':'prediction_closed','state':_spectator_state(room_id,body.player_id)}
+        allowed={f'winner:{seat}' for seat in range(4)}|{'joker_finish','pair_finish'}
+        if body.value not in allowed:raise HTTPException(400,'prediction_not_allowed')
+        spectator['prediction']={'round':int(room.state.round_index),'value':body.value,'settled':False,'created_at':int(_now())}
+        _touch(room_id)
+        return {'ok':True,'state':_spectator_state(room_id,body.player_id)}
+    raise HTTPException(400,'bad_spectator_action')
 
 @router.post('/lobby/rooms')
 def create_room(body:CreateRoomIn):
@@ -628,7 +758,7 @@ async def join_room(room_id:str,body:JoinRoomIn):
         # Authenticated rejoin of the same waiting room.
         seat=next(s for s,pid in m['player_ids'].items() if pid==body.player_id)
         return {'room_id':room_id,'seat':seat,'reconnect_token':m['seat_tokens'][seat],'state':_state(room_id,seat)}
-    seat=next((s for s,p in r.state.players.items() if p.bot),None)
+    seat=_free_human_seat(room_id)
     if seat is None:raise HTTPException(409,'room_full')
     token=_bind_human(room_id,seat,body.player_id,account['name'])
     STORE.record_activity('room_join',body.player_id,f'{account["name"]} bir masaya katıldı',{'room_id':room_id,'entry_fee':r.state.entry_fee,'turbo':r.state.turbo})
@@ -646,7 +776,8 @@ def game_new(
     variant:str=Query('non_fold',pattern='^(non_fold|fold)$'),
     entry_fee:int=5000,assisted:bool=True,turbo:bool=False,rounds:int=1,name:str='OkeyX Masası'
 ):
-    # Legacy local test route; normal product flow uses lobby.
+    # Legacy local test route; normal product flow uses lobby. Yayında kapalı.
+    if settings.is_production and not settings.local_dev_mode:raise HTTPException(404,'not_found')
     r=new_room(variant=variant,entry_fee=entry_fee,assisted=assisted,turbo=turbo,max_rounds=rounds,room_name=name)
     _ensure_meta(r.state.room_id,legacy=True)
     return _state(r.state.room_id,0)
@@ -676,17 +807,6 @@ def reconnect_game(body:ReconnectIn):
     _touch(room_id)
     return {'ok':True,'room_id':room_id,'seat':seat,'reconnect_token':token,'state':_state(room_id,seat)}
 
-@router.post('/game/{room_id}/ready')
-async def set_ready(room_id:str,body:ReadyIn):
-    r=ROOMS.get(room_id)
-    if not r:raise HTTPException(404,'room_not_found')
-    if r.state.phase!='waiting':return {'ok':False,'code':'room_already_started','state':_state(room_id,body.seat)}
-    m=_auth(room_id,body.seat,body.reconnect_token)
-    if body.seat not in m.get('player_ids',{}):raise HTTPException(403,'seat_not_owned')
-    m.setdefault('ready',{})[body.seat]=bool(body.ready)
-    _touch(room_id);await _broadcast(room_id)
-    return {'ok':True,'code':'ready' if body.ready else 'not_ready','state':_state(room_id,body.seat)}
-
 async def _execute_action(room_id:str,body:ActionIn):
     """Single authoritative action path used by HTTP and WebSocket clients."""
     r=ROOMS.get(room_id)
@@ -707,13 +827,9 @@ async def _execute_action(room_id:str,body:ActionIn):
             if body.request_id:m['dedupe'][body.request_id]=response
             return response
         if not m.get('quick_match'):
-            human_seats=[int(seat) for seat,pid in m.get('player_ids',{}).items() if pid and not r.state.player(int(seat)).bot]
-            missing=[seat for seat in human_seats if seat!=owner and not bool(m.setdefault('ready',{}).get(seat,False))]
+            # Özel masada Hazır sistemi yok. Dört koltuk gerçek oyuncu veya
+            # hostun bilinçli eklediği botla dolduğunda başlatma tamamen hostta.
             open_seats=[seat for seat in range(4) if seat not in m.get('player_ids',{}) and seat not in m.setdefault('bot_seats',set())]
-            if missing:
-                response={'ok':False,'code':'players_not_ready','payload':{'seats':missing},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-                if body.request_id:m['dedupe'][body.request_id]=response
-                return response
             if open_seats:
                 response={'ok':False,'code':'empty_seats','payload':{'seats':open_seats},'request_id':body.request_id,'state':_state(room_id,body.seat)}
                 if body.request_id:m['dedupe'][body.request_id]=response
@@ -791,7 +907,8 @@ async def manage_room(room_id:str,body:ManageRoomIn):
             level=(body.bot_level or 'medium').strip().lower()
             if level not in {'easy','medium','hard'}:level='medium'
             m.setdefault('bot_seats',set()).add(target);p.bot=True;p.bot_level=level;p.user_id=f'bot-seat-{target}';p.name={'easy':'Kolay Bot','medium':'Normal Bot','hard':'Zor Bot'}[level]
-        _touch(room_id);await _broadcast(room_id);return {'ok':True,'code':action,'state':_state(room_id,body.seat)}
+        _touch(room_id);await _broadcast(room_id)
+        return {'ok':True,'code':action,'state':_state(room_id,body.seat)}
     if action=='settings':
         if r.state.phase!='waiting':raise HTTPException(409,'settings_waiting_only')
         if body.room_name is not None:
@@ -834,7 +951,7 @@ async def leave_room(room_id:str,body:LeaveIn):
         if r.state.phase=='waiting' or intro_active:
             p=r.state.player(body.seat)
             p.bot=True;p.user_id=f'bot-seat-{body.seat}';p.name=['Sen','Deniz','Mert','Eylül'][body.seat]
-            m['player_ids'].pop(body.seat,None);m['seat_tokens'].pop(body.seat,None);m.setdefault('ready',{}).pop(body.seat,None);m.setdefault('bot_seats',set()).discard(body.seat)
+            m['player_ids'].pop(body.seat,None);m['seat_tokens'].pop(body.seat,None);m.setdefault('bot_seats',set()).discard(body.seat)
             if int(m.get('owner_seat',0))==int(body.seat):
                 remaining=sorted(int(seat) for seat,pid in m.get('player_ids',{}).items() if pid)
                 if remaining:m['owner_seat']=remaining[0]
@@ -859,7 +976,7 @@ async def leave_room(room_id:str,body:LeaveIn):
         if not ok:
             return {'ok':False,'code':'leave_forfeit_insufficient_balance'}
     r.takeover_by_bot(body.seat,'medium')
-    m['player_ids'].pop(body.seat,None);m['seat_tokens'].pop(body.seat,None);m.setdefault('ready',{}).pop(body.seat,None);m.setdefault('bot_seats',set()).discard(body.seat)
+    m['player_ids'].pop(body.seat,None);m['seat_tokens'].pop(body.seat,None);m.setdefault('bot_seats',set()).discard(body.seat)
     m['connected'][body.seat]=False;m['disconnect_at'][body.seat]=_now()
     _touch(room_id)
     await _broadcast(room_id)
@@ -876,12 +993,12 @@ async def table_chat(room_id:str,body:ChatIn):
         san=Phase4Service(STORE).active_sanctions(sender_id)
         if san.get('muted') or san.get('chat_locked'):raise HTTPException(403,'account_muted')
         if body.kind=='gift' and san.get('gift_locked'):raise HTTPException(403,'gifts_locked')
-    if body.kind not in ('quick','emoji','text','gift'):raise HTTPException(400,'bad_chat_kind')
+    if body.kind not in ('quick','emoji','text','voice','gift'):raise HTTPException(400,'bad_chat_kind')
     if body.kind=='gift' and not bool(m.get('gifts_enabled',True)):raise HTTPException(403,'gifts_disabled')
     if body.kind!='gift' and not bool(m.get('chat_enabled',True)):raise HTTPException(403,'chat_disabled')
     value=body.value.strip()
     if body.kind=='emoji':
-        allowed={'😂','😎','🔥','👏','🤝','😱','🍀','⭐','❤️','🥳','😅','🤩','😈','🤔','🙈','💯','👑','🎯','🫶','🤣'}
+        allowed={'😂','😎','🔥','👏','🤝','😱','🍀','⭐','❤️','🥳','😅','🤩','😈','🤔','🙈','💯','👑','🎯','🫶','🤣','🎉','🕺','💃','✨','🏆','☕','🫖','🧿','😄','🪑','🤡','😏','🙃','👀','🫠','🧂','🐔','🩴','💜','💙','🩵','⚡','🌌','🎵'}
         if value not in allowed:raise HTTPException(400,'emoji_not_allowed')
         _chat_rate_limit(m,body.reconnect_token,body.kind)
     elif body.kind=='quick':
@@ -895,6 +1012,13 @@ async def table_chat(room_id:str,body:ChatIn):
     elif body.kind=='text':
         if len(value)>120:raise HTTPException(400,'message_too_long')
         value=_moderate_chat_text(value)
+        _chat_rate_limit(m,body.reconnect_token,body.kind)
+    elif body.kind=='voice':
+        allowed={
+            'Hadi kardeşim, ağaç olduk!','Okey bende!','Taşını at da oynayalım!',
+            'Bol şans!','Son taş!','Vay be!','Çift gidiyorum!','Eline sağlık!'
+        }
+        if value not in allowed:raise HTTPException(400,'voice_line_not_allowed')
         _chat_rate_limit(m,body.reconnect_token,body.kind)
     else:
         table_gift=body.to_seat == -1

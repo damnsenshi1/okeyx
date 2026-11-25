@@ -1,10 +1,12 @@
 from __future__ import annotations
+import secrets
 from fastapi import APIRouter, HTTPException, Header, Depends
 from pydantic import BaseModel
-from app.services.account_store import STORE,GIFT_CATALOG
+from app.services.account_store import STORE,GIFT_CATALOG,_day_key
 from app.core.config import settings
 import httpx
 import asyncio
+import time
 
 router=APIRouter(tags=['account'])
 
@@ -44,6 +46,11 @@ class GiftIn(BaseModel):
     from_id:str
     to_id:str
     gift_type:str
+
+class CoinTransferIn(BaseModel):
+    from_id:str
+    to_id:str
+    amount:int
 
 class InviteIn(BaseModel):
     from_id:str
@@ -203,6 +210,7 @@ async def _sync_social_from_supabase(player_id:str, authorization:str|None):
         _force_local_relationship(player_id,target,rel)
 
 def _require(player_id:str,token:str|None):
+    if not STORE.ready:raise HTTPException(503,'storage_unavailable')
     if not STORE.get(player_id):raise HTTPException(404,'account_not_found')
     if not STORE.verify(player_id,token):raise HTTPException(401,'invalid_account_token')
 
@@ -213,12 +221,14 @@ def _require_social(player_id:str,token:str|None):
 
 @router.post('/account/bootstrap')
 def bootstrap(body:BootstrapIn):
+    if not STORE.ready:raise HTTPException(503,'storage_unavailable')
     a=STORE.bootstrap_guest(body.player_id,body.name,body.session_token)
     if not a:raise HTTPException(401,'invalid_account_token')
     return a
 
 @router.post('/account/bootstrap-google')
 async def bootstrap_google(body:GoogleBootstrapIn,user=Depends(_google_user)):
+    if not STORE.ready:raise HTTPException(503,'storage_unavailable')
     # Supabase JWT is the identity authority; game/account session token remains our app session secret.
     account=STORE.ensure(user['id'],body.name,user.get('email'),body.avatar_url,is_guest=False)
     if body.device_id:STORE.track_device(user['id'],body.device_id)
@@ -234,7 +244,7 @@ def bootstrap_local(body:LocalBootstrapIn,x_local_test_secret:str|None=Header(No
     """
     if not settings.local_dev_mode:
         raise HTTPException(404,'local_bootstrap_disabled')
-    if x_local_test_secret != settings.local_test_secret:
+    if not settings.local_test_secret or not secrets.compare_digest(str(x_local_test_secret or ''),settings.local_test_secret):
         raise HTTPException(403,'invalid_local_test_secret')
     account=STORE.ensure(body.player_id,body.name,None,body.avatar_url,is_guest=body.is_guest)
     # Local/LAN developer gameplay must mirror the authenticated Supabase wallet
@@ -246,6 +256,7 @@ def bootstrap_local(body:LocalBootstrapIn,x_local_test_secret:str|None=Header(No
 
 @router.post('/account/bootstrap-supabase')
 async def bootstrap_supabase(body:GoogleBootstrapIn,authorization:str|None=Header(None),user=Depends(_google_user)):
+    if not STORE.ready:raise HTTPException(503,'storage_unavailable')
     """Bootstrap both anonymous and permanent Supabase-authenticated players."""
     account=STORE.ensure(user['id'],body.name,user.get('email'),body.avatar_url,is_guest=body.is_guest)
     if body.device_id:STORE.track_device(user['id'],body.device_id)
@@ -268,7 +279,10 @@ def live_activity(limit:int=18):
 @router.get('/account/{player_id}')
 def account(player_id:str,x_account_token:str|None=Header(None)):
     _require(player_id,x_account_token)
-    return STORE.get(player_id)
+    out=STORE.get(player_id)
+    if out is None:return out
+    out=dict(out);out['reward_day_key']=_day_key()
+    return out
 
 @router.patch('/account/{player_id}')
 def update_account(player_id:str,body:ProfileUpdateIn,x_account_token:str|None=Header(None)):
@@ -278,7 +292,11 @@ def update_account(player_id:str,body:ProfileUpdateIn,x_account_token:str|None=H
 @router.post('/account/{player_id}/daily')
 def daily(player_id:str,x_account_token:str|None=Header(None)):
     _require(player_id,x_account_token)
-    return STORE.claim_daily(player_id)
+    out=STORE.claim_daily(player_id)
+    out=dict(out);out['server_day_key']=_day_key()
+    if isinstance(out.get('account'),dict):
+        out['account']=dict(out['account']);out['account']['reward_day_key']=out['server_day_key']
+    return out
 
 @router.get('/account/{player_id}/missions')
 def missions(player_id:str,x_account_token:str|None=Header(None)):
@@ -361,11 +379,17 @@ async def _supabase_search_players(query:str, authorization:str|None, viewer_id:
         return []
 
 def _presence(row,pres):
-    out=dict(row);out.update(pres.get(out.get('id'),{'online':False,'in_game':False,'joinable':False}));return out
+    out=dict(row)
+    state=pres.get(out.get('id'))
+    if state is None:
+        recent=(time.time()-float(out.get('last_seen',0) or 0))<8.0
+        state={'online':recent,'in_game':False,'joinable':False}
+    out.update(state);return out
 
 @router.get('/social/{player_id}')
 async def social(player_id:str,x_account_token:str|None=Header(None),authorization:str|None=Header(None)):
     _require(player_id,x_account_token)
+    STORE.touch_presence(player_id)
     await _sync_social_from_supabase(player_id,authorization)
     view=STORE.friends_view(player_id);pres=_presence_map();view['friends']=[_presence(x,pres) for x in view.get('friends',[])];view['requests']=[_presence(x,pres) for x in view.get('requests',[])];recent=[]
     for item in view.get('recent_players',[]):
@@ -445,6 +469,11 @@ def gifts_catalog():
 def gift(body:GiftIn,x_account_token:str|None=Header(None)):
     _require(body.from_id,x_account_token)
     return STORE.send_gift(body.from_id,body.to_id,body.gift_type)
+
+@router.post('/social/transfer-coins')
+def transfer_coins(body:CoinTransferIn,x_account_token:str|None=Header(None)):
+    _require_social(body.from_id,x_account_token)
+    return STORE.transfer_coins(body.from_id,body.to_id,body.amount)
 
 @router.post('/social/invite')
 def invite(body:InviteIn,x_account_token:str|None=Header(None)):
@@ -578,7 +607,19 @@ def club_leave(body:ClubJoinIn,x_account_token:str|None=Header(None)):
     _require(body.player_id,x_account_token)
     return STORE.club_leave(body.player_id)
 
+@router.post('/clubs/weekly/claim')
+def club_weekly_claim(body:ClubJoinIn,x_account_token:str|None=Header(None)):
+    _account_guard(body.player_id,x_account_token)
+    return STORE.club_claim_weekly(body.player_id)
+
 @router.post('/clubs/chat')
 def club_chat(body:ClubChatIn,x_account_token:str|None=Header(None)):
     _require(body.player_id,x_account_token)
     return STORE.club_chat(body.player_id,body.text)
+
+
+@router.post('/account/{player_id}/delete')
+def delete_my_account(player_id:str,x_account_token:str|None=Header(None)):
+    """Oyun sunucusundaki hesabı kalıcı siler (Supabase girişi ayrıca silinir)."""
+    _require(player_id,x_account_token)
+    return {'ok':STORE.purge_account(player_id)}

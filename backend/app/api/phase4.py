@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
@@ -15,6 +16,8 @@ def _svc() -> Phase4Service:
 
 
 def _require(player_id: str, token: str | None) -> None:
+    if not STORE.ready:
+        raise HTTPException(503, "storage_unavailable")
     if not STORE.get(player_id):
         raise HTTPException(404, "account_not_found")
     if not STORE.verify(player_id, token):
@@ -22,8 +25,9 @@ def _require(player_id: str, token: str | None) -> None:
 
 
 def _admin(key: str | None) -> None:
-    expected = settings.admin_key
-    if not expected or not key or key != expected:
+    if not settings.admin_enabled:
+        raise HTTPException(503, "admin_disabled")
+    if not key or not secrets.compare_digest(key.encode("utf-8"), settings.admin_key.encode("utf-8")):
         raise HTTPException(401, "admin_key_invalid")
 
 

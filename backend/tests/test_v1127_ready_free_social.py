@@ -15,16 +15,17 @@ def _store(tmp_path:Path):
 def _join(store,pid):
     a=store.get(pid); return game.JoinRoomIn(name=a['name'],player_id=pid,account_token=a['session_token'])
 
-def test_ready_gate_requires_humans(tmp_path,monkeypatch):
+def test_private_host_start_requires_filled_seats_not_ready_flags(tmp_path,monkeypatch):
     _reset(); store=_store(tmp_path); monkeypatch.setattr(game,'STORE',store); monkeypatch.setattr(game,'_persist_runtime',lambda force=False:None)
-    a=store.get('p1'); c=game.create_room(game.CreateRoomIn(player_id='p1',account_token=a['session_token'],owner_name='Bir')); j=asyncio.run(game.join_room(c['room_id'],_join(store,'p2')))
+    a=store.get('p1'); c=game.create_room(game.CreateRoomIn(player_id='p1',account_token=a['session_token'],owner_name='Bir')); asyncio.run(game.join_room(c['room_id'],_join(store,'p2')))
     start=game.ActionIn(seat=c['seat'],kind='start_match',reconnect_token=c['reconnect_token'],request_id='a')
-    out=asyncio.run(game._execute_action(c['room_id'],start)); assert out['ok'] is False and out['code']=='players_not_ready'
-    asyncio.run(game.set_ready(c['room_id'],game.ReadyIn(seat=j['seat'],reconnect_token=j['reconnect_token'],ready=True)))
-    start.request_id='b'; out=asyncio.run(game._execute_action(c['room_id'],start)); assert out['ok'] is False and out['code']=='empty_seats'
-    asyncio.run(game.manage_room(c['room_id'],game.ManageRoomIn(seat=c['seat'],reconnect_token=c['reconnect_token'],action='add_bot',target_seat=2,bot_level='easy')))
-    asyncio.run(game.manage_room(c['room_id'],game.ManageRoomIn(seat=c['seat'],reconnect_token=c['reconnect_token'],action='add_bot',target_seat=3,bot_level='hard')))
-    start.request_id='c'; out=asyncio.run(game._execute_action(c['room_id'],start)); assert out['ok'] is True
+    out=asyncio.run(game._execute_action(c['room_id'],start)); assert out['ok'] is False and out['code']=='empty_seats'
+    # No Ready gate: host deliberately fills the two remaining seats with bots,
+    # then manually presses start. Adding bots itself never starts the match.
+    for seat in (2,3):
+        added=asyncio.run(game.manage_room(c['room_id'],game.ManageRoomIn(seat=c['seat'],reconnect_token=c['reconnect_token'],action='add_bot',target_seat=seat,bot_level='medium')))
+        assert added['ok'] is True and game.ROOMS[c['room_id']].state.phase=='waiting'
+    start.request_id='b'; out=asyncio.run(game._execute_action(c['room_id'],start)); assert out['ok'] is True
 
 def test_direct_gifts_are_free(tmp_path,monkeypatch):
     _reset(); store=_store(tmp_path); monkeypatch.setattr(game,'STORE',store); monkeypatch.setattr(game,'_persist_runtime',lambda force=False:None)
