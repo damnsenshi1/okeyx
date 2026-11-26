@@ -3,7 +3,7 @@ import asyncio, secrets, time, uuid, hashlib, re, json
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from app.services.game_runtime import ROOMS,new_room
-from app.services.account_store import STORE,GIFT_CATALOG
+from app.services.account_store import STORE,GIFT_CATALOG,GIFT_COOLDOWN_S
 from app.services.runtime_persistence import save_runtime, load_runtime, RemoteMirror, restore_from_remote
 from app.core.config import settings
 
@@ -1116,7 +1116,13 @@ async def table_chat(room_id:str,body:ChatIn):
         table_gift=body.to_seat == -1
         if body.to_seat is None or (not table_gift and body.to_seat not in range(4)) or body.to_seat==body.seat:raise HTTPException(400,'target_required')
         if value not in GIFT_CATALOG:raise HTTPException(400,'gift_not_found')
+        # Aynı hediye aynı oyuncudan 10 sn içinde tekrar atılamaz (istemcide
+        # geri sayım halkası gösterilir; sunucu da zorlar).
+        gift_cd=m.setdefault('gift_cooldowns',{});cd_key=f"{body.seat}:{value}"
+        if _now()-float(gift_cd.get(cd_key,0.0))<float(GIFT_CATALOG[value].get('cooldown_s',GIFT_COOLDOWN_S)):
+            raise HTTPException(429,'gift_cooldown')
         _chat_rate_limit(m,body.reconnect_token,body.kind)
+        gift_id=value
         from_id=m['player_ids'].get(body.seat);to_id=None if table_gift else m['player_ids'].get(body.to_seat)
         gift=GIFT_CATALOG[value]
         # A table gift is paid once and animates around all seats; it is not persisted
@@ -1137,6 +1143,10 @@ async def table_chat(room_id:str,body:ChatIn):
                     return {'ok':False,'code':'insufficient_coins','required':cost}
             value=str(gift['name'])
     event=_append_chat(room_id,body.seat,body.kind,value,body.to_seat)
+    if body.kind=='gift':
+        m.setdefault('gift_cooldowns',{})[f"{body.seat}:{gift_id}"]=_now()
+        event['gift_id']=gift_id
+        event['style']=str(GIFT_CATALOG[gift_id].get('style','float'))
     _touch(room_id)
     await _broadcast(room_id)
     return {'ok':True,'event':event}

@@ -36,6 +36,14 @@ GIFT_CATALOG={
     'sports_car': {'name':'Spor Araba','cost':0,'emoji':'🏎️','reaction':False,'persistent':False,'hidden':False},
     'dragon': {'name':'Ejderha','cost':0,'emoji':'🐉','reaction':False,'persistent':False,'hidden':False},
 }
+# Masadaki gösterim biçimi: 'stick' = avatara "tak" diye yapışır,
+# 'big' = tüm ekranı kaplayan kısa gösteri, 'float' = avatarın üstünde süzülür.
+GIFT_STICK={'tomato','egg','punch','slipper','fish','rubber_chicken','plunger','censored_banana'}
+GIFT_BIG={'dragon','sports_car','rocket','money_rain','crown','fireworks','trophy','cake'}
+GIFT_COOLDOWN_S=10.0
+for _gid,_row in GIFT_CATALOG.items():
+    _row.setdefault('style','stick' if _gid in GIFT_STICK else ('big' if _gid in GIFT_BIG else 'float'))
+    _row.setdefault('cooldown_s',GIFT_COOLDOWN_S)
 WHEEL_REWARDS=[500,1000,1500,2500,5000,10000,25000]
 CHEST_REWARDS=[750,1250,2000,3500,5000,7500,15000]
 SEASON_ID='2026-S1'
