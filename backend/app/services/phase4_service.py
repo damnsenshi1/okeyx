@@ -53,17 +53,17 @@ DEFAULT_PHASE4_CONFIG: dict[str, Any] = {
     },
     "chance_controls": {"enabled": True, "purchasable_tickets": False, "chip_multiplier": True},
     "billing_products": [
-        {"sku":"okeyx.gold.50000","kind":"consumable","title":"750.000 Altın","coins":750000,"diamonds":0,"slot_vouchers":{"1000":3,"5000":1},"price_hint":"₺39,90","value_label":"BAŞLANGIÇ","first_purchase":False},
-        {"sku":"okeyx.gold.180000","kind":"consumable","title":"2.000.000 Altın","coins":2000000,"diamonds":0,"slot_vouchers":{"5000":3,"10000":1},"price_hint":"₺79,90","value_label":"POPÜLER","first_purchase":False},
-        {"sku":"okeyx.gold.500000","kind":"consumable","title":"5.000.000 Altın","coins":5000000,"diamonds":0,"slot_vouchers":{"10000":3,"25000":2},"price_hint":"₺159,90","value_label":"AVANTAJLI","first_purchase":False},
-        {"sku":"okeyx.gold.1200000","kind":"consumable","title":"15.000.000 Altın","coins":15000000,"diamonds":0,"slot_vouchers":{"50000":2,"100000":2},"price_hint":"₺349,90","value_label":"SÜPER DEĞER","first_purchase":False},
-        {"sku":"okeyx.gold.3000000","kind":"consumable","title":"40.000.000 Altın","coins":40000000,"diamonds":0,"slot_vouchers":{"100000":3,"250000":2},"price_hint":"₺699,90","value_label":"EN İYİ DEĞER","first_purchase":False},
-        {"sku":"okeyx.diamond.80","kind":"consumable","title":"80 Elmas","coins":0,"diamonds":80,"slot_vouchers":{"1000":2},"price_hint":"₺49,90","first_purchase":False},
-        {"sku":"okeyx.diamond.250","kind":"consumable","title":"250 Elmas","coins":0,"diamonds":250,"slot_vouchers":{"5000":2},"price_hint":"₺119,90","value_label":"DAHA AVANTAJLI","first_purchase":False},
-        {"sku":"okeyx.starter.1","kind":"consumable","title":"Hoş Geldin VIP Paketi","coins":300000,"diamonds":10,"slot_vouchers":{"5000":1},"inventory":["frame_founder"],"price_hint":"₺4,99","first_purchase":True},
-        {"sku":"okeyx.daily.300k","kind":"consumable","title":"Günlük Mini • 300K","coins":300000,"diamonds":0,"slot_vouchers":{"1000":4},"price_hint":"₺9,99","first_purchase":False,"daily_offer":True},
-        {"sku":"okeyx.daily.400k","kind":"consumable","title":"Günlük Plus • 400K","coins":400000,"diamonds":10,"slot_vouchers":{"5000":2},"price_hint":"₺19,99","first_purchase":False,"daily_offer":True},
-        {"sku":"okeyx.daily.1m","kind":"consumable","title":"Günlük Mega • 1M","coins":1000000,"diamonds":20,"slot_vouchers":{"25000":1},"price_hint":"₺39,99","first_purchase":False,"daily_offer":True},
+        {"sku":"okeyx.gold.50000","kind":"consumable","title":"750.000 Altın","coins":750000,"diamonds":0,"slot_vouchers":{},"price_hint":"₺39,90","value_label":"BAŞLANGIÇ","first_purchase":False},
+        {"sku":"okeyx.gold.180000","kind":"consumable","title":"2.000.000 Altın","coins":2000000,"diamonds":0,"slot_vouchers":{},"price_hint":"₺79,90","value_label":"POPÜLER","first_purchase":False},
+        {"sku":"okeyx.gold.500000","kind":"consumable","title":"5.000.000 Altın","coins":5000000,"diamonds":0,"slot_vouchers":{},"price_hint":"₺159,90","value_label":"AVANTAJLI","first_purchase":False},
+        {"sku":"okeyx.gold.1200000","kind":"consumable","title":"15.000.000 Altın","coins":15000000,"diamonds":0,"slot_vouchers":{},"price_hint":"₺349,90","value_label":"SÜPER DEĞER","first_purchase":False},
+        {"sku":"okeyx.gold.3000000","kind":"consumable","title":"40.000.000 Altın","coins":40000000,"diamonds":0,"slot_vouchers":{},"price_hint":"₺699,90","value_label":"EN İYİ DEĞER","first_purchase":False},
+        {"sku":"okeyx.diamond.80","kind":"consumable","title":"80 Elmas","coins":0,"diamonds":80,"slot_vouchers":{},"price_hint":"₺49,90","first_purchase":False},
+        {"sku":"okeyx.diamond.250","kind":"consumable","title":"250 Elmas","coins":0,"diamonds":250,"slot_vouchers":{},"price_hint":"₺119,90","value_label":"DAHA AVANTAJLI","first_purchase":False},
+        {"sku":"okeyx.starter.1","kind":"consumable","title":"Hoş Geldin VIP Paketi","coins":300000,"diamonds":10,"slot_vouchers":{},"inventory":["frame_founder"],"price_hint":"₺4,99","first_purchase":True},
+        {"sku":"okeyx.daily.300k","kind":"consumable","title":"Günlük Mini • 300K","coins":300000,"diamonds":0,"slot_vouchers":{},"price_hint":"₺9,99","first_purchase":False,"daily_offer":True},
+        {"sku":"okeyx.daily.400k","kind":"consumable","title":"Günlük Plus • 400K","coins":400000,"diamonds":10,"slot_vouchers":{},"price_hint":"₺19,99","first_purchase":False,"daily_offer":True},
+        {"sku":"okeyx.daily.1m","kind":"consumable","title":"Günlük Mega • 1M","coins":1000000,"diamonds":20,"slot_vouchers":{},"price_hint":"₺39,99","first_purchase":False,"daily_offer":True},
         {"sku":"okeyx.pass.s1","kind":"non_consumable","title":"Okey Pass Premium","coins":0,"diamonds":0,"slot_vouchers":{},"premium_pass":True,"price_hint":"₺149,90","first_purchase":False},
     ],
     "offers": [
@@ -442,7 +442,7 @@ class Phase4Service:
             return {
                 "ok": True,
                 "config_version": int(cfg.get("version", 1)),
-                "wallet": {"coins": int(a["chips"]), "diamonds": int(a["diamonds"]), "tickets": int(a["tickets"]), "slot_vouchers":deepcopy(a.get("slot_vouchers",{})), "debt_minor": int(a.get("economy_debt_minor", 0)), "debt_coins":int(a.get("economy_debt_coins",0))},
+                "wallet": {"salon_chips": int(self._salon_ensure(a)["salon_chips"]), "coins": int(a["chips"]), "diamonds": int(a["diamonds"]), "tickets": int(a["tickets"]), "slot_vouchers":deepcopy(a.get("slot_vouchers",{})), "debt_minor": int(a.get("economy_debt_minor", 0)), "debt_coins":int(a.get("economy_debt_coins",0))},
                 "vip": self._vip_view(a),
                 "pass": self._pass_view(a),
                 "billing_products": [({**deepcopy(x),"slot_vouchers":{}} if not bool((cfg.get("chance_controls") or {}).get("purchasable_tickets",False)) else deepcopy(x)) for x in cfg.get("billing_products",[])],
@@ -703,6 +703,10 @@ class Phase4Service:
                 return {"ok": False, "code": "ad_session_used"}
             if _now() - int(s.get("created_at", 0)) > 15 * 60:
                 return {"ok": False, "code": "ad_session_expired"}
+            from app.core.config import settings as _settings
+            if _settings.admob_ssv_required and not s.get("ssv_verified"):
+                # Google'ın imzalı geri çağrısı henüz gelmedi; istemci birkaç saniye sonra tekrar dener.
+                return {"ok": False, "code": "ad_not_verified_yet", "retry_after": 3}
             state = self.ad_state(player_id, _locked=True)
             if not state["can_rewarded"]:
                 return {"ok": False, "code": "ad_rate_limited", "ads": state}
@@ -718,16 +722,64 @@ class Phase4Service:
             self.store._save()
             return {"ok": True, "kind": kind, "reward": reward, "wallet": {"coins": a["chips"], "diamonds": a["diamonds"], "tickets": a["tickets"]}, "ads": self.ad_state(player_id, _locked=True)}
 
+    def mark_ad_ssv(self, token: str, transaction_id: str, reward_item: str = "") -> dict[str, Any]:
+        with self.store._lock:
+            sessions = self._global()["ad_sessions"]
+            s = sessions.get(token)
+            if not s:
+                return {"ok": False, "code": "ad_session_invalid"}
+            seen = self._global().setdefault("ad_ssv_tx", [])
+            if transaction_id and transaction_id in seen:
+                return {"ok": True, "duplicate": True}
+            s["ssv_verified"] = True; s["ssv_tx"] = transaction_id; s["ssv_at"] = _now()
+            if transaction_id:
+                seen.append(transaction_id); del seen[:-2000]
+            self.store._save()
+            return {"ok": True}
+
+    SALON_START=20_000
+    SALON_DAILY=15_000
+
+    def _salon_ensure(self,a):
+        if "salon_chips" not in a:a["salon_chips"]=self.SALON_START
+        return a
+
+    def salon_claim(self,player_id:str)->dict[str,Any]:
+        """Günlük Salon hakkı: satın alınmaz, yalnız oynayarak/giriş yaparak kazanılır."""
+        with self.store._lock:
+            a=self._salon_ensure(self._ensure_account(player_id));today=_day_key()
+            if a.get("salon_daily_day")==today:return {"ok":False,"code":"already_claimed","salon_chips":int(a["salon_chips"])}
+            a["salon_daily_day"]=today;a["salon_chips"]=int(a["salon_chips"])+self.SALON_DAILY
+            self.store._save();return {"ok":True,"granted":self.SALON_DAILY,"salon_chips":int(a["salon_chips"])}
+
     def side_game_catalog(self) -> dict[str, Any]:
         root=self._global()["config"];controls=root.get("chance_controls") or {}
         if not bool(controls.get("enabled",True)):return {"disabled":True,"cash_or_withdrawal":False,"real_money_prizes":False}
         cfg=deepcopy(root.get("side_games",{}))
-        return {"slot":slot_catalog(cfg.get("slot",{})),"horse":horse_catalog(cfg.get("horse",{})),"circus":circus_catalog(cfg.get("circus",{})),"drop":drop_catalog(cfg.get("drop",{})),"tower":tower_catalog(cfg.get("tower",{})),"cash_or_withdrawal":False,"real_money_prizes":False,"currency":"coins","purchasable_tickets":bool(controls.get("purchasable_tickets",False))}
+        return {"slot":slot_catalog(cfg.get("slot",{})),"horse":horse_catalog(cfg.get("horse",{})),"circus":circus_catalog(cfg.get("circus",{})),"drop":drop_catalog(cfg.get("drop",{})),"tower":tower_catalog(cfg.get("tower",{})),"cash_or_withdrawal":False,"real_money_prizes":False,"currency":"salon_chips","purchasable_tickets":False,"earned_only":True}
 
     def play_side_game(self,player_id:str,game:str,choice:int|None=None,wager:int|None=None,use_voucher:bool=False,action:str|None=None,challenge_id:str|None=None,active_lines:list[int]|None=None)->dict[str,Any]:
         with self.store._lock:
             a=self._ensure_account(player_id);cfg=self._global()["config"].get("side_games",{}).get(game)
             if not cfg:return {"ok":False,"code":"game_not_found"}
+            if use_voucher:return {"ok":False,"code":"vouchers_disabled"}
+            # Salon yalnız kazanılmış bakiye ile oynanır: gerçek altın havuzu ayrılır,
+            # motor salon bakiyesi üzerinde çalışır, bitince gerçek altın geri konur.
+            self._salon_ensure(a);_real_chips=int(a.get("chips",0));a["chips"]=int(a["salon_chips"])
+            # Geçici takas sırasında diske/Supabase'e yazılmasın: _save sonda tek sefer çağrılır.
+            _orig_save=self.store._save;self.store._save=lambda:None
+            try:
+                out=self._play_side_game_inner(a,player_id,game,cfg,choice,wager,use_voucher,action,challenge_id,active_lines)
+            finally:
+                self.store._save=_orig_save
+                a["salon_chips"]=max(0,int(a.get("chips",0)));a["chips"]=_real_chips
+            if isinstance(out,dict) and isinstance(out.get("wallet"),dict):
+                out["wallet"]["coins"]=_real_chips;out["wallet"]["salon_chips"]=int(a["salon_chips"])
+            elif isinstance(out,dict):out["salon_chips"]=int(a["salon_chips"])
+            self.store._save();return out
+
+    def _play_side_game_inner(self,a,player_id,game,cfg,choice,wager,use_voucher,action,challenge_id,active_lines):
+        if True:
             try:
                 if game=="slot":out=spin_slot(a,cfg,int(wager or 100),use_voucher,active_lines)
                 elif game=="horse":out=race(a,cfg,int(wager or 500),int(choice or 1))
@@ -834,6 +886,7 @@ class Phase4Service:
         a=self._ensure_account(pid);key="chips" if currency=="coins" else "diamonds";before=int(a.get(key,0));amount=max(-9_000_000_000_000,min(9_000_000_000_000,int(amount)));after=max(0,before+amount);a[key]=after;row={"actor":actor,"player_id":pid,"currency":currency,"actual":after-before,"before":before,"after":after,"reason":reason[:120],"created_at":_now()};self._global()["wallet_adjustments"].append(row);self._global()["admin_audit"].append({"actor":actor,"action":"wallet_adjust","player_id":pid,"amount":after-before,"created_at":_now()});unit='altın' if currency=='coins' else 'elmas';self.store.add_notification(pid,'Hesabın güncellendi',f"Yönetim hesabına {after-before:+,} {unit} uyguladı. {reason[:60]}".replace(',','.'),'admin');self.store._save();return {"ok":True,"wallet":{"coins":a["chips"],"diamonds":a["diamonds"]},"actual":after-before}
     def staff_set_rtp(self,actor,game,percent,event_title=""):
         self.require_staff(actor,"rtp")
+        return {"ok":False,"code":"rtp_control_removed"}  # Şans Salonu oranları sabit; personel değiştiremez.
         if game not in {"slot","horse","circus","drop"}:return {"ok":False,"code":"invalid_game"}
         p=round(max(60.,min(98.,float(percent))),2);cfg=self._global()["config"]["side_games"][game];before=float(cfg.get("rtp_percent",90));cfg["rtp_percent"]=p;self._global()["config"]["version"]=int(self._global()["config"].get("version",1))+1;self._global()["admin_audit"].append({"actor":actor,"action":"rtp_update","game":game,"before":before,"after":p,"event_title":event_title[:80],"created_at":_now()});self.store._save();return {"ok":True,"rtp_percent":p}
     def staff_reward_config(self,actor,patch):

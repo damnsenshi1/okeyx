@@ -36,6 +36,14 @@ GIFT_CATALOG={
     'sports_car': {'name':'Spor Araba','cost':0,'emoji':'🏎️','reaction':False,'persistent':False,'hidden':False},
     'dragon': {'name':'Ejderha','cost':0,'emoji':'🐉','reaction':False,'persistent':False,'hidden':False},
 }
+# Masadaki gösterim biçimi: 'stick' = avatara "tak" diye yapışır,
+# 'big' = tüm ekranı kaplayan kısa gösteri, 'float' = avatarın üstünde süzülür.
+GIFT_STICK={'tomato','egg','punch','slipper','fish','rubber_chicken','plunger','censored_banana'}
+GIFT_BIG={'dragon','sports_car','rocket','money_rain','crown','fireworks','trophy','cake'}
+GIFT_COOLDOWN_S=10.0
+for _gid,_row in GIFT_CATALOG.items():
+    _row.setdefault('style','stick' if _gid in GIFT_STICK else ('big' if _gid in GIFT_BIG else 'float'))
+    _row.setdefault('cooldown_s',GIFT_COOLDOWN_S)
 WHEEL_REWARDS=[500,1000,1500,2500,5000,10000,25000]
 CHEST_REWARDS=[750,1250,2000,3500,5000,7500,15000]
 SEASON_ID='2026-S1'
@@ -52,17 +60,20 @@ def _now()->int:return int(time.time())
 def _day_key(ts:int|None=None)->str:
     return time.strftime('%Y-%m-%d',time.localtime(ts or _now()))
 
+def _month_key(ts:int|None=None)->str:
+    return time.strftime('%Y-%m',time.localtime(ts or _now()))
+
+
 def _week_key(ts:int|None=None)->str:
     return time.strftime('%Y-W%W',time.localtime(ts or _now()))
 
 
 def _sanitize_social_text(value:str,max_len:int=160)->str:
+    from ..core.textfilter import mask,is_spam
     text=' '.join((value or '').split())
     if not text:return ''
-    if re.search(r'https?://|www\.',text,re.I):return ''
-    if re.search(r'(.)\1{8,}',text,re.I):return ''
-    for word in ('amk','aq','orospu','sik','piç','pic'):
-        text=re.sub(rf'(?i)(?<!\w){re.escape(word)}(?!\w)','***',text)
+    if is_spam(text):return ''
+    text,_flag=mask(text)
     return text[:max_len]
 
 def _referral_code(player_id:str)->str:
@@ -143,6 +154,8 @@ WEEKLY_MISSIONS=[
     {'id':'weekly_win_4','title':'4 oyun kazan','target':4,'metric':'wins','reward_chips':12000,'reward_xp':1000},
     {'id':'weekly_rounds_20','title':'20 el tamamla','target':20,'metric':'rounds','reward_chips':10000,'reward_xp':850},
 ]
+
+PUSH_KINDS={'friend_request','friend','invite','canak','vip','support','season','referral','tournament','daily_ready','event'}
 
 class AccountStore:
     def __init__(self,path:Path=DATA_PATH,remote:'SupabaseKV|None'=None):
@@ -347,13 +360,28 @@ class AccountStore:
         candidate=(current or '').strip().upper()
         if not re.fullmatch(r'OX-\d{6}',candidate):
             candidate=_public_id(player_id)
-        used={str(x.get('public_id') or '').upper() for pid,x in self._data.get('accounts',{}).items() if pid!=player_id}
-        if candidate not in used:return candidate
+        # O(1) dizin: eskiden her get() çağrısında tüm hesaplar taranıyordu
+        # (10 bin hesapta her durum sorgusu 40 bin döngü demekti).
+        accounts=self._data.get('accounts',{})
+        idx=self.__dict__.get('_public_index')
+        if idx is None or self.__dict__.get('_public_index_src') is not accounts:
+            idx={}
+            for pid,x in accounts.items():
+                p_=str(x.get('public_id') or '').upper()
+                if p_ and p_ not in idx:idx[p_]=pid
+            self._public_index=idx;self._public_index_src=accounts
+        owner=idx.get(candidate)
+        if owner is None or owner==player_id or owner not in accounts or str(accounts[owner].get('public_id') or '').upper()!=candidate:
+            idx[candidate]=player_id
+            return candidate
         value=int(candidate.split('-')[-1])
         for step in range(1,900000):
             nxt=100000+((value-100000+step)%900000)
             probe=f'OX-{nxt:06d}'
-            if probe not in used:return probe
+            o=idx.get(probe)
+            if o is None or o not in accounts or str(accounts[o].get('public_id') or '').upper()!=probe:
+                idx[probe]=player_id
+                return probe
         raise RuntimeError('public_id_space_exhausted')
 
     def _normalize(self,a:dict):
@@ -375,15 +403,37 @@ class AccountStore:
         with self._lock:
             a=self._data['accounts'].get(player_id)
             if not a:return None
-            self._normalize(a);self._save()
+            self._normalize(a)
+            # Performans: her durum sorgusunda tüm hesap veritabanını yazma.
+            # Bir hesap bu süreçte ilk kez normalize edildiğinde bir kez kaydet;
+            # sonraki değişiklikler zaten kendi işlemleriyle kaydedilir.
+            seen=self.__dict__.setdefault('_normalized_ids',set())
+            if player_id not in seen:
+                seen.add(player_id);self._save()
             return deepcopy(a)
+
+    def table_view(self,player_id:str)->dict|None:
+        """Masa durumu için hafif, kopyasız okuma (normalize/deepcopy yok).
+        Her durum sorgusunda 4 oyuncu için tam hesap kopyalamak kilidi tıkıyordu."""
+        with self._lock:
+            a=self._data['accounts'].get(player_id)
+            if not a:return None
+            vip=a.get('vip') or {};stats=a.get('stats') or {};league=a.get('league') or {}
+            return {
+                'avatar_url':a.get('avatar_url'),'level':a.get('level',1),'chips':a.get('chips',0),
+                'vip':{'level':vip.get('level',0),'badge':vip.get('badge'),'name_color':vip.get('name_color')},
+                'equipped':dict(a.get('equipped') or {}),
+                'stats':{k:stats.get(k,0) for k in ('games','wins','losses','best_streak','current_streak')},
+                'league':{'city':league.get('city','Denizli'),'tier':league.get('tier','Bronz')},
+                'gifts_received':list((a.get('gifts_received') or [])[:8]),
+            }
 
     def public(self,player_id:str)->dict|None:
         a=self.get(player_id)
         if not a:return None
         return {
             'id':a['id'],'public_id':a.get('public_id') or _public_id(a['id']),'is_guest':bool(a.get('is_guest',False)),'name':a['name'],'avatar_url':a.get('avatar_url'),'level':a['level'],'xp':a['xp'],
-            'stats':a['stats'],'achievements':a['achievements'][-8:],
+            'stats':a['stats'],'stats_by_mode':deepcopy(a.get('stats_by_mode',{})),'achievements':a['achievements'][-8:],
             'league':deepcopy(a.get('league',{})),'club_id':a.get('club_id'),'last_seen':float(a.get('last_seen',0) or 0),
             'gifts_received':deepcopy([x for x in a.get('gifts_received',[]) if bool(x.get('persistent',False))][:12]),
         }
@@ -424,7 +474,24 @@ class AccountStore:
             if not a:return {}
             n={'id':uuid.uuid4().hex[:12],'title':title,'message':message,'kind':kind,'data':data or {},'read':False,'created_at':_now()}
             a['notifications'].insert(0,n);a['notifications']=a['notifications'][:80]
-            self._save();return deepcopy(n)
+            self._save();out=deepcopy(n)
+        hook=getattr(self,'push_hook',None)
+        if hook and kind in PUSH_KINDS:
+            # Ağ çağrısı kilit dışında ve arka planda: oyun akışı push yüzünden yavaşlamaz.
+            threading.Thread(target=self._safe_push,args=(hook,player_id,title,message,kind,data or {}),daemon=True).start()
+        return out
+
+    @staticmethod
+    def _safe_push(hook,player_id,title,message,kind,data):
+        try:hook(player_id,title,message,{'kind':kind,**{k:str(v) for k,v in data.items()}})
+        except Exception:pass
+
+    def set_notification_prefs(self,player_id:str,prefs:dict)->dict:
+        with self._lock:
+            a=self._data['accounts'][player_id];cur=a.setdefault('notification_prefs',{})
+            for k in ('push','friend','invite','daily','event'):
+                if k in prefs:cur[k]=bool(prefs[k])
+            self._save();return dict(cur)
 
     def mark_notifications_read(self,player_id:str)->int:
         with self._lock:
@@ -681,14 +748,29 @@ class AccountStore:
                 if won:
                     a['stats']['wins']+=1;a['stats']['current_streak']+=1;a['stats']['best_streak']=max(a['stats']['best_streak'],a['stats']['current_streak'])
                     self._advance_metric(a,'wins',1)
+                    a['salon_chips']=int(a.get('salon_chips',20000))+10000
                 else:
                     a['stats']['losses']+=1;a['stats']['current_streak']=0
+                    a['salon_chips']=int(a.get('salon_chips',20000))+2000
+                try:
+                    from .tournament import record_result
+                    record_result(self,_week_key(),pid,a.get('name','Oyuncu'),won)
+                except Exception:
+                    pass
                 xp_base=350 if won else 120
                 xp=max(1,int(round(xp_base*max(1.0,min(5.0,float(xp_multiplier or 1.0))))))
                 a['xp']+=xp;a['stats']['total_xp_earned']+=xp;a['level']=_level_for_xp(a['xp'])
                 league=a.setdefault('league',{'week':_week_key(),'points':0,'city':'Denizli','tier':'Bronz'})
                 if league.get('week')!=_week_key():league.update({'week':_week_key(),'points':0,'tier':'Bronz'})
                 league['points']=int(league.get('points',0))+(30 if won else 8);league['tier']=_league_tier(league['points'])
+                monthly=a.setdefault('monthly',{'month':_month_key(),'points':0})
+                if monthly.get('month')!=_month_key():monthly.update({'month':_month_key(),'points':0})
+                monthly['points']=int(monthly.get('points',0))+(30 if won else 8)
+                mode_key=f"{(finish_meta or {}).get('game_type','okey101')}:{(finish_meta or {}).get('variant','non_fold')}"+(':turbo' if (finish_meta or {}).get('turbo') else '')
+                ms=a.setdefault('stats_by_mode',{}).setdefault(mode_key,{'games':0,'wins':0,'best_streak':0,'streak':0})
+                ms['games']+=1
+                if won:ms['wins']+=1;ms['streak']+=1;ms['best_streak']=max(ms['best_streak'],ms['streak'])
+                else:ms['streak']=0
                 season=a.setdefault('season',{'id':SEASON_ID,'points':0,'claimed':[]})
                 if season.get('id')!=SEASON_ID:season.update({'id':SEASON_ID,'points':0,'claimed':[]})
                 season_delta=3 if won else 1
@@ -915,10 +997,15 @@ class AccountStore:
                 self._normalize(a)
                 if scope=='friends' and pid!=viewer_id and pid not in friend_ids:continue
                 if scope=='city' and a.get('league',{}).get('city')!=city:continue
-                rows.append({'id':pid,'name':a['name'],'avatar_url':a.get('avatar_url'),'level':a['level'],'points':int(a['league'].get('points',0)),'tier':a['league'].get('tier','Bronz'),'city':a['league'].get('city','Denizli')})
+                pts=int(a['league'].get('points',0))
+                if scope=='monthly':
+                    mo=a.get('monthly') or {}
+                    pts=int(mo.get('points',0)) if mo.get('month')==_month_key() else 0
+                    if pts<=0 and pid!=viewer_id:continue
+                rows.append({'id':pid,'name':a['name'],'avatar_url':a.get('avatar_url'),'level':a['level'],'points':pts,'tier':a['league'].get('tier','Bronz'),'city':a['league'].get('city','Denizli')})
             rows.sort(key=lambda x:(-x['points'],-x['level'],x['name'].lower()))
             for i,row in enumerate(rows,1):row['rank']=i
-            return {'scope':scope,'week':_week_key(),'rows':deepcopy(rows[:limit]),'viewer':next((x for x in rows if x['id']==viewer_id),None)}
+            return {'scope':scope,'week':_week_key(),'month':_month_key(),'rows':deepcopy(rows[:limit]),'viewer':next((x for x in rows if x['id']==viewer_id),None)}
 
     def canak_state(self)->dict:
         with self._lock:return deepcopy(self._data.setdefault('canak',{'balance':0,'history':[]}))

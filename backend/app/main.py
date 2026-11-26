@@ -10,9 +10,11 @@ from app.api.game import router as game_router, start_watchdog
 from app.core.auth import _jwks
 from app.api.account import router as account_router
 from app.api.phase4 import router as phase4_router
+from app.api.legal import router as legal_router
 from app.core.ratelimit import rate_limit_middleware
+from app.core.observability import observability_middleware
 
-app=FastAPI(title=settings.app_name,version='12.0.7')
+app=FastAPI(title=settings.app_name,version='12.1.0')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins,
@@ -22,7 +24,9 @@ app.add_middleware(
     allow_headers=['*'],
 )
 app.middleware('http')(rate_limit_middleware)
+app.middleware('http')(observability_middleware)
 app.include_router(health_router)
+app.include_router(legal_router)
 
 _radio_cache: dict[str, tuple[float, dict]] = {}
 
@@ -48,7 +52,7 @@ async def radio_now_playing(station: str = Query('kral_pop')):
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(4.0, connect=2.0),
             follow_redirects=True,
-            headers={'User-Agent': 'Mozilla/5.0 OkeyX/12.0.7', 'Accept': 'text/html,application/xhtml+xml'},
+            headers={'User-Agent': 'Mozilla/5.0 OkeyX/12.1.0', 'Accept': 'text/html,application/xhtml+xml'},
         ) as client:
             response = await client.get(url)
             response.raise_for_status()
@@ -101,6 +105,17 @@ except ModuleNotFoundError:
 app.include_router(game_router,prefix='/api')
 app.include_router(account_router,prefix='/api')
 app.include_router(phase4_router,prefix='/api')
+from app.api.ops_extra import router as ops_extra_router, push_to_player
+from app.services.account_store import STORE as _STORE
+app.include_router(ops_extra_router,prefix='/api')
+_STORE.push_hook=push_to_player
+
+@app.on_event('startup')
+async def _start_background_ops():
+    import asyncio, os
+    from app.api.ops_extra import background_ops_loop
+    if not os.environ.get('PYTEST_CURRENT_TEST'):
+        asyncio.create_task(background_ops_loop())
 
 @app.on_event('startup')
 async def _startup_watchdog():

@@ -570,7 +570,7 @@ def league_city(body:CityIn,x_account_token:str|None=Header(None)):
 @router.get('/account/{player_id}/leaderboard')
 def leaderboard(player_id:str,scope:str='global',x_account_token:str|None=Header(None)):
     _require(player_id,x_account_token)
-    if scope not in ('global','friends','city'):scope='global'
+    if scope not in ('global','friends','city','monthly'):scope='global'
     return STORE.leaderboard(player_id,scope)
 
 @router.get('/canak')
@@ -616,6 +616,27 @@ def club_weekly_claim(body:ClubJoinIn,x_account_token:str|None=Header(None)):
 def club_chat(body:ClubChatIn,x_account_token:str|None=Header(None)):
     _require(body.player_id,x_account_token)
     return STORE.club_chat(body.player_id,body.text)
+
+
+def _prev_week_key()->str:
+    import time as _t
+    from app.services.account_store import _week_key as _wk
+    return _wk(int(_t.time())-7*86400)
+
+
+@router.get('/tournament/{player_id}')
+def tournament_view(player_id:str,x_account_token:str|None=Header(None)):
+    _require(player_id,x_account_token)
+    from app.services import tournament as T
+    from app.services.account_store import _week_key as _wk
+    return T.view(STORE,_wk(),_prev_week_key(),player_id)
+
+
+@router.post('/tournament/{player_id}/claim')
+def tournament_claim(player_id:str,x_account_token:str|None=Header(None)):
+    _require(player_id,x_account_token)
+    from app.services import tournament as T
+    return T.claim_previous(STORE,_prev_week_key(),player_id)
 
 
 @router.post('/account/{player_id}/delete')

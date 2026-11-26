@@ -25,6 +25,13 @@ class Rules101:
     """
     def __init__(self, joker: JokerContext): self.joker = joker
 
+    def __getstate__(self):
+        # Önbellek kalıcı oda görüntüsüne (pickle) girmesin.
+        return {'joker': self.joker}
+
+    def __setstate__(self, state):
+        self.joker = state['joker']
+
     def _norm(self, t:Tile)->Tile: return self.joker.normalized(t)
     def _is_joker(self,t:Tile)->bool: return self.joker.is_real_joker(t)
     def is_fake_okey(self,t:Tile)->bool: return bool(t.fake_joker)
@@ -93,10 +100,19 @@ class Rules101:
         return ValidationResult(ok, score, reason='' if ok else 'pair_mismatch', meld_type=MeldType.PAIR if ok else None)
 
     def validate_meld(self, tiles: Sequence[Tile])->ValidationResult:
+        # Taş kimliği renk/sayıyı, okey bağlamı da bu kural nesnesini sabitler;
+        # aynı dizilimin sonucu değişmez. Çözücü aynı grupları binlerce kez
+        # sorduğu için sonuçlar önbelleğe alınır (sonuç nesnesi değişmezdir).
+        cache=self.__dict__.setdefault('_meld_cache',{})
+        key=tuple(t.id for t in tiles)
+        hit=cache.get(key)
+        if hit is not None: return hit
         candidates=[self.validate_set(tiles), self.validate_run(tiles)]
         valid=[x for x in candidates if x.valid]
-        if not valid: return ValidationResult(False, reason='invalid_meld')
-        return max(valid, key=lambda x:x.score)
+        out=ValidationResult(False, reason='invalid_meld') if not valid else max(valid, key=lambda x:x.score)
+        if len(cache)>50000: cache.clear()
+        cache[key]=out
+        return out
 
     def opening_score(self, groups: Sequence[Sequence[Tile]])->int:
         total=0
