@@ -211,6 +211,52 @@ def phase4_mod_report(body: ModReportIn, x_account_token: str | None = Header(No
     return _svc().moderate_report(body.player_id, body.target_id, body.reason, body.room_id, body.source)
 
 
+class GoogleVerifyIn(BaseModel):
+    player_id: str
+    product_id: str
+    purchase_token: str
+
+
+_GOOGLE_CLIENT = None
+
+
+def _google_client():
+    global _GOOGLE_CLIENT
+    if not settings.google_play_service_account_json:
+        raise HTTPException(503, "billing_not_configured")
+    if _GOOGLE_CLIENT is None:
+        from app.services.google_play import GooglePlayClient, GooglePlayError
+        try:
+            _GOOGLE_CLIENT = GooglePlayClient(settings.google_play_service_account_json, settings.android_package)
+        except GooglePlayError:
+            raise HTTPException(503, "billing_not_configured")
+    return _GOOGLE_CLIENT
+
+
+@router.post("/phase4/store/google-verify")
+def phase4_google_verify(body: GoogleVerifyIn, x_account_token: str | None = Header(None)):
+    """Gerçek satın alma: Google'a sorulur, katalogdaki ürün/tutar uygulanır, aynı sipariş iki kez işlenmez."""
+    _require(body.player_id, x_account_token)
+    from app.services.google_play import GooglePlayError, price_hint_to_minor
+    client = _google_client()
+    svc = _svc()
+    product = next((x for x in svc._global()["config"].get("billing_products", []) if x["sku"] == body.product_id), None)
+    if not product:
+        raise HTTPException(404, "sku_not_found")
+    try:
+        data = client.verify_product(body.product_id, body.purchase_token)
+    except GooglePlayError as exc:
+        raise HTTPException(402, exc.code)
+    order_id = str(data.get("orderId") or "")
+    out = svc.grant_verified_purchase(body.player_id, body.product_id, order_id, price_hint_to_minor(str(product.get("price_hint", ""))), "TRY", "google_play")
+    if out.get("ok"):
+        try:
+            client.acknowledge(body.product_id, body.purchase_token)
+        except Exception:
+            pass  # Google 3 gün içinde tekrar sorar; hediye zaten bir kez verildi
+    return out
+
+
 @router.post("/phase4/dev/verify-purchase")
 def phase4_dev_purchase(body: PurchaseTestIn, x_account_token: str | None = Header(None)):
     _require(body.player_id, x_account_token)
@@ -284,6 +330,24 @@ def phase4_admin_refund(body: RefundIn, x_admin_key: str | None = Header(None)):
 def phase4_admin_snapshot(x_admin_key: str | None = Header(None)):
     _admin(x_admin_key)
     return _svc().admin_snapshot()
+
+
+@router.get("/phase4/admin/ops")
+def phase4_admin_ops(x_admin_key: str | None = Header(None)):
+    """Canlı sağlık: oda/oyuncu sayısı, hata ve yavaş istek sayaçları, depolama durumu."""
+    _admin(x_admin_key)
+    from app.core.observability import snapshot
+    from app.api import game as G
+    from app.services.account_store import STORE
+    humans = sum(1 for rid, r in G.ROOMS.items() for seat, pid in (G.ROOM_META.get(rid, {}).get('player_ids') or {}).items() if pid and not r.state.players[int(seat)].bot)
+    return {
+        'rooms': len(G.ROOMS),
+        'active_rooms': sum(1 for r in G.ROOMS.values() if r.state.started and not r.state.match_finished),
+        'seated_humans': humans,
+        'accounts': len(STORE._data.get('accounts', {})),
+        'storage': STORE.remote_status(),
+        **snapshot(),
+    }
 
 
 @router.patch("/phase4/admin/config")

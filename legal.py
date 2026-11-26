@@ -37,3 +37,19 @@ def delete_account_page():
 <p>Uygulama içinden: <b>Ayarlar → Hesabı sil</b>. Hesabın, bakiyen, arkadaş bağlantıların ve profilin kalıcı olarak silinir; geri alınamaz.</p>
 <p>Uygulamaya erişemiyorsan, hesap kimliğinle destek adresimize yaz; kimliğini doğruladıktan sonra silinir.</p>
 """)
+
+
+@router.get('/terms', response_class=HTMLResponse)
+def terms():
+    return _page('OkeyX Kullanım Şartları', """
+<h1>OkeyX Kullanım Şartları</h1>
+<ul>
+<li>OkeyX bir eğlence oyunudur. Oyun içi altın, elmas ve jetonların nakit değeri yoktur; para çekilemez, nakit ödül yoktur.</li>
+<li>Hile, bot kullanımı, hesap/altın satışı, başkasının hesabını kullanma ve istismar yasaktır; hesap kapatılabilir.</li>
+<li>Sohbette hakaret, spam ve bağlantı paylaşımı yasaktır. Şikâyet edilen hesaplar incelenir.</li>
+<li>Satın alımlar Google Play kurallarına tabidir; iade talepleri Google Play üzerinden yapılır.</li>
+<li>Şans Salonu yalnız oyunla kazanılan jetonla oynanır, satın alınamaz.</li>
+<li>Hizmet "olduğu gibi" sunulur; bakım ve güncellemeler için kesinti olabilir.</li>
+<li>Gizlilik için <a href='/privacy'>Gizlilik Politikası</a>, silme için <a href='/delete-account'>Hesap Silme</a> sayfalarına bakın.</li>
+</ul>
+""")

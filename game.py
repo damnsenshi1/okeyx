@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconn
 from pydantic import BaseModel, Field
 from app.services.game_runtime import ROOMS,new_room
 from app.services.account_store import STORE,GIFT_CATALOG
-from app.services.runtime_persistence import save_runtime, load_runtime
+from app.services.runtime_persistence import save_runtime, load_runtime, RemoteMirror, restore_from_remote
 from app.core.config import settings
 
 router=APIRouter(tags=['game'])
@@ -91,18 +91,36 @@ WATCHDOG_TASK:asyncio.Task|None=None
 _RUNTIME_LOADED=False
 _LAST_PERSIST_AT=0.0
 _RUNTIME_DIRTY=False
+_MIRROR:RemoteMirror|None=None
+
+def _mirror()->RemoteMirror|None:
+    """Supabase tanımlıysa oda anlık görüntüsünü oraya da yansıtır (Render diski geçicidir)."""
+    global _MIRROR
+    if _MIRROR is None and settings.remote_store_enabled:
+        try:
+            from app.services.remote_store import SupabaseKV
+            _MIRROR=RemoteMirror(SupabaseKV(settings.supabase_url,settings.supabase_service_role_key))
+        except Exception:
+            return None
+    return _MIRROR
 
 def _token()->str:return secrets.token_urlsafe(24)
+
+# Yük testi: 100+ masada her 0.35 sn'de tüm odaları paketlemek ana döngüyü
+# kilitliyordu. 2 sn aralık kurtarma için yeterli, isteklere nefes aldırır.
+PERSIST_MIN_INTERVAL=2.0
 
 def _persist_runtime(force:bool=False)->None:
     global _LAST_PERSIST_AT,_RUNTIME_DIRTY
     now=time.monotonic()
-    if not force and now-_LAST_PERSIST_AT<0.35:
+    if not force and now-_LAST_PERSIST_AT<PERSIST_MIN_INTERVAL:
         _RUNTIME_DIRTY=True
         return
     try:
-        save_runtime(settings.runtime_snapshot_path,settings.runtime_secret,ROOMS,ROOM_META)
+        save_runtime(settings.runtime_snapshot_path,settings.effective_runtime_secret,ROOMS,ROOM_META)
         _LAST_PERSIST_AT=now;_RUNTIME_DIRTY=False
+        m=_mirror()
+        if m:m.maybe_push(settings.runtime_snapshot_path,force=force)
     except Exception:
         # Persistence must never take a live table down. The watchdog will try
         # again; active in-memory multiplayer remains authoritative meanwhile.
@@ -114,7 +132,9 @@ def _restore_runtime_once()->None:
     if _RUNTIME_LOADED:return
     _RUNTIME_LOADED=True
     try:
-        rooms,meta=load_runtime(settings.runtime_snapshot_path,settings.runtime_secret)
+        m=_mirror()
+        if m:restore_from_remote(m.kv,settings.runtime_snapshot_path)
+        rooms,meta=load_runtime(settings.runtime_snapshot_path,settings.effective_runtime_secret)
         ROOMS.update(rooms);ROOM_META.update(meta)
     except Exception:
         pass
@@ -216,7 +236,7 @@ def _state(room_id:str,viewer:int)->dict:
         p['explicit_bot']=explicit_bot
         if p['empty']:
             p['name']='Boş Koltuk'
-        acc=STORE.get(pid) if pid else None
+        acc=STORE.table_view(pid) if pid else None
         p['avatar_url']=acc.get('avatar_url') if acc else None
         if acc:
             p['level']=int(acc.get('level',1) or 1)
@@ -366,6 +386,43 @@ def _charge_entries(room_id:str)->tuple[bool,str]:
     return True,'stake_checked'
 
 
+QUICK_BOT_FILL_SECONDS=15
+BOT_NAMES={'easy':'Kolay Bot','medium':'Normal Bot','hard':'Zor Bot'}
+
+LEVEL_BAND=8       # ilk 8 sn: seviye farkı en fazla 8
+LEVEL_BAND_RELAX_SECONDS=8
+
+def _level_compatible(room_id:str,my_level:int)->bool:
+    """Seviyeye göre eşleştirme: odadaki insanlarla fark LEVEL_BAND içinde olmalı;
+    oda 8 sn'den eskiyse sınır kalkar (az oyunculu saatlerde beklememek için)."""
+    m=ROOM_META.get(room_id) or {}
+    if _now()-float(m.get('created_at',_now()))>=LEVEL_BAND_RELAX_SECONDS:return True
+    for pid in (m.get('player_ids') or {}).values():
+        acc=STORE.get(pid)
+        if acc and abs(int(acc.get('level',1) or 1)-my_level)>LEVEL_BAND:return False
+    return True
+
+
+def _fill_bots_and_start(room_id:str,level:str='medium')->bool:
+    """Bekleme odasındaki boş koltukları botla doldurup maçı başlatır (sunucu karar verir)."""
+    room=ROOMS.get(room_id);m=_ensure_meta(room_id)
+    if not room or room.state.phase!='waiting' or room.state.started:return False
+    if _human_count(room_id)<1:return False
+    level=level if level in BOT_NAMES else 'medium'
+    for seat in range(4):
+        if seat in m.get('player_ids',{}):continue
+        p=room.state.player(seat)
+        m.setdefault('bot_seats',set()).add(seat)
+        p.bot=True;p.bot_level=level;p.user_id=f'bot-seat-{seat}';p.name=BOT_NAMES[level]
+    ok,_code=_charge_entries(room_id)
+    if not ok:return False
+    started=room.start_match(int(m.get('owner_seat',0) or 0))
+    if not started.ok:return False
+    m['bot_filled']=True
+    _touch(room_id)
+    return True
+
+
 def _record_round_if_finished(room_id:str):
     room=ROOMS.get(room_id);m=ROOM_META.get(room_id)
     if not room or not m or room.state.phase!='finished':return
@@ -388,6 +445,10 @@ def _record_round_if_finished(room_id:str):
 def _settle_if_finished(room_id:str):
     room=ROOMS.get(room_id);m=ROOM_META.get(room_id)
     if not room or not m or m.get('settled') or not room.state.match_finished:return
+    if m.get('practice'):
+        # Antrenman: bahis, XP, lig ve turnuva puanı yok (bot çiftliği olmasın).
+        m['settled']=True
+        return
     scores=room.state.total_scores
     if not scores:return
 
@@ -495,7 +556,7 @@ def _settle_if_finished(room_id:str):
         xp_multiplier=1.0
     STORE.settle_match(
         participants,winner_ids[0] if winner_ids else None,0,room.state.max_rounds,
-        {'scores':scores,'winner_ids':winner_ids,'paired':room.state.team_mode=='paired','finish_flags':finish_flags},
+        {'scores':scores,'winner_ids':winner_ids,'paired':room.state.team_mode=='paired','finish_flags':finish_flags,'variant':room.state.variant,'turbo':bool(room.state.turbo),'game_type':('duz' if room.state.variant=='duz' else 'okey101')},
         xp_multiplier=xp_multiplier,
     )
     canak_add=max(0,int(round(house_fee*0.02)))
@@ -541,12 +602,12 @@ _CHAT_BLOCK_PATTERNS=(
 _CHAT_MASK_WORDS=('amk','aq','orospu','sik','piç','pic')
 
 def _moderate_chat_text(value:str)->str:
+    from app.core.textfilter import mask,is_spam
     text=' '.join((value or '').split())
     if not text:raise HTTPException(400,'empty_message')
     if any(p.search(text) for p in _CHAT_BLOCK_PATTERNS):raise HTTPException(400,'chat_link_not_allowed')
-    if re.search(r'(.)\1{8,}',text,re.I):raise HTTPException(400,'chat_spam_detected')
-    for word in _CHAT_MASK_WORDS:
-        text=re.sub(rf'(?i)(?<!\w){re.escape(word)}(?!\w)','***',text)
+    if is_spam(text):raise HTTPException(400,'chat_spam_detected')
+    text,_flag=mask(text)
     return text[:120]
 
 def _append_chat(room_id:str,seat:int,kind:str,value:str,to_seat:int|None=None)->dict:
@@ -654,7 +715,7 @@ async def spectate_room(room_id:str,body:SpectatorIn):
 
 @router.post('/lobby/rooms')
 def create_room(body:CreateRoomIn):
-    if body.variant not in ('non_fold','fold'):raise HTTPException(400,'bad_variant')
+    if body.variant not in ('non_fold','fold','duz'):raise HTTPException(400,'bad_variant')
     if body.team_mode not in ('solo','paired'):raise HTTPException(400,'bad_team_mode')
     if body.rounds not in (1,2,3):raise HTTPException(400,'bad_round_count')
     if body.entry_fee not in (500,2000,5000,10000,20000,50000):raise HTTPException(400,'bad_entry_fee')
@@ -697,11 +758,13 @@ async def quick_room(body:JoinRoomIn):
             token=meta['seat_tokens'].get(seat) or _token();meta['seat_tokens'][seat]=token
             return {'room_id':rid,'seat':seat,'reconnect_token':token,'state':_state(rid,seat)}
 
+    my_level=int(account.get('level',1) or 1)
     for rid,r in list(ROOMS.items()):
         if r.state.phase!='waiting':continue
         m=_ensure_meta(rid)
         if not m.get('quick_match'):continue
         if m.get('password_hash'):continue
+        if not _level_compatible(rid,my_level):continue
         if body.turbo is not None and r.state.turbo!=body.turbo:continue
         if body.variant and r.state.variant!=body.variant:continue
         if body.team_mode and r.state.team_mode!=body.team_mode:continue
@@ -729,7 +792,7 @@ async def quick_room(body:JoinRoomIn):
     r=new_room(
         room_name='Hızlı Eşleşme',waiting=True,
         turbo=requested_turbo,
-        variant=body.variant if body.variant in ('fold','non_fold') else 'non_fold',
+        variant=body.variant if body.variant in ('fold','non_fold','duz') else 'non_fold',
         team_mode=body.team_mode if body.team_mode in ('solo','paired') else 'solo',
         entry_fee=requested_fee,
         max_rounds=body.rounds if body.rounds in (1,2,3) else 1,
@@ -740,6 +803,31 @@ async def quick_room(body:JoinRoomIn):
     token=_bind_human(r.state.room_id,0,body.player_id,account['name'])
     STORE.record_activity('quick_play',body.player_id,f'{account["name"]} hızlı eşleşme kuyruğuna katıldı',{'room_id':r.state.room_id,'entry_fee':r.state.entry_fee,'turbo':r.state.turbo})
     return {'room_id':r.state.room_id,'seat':0,'reconnect_token':token,'state':_state(r.state.room_id,0)}
+
+@router.post('/lobby/practice')
+async def practice_room(body:JoinRoomIn):
+    """Botlarla antrenman: bahissiz, anında başlar, XP/lig/turnuva puanı vermez."""
+    account=_account(body.player_id,body.account_token)
+    # Zaten açık bir antrenman masası varsa onu geri ver (çift dokunma/yeniden deneme).
+    for rid,r in list(ROOMS.items()):
+        meta=_ensure_meta(rid,legacy=True)
+        seat=next((s for s,pid in meta.get('player_ids',{}).items() if pid==body.player_id),None)
+        if seat is not None and meta.get('practice') and not r.state.match_finished:
+            token=meta['seat_tokens'].get(seat) or _token();meta['seat_tokens'][seat]=token
+            return {'room_id':rid,'seat':seat,'reconnect_token':token,'state':_state(rid,seat)}
+    r=new_room(
+        room_name='Antrenman Masası',waiting=True,turbo=False,
+        variant=body.variant if body.variant in ('fold','non_fold','duz') else 'non_fold',
+        team_mode='solo',entry_fee=0,max_rounds=1,
+        assisted=True if body.assisted is None else body.assisted,
+        random_starter=True,intro_seconds=3,
+    )
+    rid=r.state.room_id
+    m=_ensure_meta(rid);m['legacy']=False;m['practice']=True
+    token=_bind_human(rid,0,body.player_id,account['name'])
+    if not _fill_bots_and_start(rid,'medium'):raise HTTPException(409,'practice_start_failed')
+    await _broadcast(rid)
+    return {'room_id':rid,'seat':0,'reconnect_token':token,'state':_state(rid,0)}
 
 @router.post('/game/{room_id}/join')
 async def join_room(room_id:str,body:JoinRoomIn):
@@ -773,7 +861,7 @@ async def join_room(room_id:str,body:JoinRoomIn):
 
 @router.post('/game/new')
 def game_new(
-    variant:str=Query('non_fold',pattern='^(non_fold|fold)$'),
+    variant:str=Query('non_fold',pattern='^(non_fold|fold|duz)$'),
     entry_fee:int=5000,assisted:bool=True,turbo:bool=False,rounds:int=1,name:str='OkeyX Masası'
 ):
     # Legacy local test route; normal product flow uses lobby. Yayında kapalı.
@@ -783,7 +871,7 @@ def game_new(
     return _state(r.state.room_id,0)
 
 @router.get('/game/{room_id}')
-def game_state(room_id:str,seat:int=0,reconnect_token:str|None=None):
+async def game_state(room_id:str,seat:int=0,reconnect_token:str|None=None):
     if room_id not in ROOMS:raise HTTPException(404,'room_not_found')
     m=_ensure_meta(room_id,legacy=True)
     if not m.get('legacy'):_auth(room_id,seat,reconnect_token)
@@ -916,7 +1004,11 @@ async def manage_room(room_id:str,body:ManageRoomIn):
             if name:r.state.room_name=name
         if body.turn_seconds is not None:r.state.turn_seconds=max(15,min(90,int(body.turn_seconds)))
         if body.turbo is not None:r.state.turbo=bool(body.turbo)
-        if body.variant is not None:r.state.variant='fold' if body.variant=='fold' else 'non_fold'
+        if body.variant is not None:
+            wanted=body.variant if body.variant in ('fold','non_fold','duz') else 'non_fold'
+            # Düz Okey 14 taşla dağıtılır; dağıtılmış masada 101<->Düz geçişi yapılamaz.
+            if (wanted=='duz')!=(r.state.variant=='duz'):raise HTTPException(409,'variant_change_needs_new_room')
+            r.state.variant=wanted
         if body.team_mode is not None:r.state.team_mode='paired' if body.team_mode=='paired' else 'solo'
         if body.assisted is not None:r.state.assisted=bool(body.assisted)
         if body.rounds is not None:r.state.max_rounds=max(1,min(3,int(body.rounds)))
@@ -1119,6 +1211,10 @@ async def room_watchdog():
         for rid,room in list(ROOMS.items()):
             try:
                 m=_ensure_meta(rid,legacy=True);changed=False
+                if (room.state.phase=='waiting' and m.get('quick_match') and not room.state.started
+                        and now-float(m.get('created_at',now))>=QUICK_BOT_FILL_SECONDS):
+                    try:changed=_fill_bots_and_start(rid) or changed
+                    except HTTPException:pass
                 if room.state.started and room.intro_until_ms:
                     changed=room.advance_intro_if_ready() or changed
                 if room.state.started and not room.intro_until_ms and room.state.phase in ('draw','discard'):
@@ -1144,7 +1240,9 @@ async def room_watchdog():
             except Exception as exc:
                 try:room.state.log.append(f'WATCHDOG_ERROR {type(exc).__name__}:{exc}')
                 except Exception:pass
-        if _RUNTIME_DIRTY and time.monotonic()-_LAST_PERSIST_AT>=0.35:_persist_runtime(force=True)
+            # Her odadan sonra olay döngüsüne nefes ver: çok masada HTTP istekleri beklemesin.
+            await asyncio.sleep(0)
+        if _RUNTIME_DIRTY and time.monotonic()-_LAST_PERSIST_AT>=PERSIST_MIN_INTERVAL:_persist_runtime(force=True)
         await asyncio.sleep(.75)
 
 def start_watchdog():

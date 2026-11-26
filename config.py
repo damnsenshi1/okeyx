@@ -22,7 +22,15 @@ class Settings(BaseSettings):
     allow_test_billing:bool=False
     owner_player_ids:str=''
     runtime_snapshot_path:str='data/active_rooms.bin'
-    runtime_secret:str='okeyx-local-runtime-change-me'
+    runtime_secret:str=''
+    google_play_service_account_json:str=''
+    android_package:str='com.senshilabs.okeyx_mobile'
+    # AdMob ödüllü reklam sunucu doğrulaması (SSV). true iken ödül yalnız Google
+    # imzalı geri çağrı geldikten sonra verilir.
+    admob_ssv_required:bool=False
+    # Firebase Cloud Messaging (HTTP v1) için servis hesabı JSON'u; boşsa push kapalı.
+    fcm_service_account_json:str=''
+    fcm_project_id:str=''
     local_dev_mode:bool=False
     # Yalnızca local_dev_mode açıkken kullanılır; boşsa bootstrap-local kapalıdır.
     local_test_secret:str=''
@@ -36,6 +44,17 @@ class Settings(BaseSettings):
     def origins(self): return [x.strip() for x in self.cors_origins.split(',') if x.strip()]
     @property
     def owner_ids(self): return {x.strip() for x in self.owner_player_ids.split(',') if x.strip()}
+    @property
+    def effective_runtime_secret(self)->str:
+        """Oda anlık görüntüsü imza anahtarı. Boşsa Supabase servis anahtarından türetilir
+        (yeniden başlatmalarda sabit kalır); ikisi de yoksa yalnız yerel geliştirme sabiti."""
+        import hashlib
+        if self.runtime_secret:
+            return self.runtime_secret
+        if self.supabase_service_role_key:
+            return hashlib.sha256(('okeyx-runtime:'+self.supabase_service_role_key).encode()).hexdigest()
+        return 'okeyx-dev-only-runtime'
+
     @property
     def is_production(self)->bool: return self.env.strip().lower()=='production'
     @property

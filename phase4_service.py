@@ -703,6 +703,10 @@ class Phase4Service:
                 return {"ok": False, "code": "ad_session_used"}
             if _now() - int(s.get("created_at", 0)) > 15 * 60:
                 return {"ok": False, "code": "ad_session_expired"}
+            from app.core.config import settings as _settings
+            if _settings.admob_ssv_required and not s.get("ssv_verified"):
+                # Google'ın imzalı geri çağrısı henüz gelmedi; istemci birkaç saniye sonra tekrar dener.
+                return {"ok": False, "code": "ad_not_verified_yet", "retry_after": 3}
             state = self.ad_state(player_id, _locked=True)
             if not state["can_rewarded"]:
                 return {"ok": False, "code": "ad_rate_limited", "ads": state}
@@ -717,6 +721,21 @@ class Phase4Service:
             a["ads"]["last_rewarded_at"] = _now()
             self.store._save()
             return {"ok": True, "kind": kind, "reward": reward, "wallet": {"coins": a["chips"], "diamonds": a["diamonds"], "tickets": a["tickets"]}, "ads": self.ad_state(player_id, _locked=True)}
+
+    def mark_ad_ssv(self, token: str, transaction_id: str, reward_item: str = "") -> dict[str, Any]:
+        with self.store._lock:
+            sessions = self._global()["ad_sessions"]
+            s = sessions.get(token)
+            if not s:
+                return {"ok": False, "code": "ad_session_invalid"}
+            seen = self._global().setdefault("ad_ssv_tx", [])
+            if transaction_id and transaction_id in seen:
+                return {"ok": True, "duplicate": True}
+            s["ssv_verified"] = True; s["ssv_tx"] = transaction_id; s["ssv_at"] = _now()
+            if transaction_id:
+                seen.append(transaction_id); del seen[:-2000]
+            self.store._save()
+            return {"ok": True}
 
     SALON_START=20_000
     SALON_DAILY=15_000

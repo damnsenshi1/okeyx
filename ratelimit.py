@@ -20,7 +20,7 @@ AUTH_PREFIXES = ('/api/account/bootstrap',)
 SENSITIVE_MARKERS = (
     '/wheel', '/chest', '/daily', '/claim', '/transfer-coins', '/gift',
     '/phase4/store/buy', '/phase4/ads/', '/phase4/side-games/play',
-    '/phase4/vip/', '/clubs/create', '/clubs/weekly', '/referral/redeem',
+    '/phase4/vip/', '/clubs/create', '/clubs/weekly', '/referral/redeem', '/tournament/', '/salon/claim',
 )
 EXEMPT_PATHS = ('/healthz', '/docs', '/openapi.json')
 

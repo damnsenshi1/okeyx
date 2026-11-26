@@ -55,6 +55,17 @@ class SupabaseKV:
                 return out
             offset += PAGE
 
+    def get(self, key: str) -> Any | None:
+        r = self._client.get(
+            self.base,
+            params={'select': 'data', 'key': 'eq.' + key, 'limit': 1},
+            headers=self.headers,
+        )
+        if r.status_code != 200:
+            raise RemoteStoreError(f'get_failed:{r.status_code}:{r.text[:200]}')
+        rows = r.json()
+        return rows[0]['data'] if rows else None
+
     def upsert(self, rows: dict[str, Any]) -> None:
         items = list(rows.items())
         for i in range(0, len(items), BATCH):

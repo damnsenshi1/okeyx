@@ -38,7 +38,7 @@ def save_runtime(path: str, secret: str, rooms: dict[str, Any], meta: dict[str, 
         copied['disconnect_at'] = {}
         safe_meta[room_id] = copied
     raw = pickle.dumps({'rooms': rooms, 'meta': safe_meta}, protocol=pickle.HIGHEST_PROTOCOL)
-    compressed = gzip.compress(raw, compresslevel=6)
+    compressed = gzip.compress(raw, compresslevel=1)
     blob = MAGIC + _mac(secret, compressed) + compressed
     fd, tmp_name = tempfile.mkstemp(prefix='okeyx-runtime-', dir=str(target.parent))
     try:
@@ -88,3 +88,72 @@ def load_runtime(path: str, secret: str) -> tuple[dict[str, Any], dict[str, dict
         except Exception:
             continue
     return clean_rooms, clean_meta
+
+
+# --- Uzak (Supabase) yansıtma: Render diski her yeniden başlatmada silinir ---------
+import base64
+import threading
+import time as _time
+
+REMOTE_KEY = 'runtime:rooms'
+MAX_REMOTE_BYTES = 3_500_000
+
+
+class RemoteMirror:
+    """Son oda anlık görüntüsünü arka plan iş parçacığıyla Supabase'e yansıtır.
+
+    Blob zaten HMAC imzalıdır; geri yüklenirken load_runtime aynı imzayı doğrular.
+    """
+
+    def __init__(self, kv, interval: float = 8.0):
+        self.kv = kv
+        self.interval = interval
+        self._last = 0.0
+        self._busy = threading.Lock()
+
+    def maybe_push(self, path: str, force: bool = False) -> bool:
+        now = _time.monotonic()
+        if not force and now - self._last < self.interval:
+            return False
+        if not self._busy.acquire(blocking=False):
+            return False
+        self._last = now
+        threading.Thread(target=self._push, args=(path,), daemon=True).start()
+        return True
+
+    def _push(self, path: str) -> None:
+        try:
+            blob = Path(path).read_bytes()
+            if len(blob) <= MAX_REMOTE_BYTES:
+                self.kv.upsert({REMOTE_KEY: {'b64': base64.b64encode(blob).decode('ascii'), 'at': int(_time.time())}})
+        except Exception:
+            pass
+        finally:
+            self._busy.release()
+
+    def push_now(self, path: str) -> bool:
+        """Kapanışta eşzamanlı yazım."""
+        try:
+            blob = Path(path).read_bytes()
+            if len(blob) > MAX_REMOTE_BYTES:
+                return False
+            self.kv.upsert({REMOTE_KEY: {'b64': base64.b64encode(blob).decode('ascii'), 'at': int(_time.time())}})
+            return True
+        except Exception:
+            return False
+
+
+def restore_from_remote(kv, path: str) -> bool:
+    """Yerel dosya yoksa Supabase'teki son anlık görüntüyü diske yazar (imza yüklemede doğrulanır)."""
+    target = Path(path)
+    if target.exists():
+        return False
+    try:
+        row = kv.get(REMOTE_KEY)
+        if not row or not row.get('b64'):
+            return False
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(base64.b64decode(row['b64']))
+        return True
+    except Exception:
+        return False

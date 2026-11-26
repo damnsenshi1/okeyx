@@ -53,6 +53,11 @@ def legal_meld_candidates(rules:Rules101,hand:list[Tile])->list[tuple[int,list[T
     out.sort(key=lambda x:(x[0],len(x[1])),reverse=True)
     return out
 
+# Çözücü güvenlik sınırı: patolojik ellerde (çok okey + uzun seriler) arama
+# ağacı patlayıp tek bir hamleyi ~1 sn sürdürebiliyordu; bu süre boyunca tüm
+# masalar donuyordu. Sınır, normal ellerin tamamında tam arama yapmaya yeter.
+SOLVER_NODE_BUDGET=5000
+
 def find_series_groups(rules:Rules101,hand:list[Tile],minimum:int=0,required_tile_id:str|None=None,max_used:int|None=None)->list[list[Tile]]|None:
     """Find the most useful legal series plan for assisted play.
 
@@ -81,10 +86,15 @@ def find_series_groups(rules:Rules101,hand:list[Tile],minimum:int=0,required_til
                         waste+=1;break
         return waste
 
+    budget=[SOLVER_NODE_BUDGET]
     def dfs(idx:int,used:set[str],groups:list[list[Tile]],score:int):
         nonlocal best,best_key
+        budget[0]-=1
+        if budget[0]<0:return
         requirement_ok=required_tile_id is None or required_tile_id in used
-        if score>=minimum and requirement_ok and (max_used is None or len(used)<=max_used):
+        # Ucuz ön eleme: daha az taş kullanan plan en iyiyi asla geçemez; pahalı
+        # okey-israf hesabını yalnız aday planlarda yap.
+        if score>=minimum and requirement_ok and (max_used is None or len(used)<=max_used) and len(used)>=best_key[0]:
             wasted=replacement_waste(groups,used)
             joker_count=sum(1 for g in groups for t in g if rules._is_joker(t))
             key=(len(used),-wasted,-joker_count,score)
@@ -102,8 +112,11 @@ def best_series_preview(rules:Rules101, hand:list[Tile], max_used:int|None=None)
     candidates=legal_meld_candidates(rules,hand)
     best_score=0;best_used=0
     seen={}
+    budget=[SOLVER_NODE_BUDGET*2]
     def dfs(idx:int,used:frozenset[str],score:int):
         nonlocal best_score,best_used
+        budget[0]-=1
+        if budget[0]<0:return
         key=(idx,used)
         if seen.get(key,-1)>=score:return
         seen[key]=score
@@ -146,6 +159,40 @@ def pair_plan_including(rules:Rules101, hand:list[Tile], minimum:int, required_i
     pairs=pairs[:max_pairs]
     return pairs if len(pairs)>=minimum else None
 
+def duz_hand_complete(rules:Rules101,hand:list[Tile])->str|None:
+    """Düz Okey: 14 taşın TAMAMI geçerli per (3+) ya da 7 çift olmalı.
+    Dönüş: 'series' | 'pairs' | None."""
+    if len(hand)!=14:return None
+    pairs=find_pairs(rules,hand)
+    if len(pairs)==7 and sum(len(g) for g in pairs)==14:return 'pairs'
+    candidates=legal_meld_candidates(rules,hand)
+    by_tile:dict[str,list[frozenset[str]]]={}
+    for _,g in candidates:
+        ids=frozenset(t.id for t in g)
+        for tid in ids:by_tile.setdefault(tid,[]).append(ids)
+    order=[t.id for t in hand]
+    seen:set[frozenset[str]]=set()
+    def cover(used:frozenset[str])->bool:
+        if len(used)==len(order):return True
+        if used in seen:return False
+        seen.add(used)
+        first=next(tid for tid in order if tid not in used)
+        for ids in by_tile.get(first,[]):
+            if ids & used:continue
+            if cover(used|ids):return True
+        return False
+    return 'series' if cover(frozenset()) else None
+
+def duz_finish_options(rules:Rules101,hand:list[Tile])->dict[str,str]:
+    """15 taşlık elde hangi taş atılırsa el biter: {tile_id: 'series'|'pairs'}."""
+    out={}
+    if len(hand)!=15:return out
+    for t in hand:
+        rest=[x for x in hand if x.id!=t.id]
+        kind=duz_hand_complete(rules,rest)
+        if kind:out[t.id]=kind
+    return out
+
 class Room:
     def __init__(self, seed:int|None=None, variant:str='non_fold', *, entry_fee:int=5000, assisted:bool=True, room_name:str='OkeyX Masası', turbo:bool=False, max_rounds:int=3, waiting:bool=False, turn_seconds:int=35, team_mode:str='solo', random_starter:bool=False, intro_seconds:int=0):
         # Production deals use SystemRandom so no player/account state can bias the hand.
@@ -154,11 +201,12 @@ class Room:
         ind_idx=next(i for i,t in enumerate(tiles) if not t.fake_joker);indicator=tiles.pop(ind_idx)
         joker=JokerContext(indicator.color,int(indicator.number))
         players={0:PlayerState('local-human',0,[],name='Sen'),1:PlayerState('bot-deniz',1,[],name='Deniz',bot=True,bot_level='easy'),2:PlayerState('bot-mert',2,[],name='Mert',bot=True,bot_level='medium'),3:PlayerState('bot-eylul',3,[],name='Eylül',bot=True,bot_level='hard')}
-        for _ in range(21):
+        deal=14 if variant=='duz' else 21
+        for _ in range(deal):
             for s in range(4):players[s].hand.append(tiles.pop())
         starter_seat=rng.randrange(4) if random_starter else 0
         players[starter_seat].hand.append(tiles.pop())
-        variant='fold' if variant=='fold' else 'non_fold'
+        variant=variant if variant in ('fold','duz') else 'non_fold'
         initial_phase='waiting' if waiting else 'discard'
         self.state=TableState(
             str(uuid.uuid4())[:8].upper(),joker,players,indicator=indicator,stock=tiles,current_seat=starter_seat,starter_seat=starter_seat,phase=initial_phase,
@@ -173,6 +221,8 @@ class Room:
         self.bot_pace_ms=1400
         self._assist_cache_key=None
         self._assist_cache_value=(0,0,[],[])
+        self._duz_cache_key=None
+        self._duz_cache_value={}
         self.intro_until_ms=int((time.time()+max(0,int(intro_seconds)))*1000) if intro_seconds>0 and not waiting else 0
         self.start_intro_seconds=max(0,int(intro_seconds))
         self.recalculate_turbo()
@@ -424,6 +474,81 @@ class Room:
         self.state.log.append('Rövanş başlıyor.')
         return ActionResult(True,'rematch_started',{'round_index':1})
 
+    @property
+    def is_duz(self)->bool:
+        return self.state.variant=='duz'
+
+    def duz_options(self,seat:int)->dict[str,str]:
+        p=self.state.player(seat)
+        key=(seat,tuple(sorted(t.id for t in p.hand)),self.state.joker.joker_color.value,self.state.joker.joker_number)
+        if self._duz_cache_key!=key:
+            self._duz_cache_key=key
+            self._duz_cache_value=duz_finish_options(self.service.rules,p.hand)
+        return self._duz_cache_value
+
+    def _duz_discard(self,seat:int,tile_id:str)->ActionResult:
+        if seat!=self.state.current_seat:return ActionResult(False,'not_your_turn')
+        if self.state.phase!='discard':return ActionResult(False,'must_draw_first')
+        p=self.state.player(seat);tile=next((t for t in p.hand if t.id==tile_id),None)
+        if tile is None:return ActionResult(False,'tile_not_in_hand')
+        p.hand.remove(tile);self.state.discard_piles[seat].append(tile)
+        p.pending_left_tile_id=None;p.pending_left_from_seat=None
+        self.state.discard_meta[seat]={'useful':False,'okey':bool(self.service.rules._is_joker(tile)),'penalty':0}
+        self.state.current_seat=(seat+1)%4
+        self.state.log.append(f'{p.name} taş attı.')
+        self._emit_table_event('discard',seat,f'{p.name} taş attı')
+        if not self.state.stock:self._finish_stock()
+        else:self.state.phase='draw';self.state.turn_no+=1
+        return ActionResult(True,payload={'tile':tile.id,'penalty':0})
+
+    def duz_finish(self,seat:int,tile_id:str)->ActionResult:
+        """BİTİR: 15. taşı ortaya kapatıp kalan 14 taşın tamamının per/çift olduğunu göster."""
+        if seat!=self.state.current_seat:return ActionResult(False,'not_your_turn')
+        if self.state.phase!='discard':return ActionResult(False,'must_draw_first')
+        p=self.state.player(seat);tile=next((t for t in p.hand if t.id==tile_id),None)
+        if tile is None:return ActionResult(False,'tile_not_in_hand')
+        kind=self.duz_options(seat).get(tile_id)
+        if not kind:return ActionResult(False,'hand_not_complete')
+        rules=self.service.rules
+        joker_finish=rules._is_joker(tile);pair_finish=kind=='pairs'
+        mult=(2 if joker_finish else 1)*(2 if pair_finish else 1)
+        p.hand.remove(tile);self.state.discard_piles[seat].append(tile)
+        scores={};breakdown={}
+        for s2,pl in self.state.players.items():
+            pts=0 if s2==seat else 2*mult
+            scores[s2]=pts
+            note='Eli bitirdi' if s2==seat else f'Rakip bitirdi: 2 x{mult}'
+            breakdown[s2]={'rack':0,'remaining_points':0,'remaining_tile_count':len(pl.hand),'penalty':0,'base':pts,'raw_total':pts,'finish_multiplier':mult,'multiplier':1,'total':pts,'note':note}
+        self.state.phase='finished';self.state.current_seat=seat;self.state.winner_seat=seat
+        self.state.round_scores=scores;self.state.round_breakdown=breakdown;self.state.round_end_reason='finish'
+        self.state.round_finish_flags={'stock_empty':False,'cancelled':False,'joker_finish':joker_finish,'pair_finish':pair_finish,'single_turn_finish':False,'finish_multiplier':mult,'duz':True}
+        self._emit_table_event('duz_finish',seat,f'{p.name} ELİ BİTİRDİ' + (' • OKEY İLE' if joker_finish else '') + (' • ÇİFTE' if pair_finish else ''),{'kind':kind,'tile_id':tile_id})
+        self.state.log.append(f'{p.name} Düz Okey elini bitirdi.')
+        self._commit_round()
+        return ActionResult(True,'duz_finished',{'kind':kind,'multiplier':mult})
+
+    def _duz_bot_turn(self,seat:int):
+        p=self.state.player(seat);rules=self.service.rules
+        if self.state.phase=='draw':
+            left=(seat-1)%4;took=False
+            if self.state.discard_piles[left] and p.bot_level!='afk':
+                lt=self.state.discard_piles[left][-1]
+                gain=rules._is_joker(lt) or self._tile_synergy(p.hand,lt)>=(8 if p.bot_level=='hard' else 12)
+                if p.bot_level=='easy' and random.random()<0.5:gain=False
+                if gain:took=bool(self.draw(seat,'left').ok)
+            if not took and not self.draw(seat,'stock').ok:return
+        if self.state.phase!='discard':return
+        p=self.state.player(seat)
+        if p.bot_level!='afk':
+            opts=self.duz_options(seat)
+            if opts:
+                pick=next((tid for tid in opts if rules._is_joker(next(t for t in p.hand if t.id==tid))),None) or next(iter(opts))
+                self.duz_finish(seat,pick);return
+        pool=[t for t in p.hand if not rules._is_joker(t)] or list(p.hand)
+        ordered=sorted(pool,key=lambda t:(self._tile_synergy(p.hand,t),-int(rules._norm(t).number or 0)))
+        pick=random.choice(ordered[:3]) if p.bot_level=='easy' else ordered[0]
+        self._duz_discard(seat,pick.id)
+
     def sort_hand(self,seat:int,mode:str):
         p=self.state.player(seat)
         if mode=='pairs':
@@ -456,7 +581,9 @@ class Room:
             left=(seat-1)%4
             if not self.state.discard_piles[left]:return ActionResult(False,'no_left_discard')
             # Soldaki açık taş her zaman alınabilir. Oyuncu kullanır ya da geri bırakır.
-            tile=self.state.discard_piles[left].pop();p.pending_left_tile_id=tile.id;p.pending_left_from_seat=left
+            tile=self.state.discard_piles[left].pop()
+            if self.state.variant=='duz':p.pending_left_tile_id=None;p.pending_left_from_seat=None
+            else:p.pending_left_tile_id=tile.id;p.pending_left_from_seat=left
             nt=self.service.rules._norm(tile)
             self.opponent_interest[(nt.color.value if nt.color else 'x',int(nt.number or 0))]=self.opponent_interest.get((nt.color.value if nt.color else 'x',int(nt.number or 0)),0)+1
             self.state.log.append(f'{p.name}, soldaki taşı aldı; bu tur kullanmak zorunda.')
@@ -497,6 +624,14 @@ class Room:
         return sum(25 if rules._is_joker(t) else int(rules._norm(t).number or 0) for t in p.hand)
 
     def _finish_stock(self):
+        if self.state.variant=='duz':
+            self.state.phase='finished';self.state.winner_seat=None
+            self.state.round_scores={seat:0 for seat in self.state.players}
+            self.state.round_breakdown={seat:{'rack':0,'remaining_points':0,'remaining_tile_count':len(p.hand),'penalty':0,'base':0,'total':0,'note':'Deste bitti: kimse puan almadı'} for seat,p in self.state.players.items()}
+            self.state.round_end_reason='stock_empty'
+            self.state.round_finish_flags={'stock_empty':True,'cancelled':False,'duz':True}
+            self.state.log.append('Deste bitti. Düz Okey eli berabere.')
+            self._commit_round();return
         scores={};breakdown={}
         for seat,p in self.state.players.items():
             rack=self._rack_value(seat)
@@ -575,6 +710,7 @@ class Room:
 
 
     def discard(self,seat:int,tile_id:str)->ActionResult:
+        if self.state.variant=='duz':return self._duz_discard(seat,tile_id)
         if self.state.phase!='discard':return ActionResult(False,'must_draw_first')
         p=self.state.player(seat)
         finishing_tile=next((t for t in p.hand if t.id==tile_id),None)
@@ -784,6 +920,8 @@ class Room:
 
     def bot_turn(self,seat:int):
         if self.state.current_seat!=seat or not self.state.player(seat).bot:return
+        if self.state.variant=='duz':
+            self._duz_bot_turn(seat);self._check_one_tile_notice(seat);return
         p=self.state.player(seat)
         # AFK botu gerçek oyuncunun yerine yalnızca güvenli çek-at yapar.
         # Oyuncunun açma/işleme kararını hiçbir koşulda ele geçirmez.
@@ -839,8 +977,12 @@ class Room:
         action_snapshot=copy.deepcopy(self.state)
         finish_guard_kinds={'open_series','open_pairs','add_pairs','auto_layoff','layoff','layoff_pair'}
         guard_snapshot=action_snapshot if kind in finish_guard_kinds else None
+        duz_blocked={'open_series','open_pairs','add_pairs','auto_layoff','layoff','layoff_pair','undo_layoff','undo_opening','return_left'}
+        if self.state.variant=='duz' and kind in duz_blocked:return ActionResult(False,'not_in_duz')
         try:
-            if kind=='draw_stock':r=self.draw(seat,'stock')
+            if kind=='finish':
+                r=self.duz_finish(seat,payload.get('tile_id','')) if self.state.variant=='duz' else ActionResult(False,'finish_only_duz')
+            elif kind=='draw_stock':r=self.draw(seat,'stock')
             elif kind=='take_left':r=self.draw(seat,'left')
             elif kind=='return_left':r=self.return_left(seat)
             elif kind=='discard':r=self.discard(seat,payload.get('tile_id',''))
@@ -999,8 +1141,12 @@ class Room:
             s.joker.joker_color.value,s.joker.joker_number,
             s.min_opening_score,s.min_opening_pairs,
         )
-        if self._assist_cache_key==key:
-            return self._assist_cache_value
+        # Görüntüleyen başına önbellek: 4 oyuncu sırayla sorgulayınca tek
+        # girişli önbellek sürekli boşa düşüyordu (yük testinde CPU'nun ana yükü).
+        cache=self.__dict__.setdefault('_assist_cache',{})
+        hit=cache.get(key)
+        if hit is not None:
+            return hit
         max_used=max(0,len(p.hand)-1)
         assist_groups=find_series_groups(self.service.rules,p.hand,minimum=0,max_used=max_used) or []
         assist_groups=[self.service.rules.canonical_meld_order(g,self.service.rules.validate_meld(g).meld_type or MeldType.RUN) for g in assist_groups]
@@ -1010,6 +1156,8 @@ class Room:
         # gösterir. İki amaç birbirini yanlışlıkla ezmez.
         preview_score,preview_used=best_series_preview(self.service.rules,p.hand,max_used)
         value=(preview_score,preview_used,assist_groups,list(assist_used),assist_score)
+        if len(cache)>=16:cache.clear()
+        cache[key]=value
         self._assist_cache_key=key
         self._assist_cache_value=value
         return value
@@ -1018,6 +1166,9 @@ class Room:
         """Viewer-specific contextual controls backed by the real rule engine."""
         result={'open_series':False,'open_pairs':False,'add_pairs':False,'return_left':False,'undo_opening':False,'undo_layoff':False,'auto_layoff':False}
         s=self.state
+        if s.variant=='duz':
+            result['finish']=bool(s.started and s.phase=='discard' and s.current_seat==viewer and self.duz_options(viewer))
+            return result
         if not s.started or s.phase!='discard' or s.current_seat!=viewer:return result
         p=s.player(viewer);required=p.pending_left_tile_id;max_used=max(0,len(p.hand)-1)
         # Most public-state updates have no forced left tile. Reuse the exact-hand
@@ -1062,17 +1213,18 @@ class Room:
         useful=list(penalty_tiles) if active_assist else []
         # Sayaçlar (AÇILIŞ x/101, ÇİFT x/5) sıra kimde olursa olsun yardımlı
         # modda her zaman hesaplanır; yalnız ipucu/parlama sıra sendeyken verilir.
-        counters_live=bool(s.assisted and s.started and s.phase not in ('waiting','finished'))
+        counters_live=bool(s.assisted and s.started and s.phase not in ('waiting','finished') and s.variant!='duz')
         if counters_live:
             preview_score,preview_used,assist_groups,assist_used,assist_score=self._assisted_preview_cached(viewer)
             preview_pairs=len(find_pairs(self.service.rules,viewer_p.hand))
         else:
             preview_score,preview_used,assist_groups,assist_used,assist_score=0,0,[],[],0
             preview_pairs=0
-        left_opportunity=self.left_opening_opportunity(viewer) if active_assist else None
+        left_opportunity=self.left_opening_opportunity(viewer) if active_assist and s.variant!='duz' else None
+        duz_finish_ids=list(self.duz_options(viewer).keys()) if (s.variant=='duz' and active_turn and s.phase=='discard') else []
         left_useful_tile_id=None
         left_useful_reason=None
-        if s.assisted and s.started and s.phase=='draw' and s.current_seat==viewer:
+        if s.assisted and s.started and s.phase=='draw' and s.current_seat==viewer and s.variant!='duz':
             left=(viewer-1)%4
             if s.discard_piles[left]:
                 lt=s.discard_piles[left][-1]
@@ -1092,8 +1244,9 @@ class Room:
                         left_useful_reason=f"{int(left_opportunity.get('current_pair_count',0) or 0)}/5 → {int(left_opportunity.get('pair_count',0) or 0)}/5 • ÇİFT AÇAR"
                     else:
                         left_useful_reason='AÇILIŞ YAPAR'
-        pending_left_preview=self.pending_left_opening_preview(viewer) if s.assisted else None
-        return {'room_id':s.room_id,'available_actions':self.available_actions(viewer),'left_opening_opportunity':left_opportunity,'pending_left_opening':pending_left_preview,'left_useful_tile_id':left_useful_tile_id,'left_useful_reason':left_useful_reason,'penalty_tile_ids':penalty_tiles,'opening_preview_score':preview_score,'opening_preview_used':preview_used,'opening_preview_pairs':preview_pairs,
+        pending_left_preview=self.pending_left_opening_preview(viewer) if s.assisted and s.variant!='duz' else None
+        if s.variant=='duz':penalty_tiles=[];useful=[]
+        return {'room_id':s.room_id,'game_type':('duz' if s.variant=='duz' else 'okey101'),'duz_finish_tile_ids':duz_finish_ids if s.assisted else [],'duz_can_finish':bool(duz_finish_ids),'available_actions':self.available_actions(viewer),'left_opening_opportunity':left_opportunity,'pending_left_opening':pending_left_preview,'left_useful_tile_id':left_useful_tile_id,'left_useful_reason':left_useful_reason,'penalty_tile_ids':penalty_tiles,'opening_preview_score':preview_score,'opening_preview_used':preview_used,'opening_preview_pairs':preview_pairs,
                 'assisted_series_score':assist_score,'assisted_series_groups':[[t.id for t in g] for g in assist_groups],
                 'assisted_series_used_ids':list(assist_used),'current_seat':s.current_seat,'starter_seat':s.starter_seat,'phase':s.phase,'winner_seat':s.winner_seat,'turn_no':s.turn_no,'stock_count':s.stock_count,'useful_tile_ids':useful,'round_scores':{str(k):v for k,v in s.round_scores.items()},'round_team_scores':{str(k):v for k,v in self.team_score_map(s.round_scores).items()},'round_breakdown':{str(k):v for k,v in s.round_breakdown.items()},'round_end_reason':s.round_end_reason,
                 'indicator':_serialize_tile(s.indicator,s.joker,s.turbo) if s.indicator else {'id':'indicator','n':s.joker.indicator_number,'c':s.joker.indicator_color.value,'joker':False,'fake':False},'joker':{'c':s.joker.joker_color.value,'n':s.joker.joker_number},
