@@ -8,6 +8,10 @@ from app.services.runtime_persistence import save_runtime, load_runtime, RemoteM
 from app.core.config import settings
 
 router=APIRouter(tags=['game'])
+MAX_SOCKET_MESSAGE_BYTES=16*1024
+
+def _socket_message_too_large(message:str)->bool:
+    return len(message.encode('utf-8'))>MAX_SOCKET_MESSAGE_BYTES
 
 def _now()->float:return time.time()
 
@@ -1520,12 +1524,20 @@ async def game_ws(ws:WebSocket,room_id:str,seat:int=0,reconnect_token:str|None=N
     SOCKETS.setdefault(room_id,{}).setdefault(seat,[]).append(ws)
     _touch(room_id)
     await _broadcast(room_id)
+    last_ping_at=0.0
+    last_sync_at=0.0
     try:
         while True:
             msg=await ws.receive_text()
+            if _socket_message_too_large(msg):
+                await ws.close(code=1009)
+                return
             if msg=='ping':
-                m['connected'][seat]=True
-                await ws.send_text('pong')
+                now=_now()
+                if now-last_ping_at>=0.5:
+                    last_ping_at=now
+                    m['connected'][seat]=True
+                    await ws.send_text('pong')
                 continue
             # V8 supports low-latency authoritative actions over the existing
             # authenticated game socket. HTTP remains a fallback for old clients.
@@ -1554,6 +1566,11 @@ async def game_ws(ws:WebSocket,room_id:str,seat:int=0,reconnect_token:str|None=N
                 except Exception as exc:
                     await ws.send_json({'type':'action_result','ok':False,'code':'socket_action_failed','request_id':packet.get('request_id'),'payload':{'error':type(exc).__name__},'state':_state(room_id,seat)})
             elif kind=='sync':
+                now=_now()
+                if now-last_sync_at<0.1:
+                    await ws.send_json({'type':'error','code':'sync_rate_limited'})
+                    continue
+                last_sync_at=now
                 await ws.send_json({'type':'state','state':_state(room_id,seat)})
             else:
                 await ws.send_json({'type':'error','code':'unknown_socket_message'})
