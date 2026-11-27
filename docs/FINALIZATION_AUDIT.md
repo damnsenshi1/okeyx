@@ -34,7 +34,7 @@ The root has no project-level README or `AGENTS.md`. `mobile/README.md` is still
 
 ### Remote baseline
 
-- Latest `main` commit: `3d743a1d4109c9603ed21ce6d858782383af2357` (`20.7.0: yeni masa dÃ¼zeni, dÃ¼z Ä±staka, bal ahÅŸap`).
+- Latest `main` commit: `3d743a1d4109c9603ed21ce6d858782383af2357` (`20.7.0: yeni masa düzeni, düz ıstaka, bal ahşap`).
 - Latest published release: `v20.7.0-b270`, APK asset present.
 - Latest `main` workflow: APK build and release completed. Its test log reports **9 Flutter tests passed**. Flutter analysis reports warnings at `auth_service.dart:88` (`experimental_member_use`) and `table_screen.dart:7321` (`unused_element_parameter`).
 - The same workflow's emulator screen-tour step reported `adb` failures (`emulator-5554` not found / connection refused), but that step has `continue-on-error: true`; the green workflow therefore does not establish a successful interactive startup or visual pass.
@@ -49,11 +49,11 @@ The root has no project-level README or `AGENTS.md`. `mobile/README.md` is still
 
 ## Findings by severity
 
-### P0 â€” Critical
+### P0 — Critical
 
 - **None confirmed in the source review completed so far.** This is not evidence that the application has no P0 defects; the full authorization, economy, and production-data review is still open.
 
-### P1 â€” Major / release blockers to resolve or verify
+### P1 — Major / release blockers to resolve or verify
 
 1. **Production account-store selection is not verified.** `render.yaml` declares the Supabase URL and publishable/anonymous key, but not the service-role key. `AccountStore` only selects remote KV persistence when the service-role setting is present. A dashboard secret may exist, but it has not been inspected. If it is absent, the backend falls back to local account storage on the free service, which is unsafe for durable balances and profiles. Verify the deployed environment and health/readiness behavior before release.
 2. **Persistence is asynchronous and not a database transaction.** `AccountStore._save()` marks the remote store dirty; `RemoteSync` flushes changed KV rows in the background. The process-local lock does not serialize writes across backend instances, and there is a short crash window before a flush. Verify the current single-instance assumption and test recovery/concurrent balance changes before any scaling or paid-economy claims.
@@ -61,7 +61,7 @@ The root has no project-level README or `AGENTS.md`. `mobile/README.md` is still
 4. **The release workflow previously hid analyzer and test failures.** `mobil_tur.yml` had `continue-on-error: true` on both mandatory steps, and its output was piped through `tee` without `pipefail`. This branch removes those flags and enables `pipefail`. The PR quality workflow independently provides blocking backend and Flutter checks. Main-branch enforcement still depends on repository branch protection; GitHub currently reports `main` as unprotected.
 5. **Gift retries are not idempotent.** The server enforces a 10-second per-room/player/gift cooldown and validates recipient/gift IDs. The current gift catalog sets every gift cost to zero, so the inspected direct-gift path does not charge currency. A retried request can still create duplicate social history/animations after the cooldown; no transaction ID or durable dedupe key is present. Preserve the existing free-gift business rule while deciding whether retry deduplication is required.
 
-### P2 â€” Important technical debt / quality gaps
+### P2 — Important technical debt / quality gaps
 
 1. **Only a small part of the UI has automated coverage.** There are four Flutter test files; the latest workflow run reports nine test cases. The table, lobby, gift panel, profile, private-room flow, reconnect experience, and supported Android aspect ratios are not covered by the current widget suite.
 2. **Analyzer warnings remain.** The two warnings listed in the baseline are visible in CI but allowed by the current Flutter analyzer command. Triage them and decide whether warnings should become blocking after cleanup.
@@ -69,7 +69,7 @@ The root has no project-level README or `AGENTS.md`. `mobile/README.md` is still
 4. **Documentation does not describe the actual product or operations.** Replace the generic mobile starter README and document local setup, remote-store readiness, migrations, test commands, release signing, and rollback/recovery.
 5. **Backend/mobile version metadata differs.** Confirm whether FastAPI's `16.0.0` is intentionally independent from Android `20.7.0+270`; align or document it.
 
-### P3 â€” Polish
+### P3 — Polish
 
 - Audit screen-reader labels, contrast, touch targets, low-memory behavior, and visual consistency after the game/lobby screens are rendered on representative Android sizes.
 - Review asset sizes and release APK size after functional and reliability blockers are addressed.
