@@ -107,6 +107,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   int _lastTurnSeat = -1;
   int _turnCueSeq = 0;
   bool _showTurnCue = false;
+  int _turnStartedAtMs = 0;
+  bool _turnReminded = false;
   int _turboFxSeq = 0;
   int _turboFxCount = 1;
   int _lastWarningSecond = -1;
@@ -202,6 +204,18 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         _lastIntroCountdown = -1;
       }
       final left = _secondsLeftAt(now);
+      // Sıra sendeyken 10 sn hamle yapmazsan "SIRA SENDE" tekrar belirir,
+      // ses ve titreşimle hatırlatılır (dalgınlıkta sıra kaçmasın).
+      if (_myTurn && _state['started'] == true && !_introActive && _turnStartedAtMs > 0 && now - _turnStartedAtMs > 10000 && !_turnReminded && left > 5) {
+        _turnReminded = true;
+        final cue = ++_turnCueSeq;
+        if (mounted) setState(() => _showTurnCue = true);
+        unawaited(GameAudio.sfx('turn', enabled: _soundEnabled, volume: 1));
+        if (_vibrationEnabled) unawaited(HapticFeedback.heavyImpact());
+        Future<void>.delayed(const Duration(milliseconds: 2200), () {
+          if (mounted && cue == _turnCueSeq) setState(() => _showTurnCue = false);
+        });
+      }
       if (_myTurn && left > 0 && left <= 5 && _lastWarningSecond != left) {
         _lastWarningSecond = left;
         unawaited(GameAudio.sfx('warning', enabled: _soundEnabled, volume: .56));
@@ -2154,23 +2168,46 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   // Konumlar ekranın oranı olarak verilir (yaklaşık yerleşim; gerçek cihazda
   // ince ayar gerekirse yalnızca bu iki tablo değişir).
   /// Dağıtım: oyun başlayınca masa ortasından ıstakaya ve rakip koltuklarına taşlar saçılır.
+  // Dağıtım ritmi: her koltuğa sırayla 3'lü kapalı deste uçar.
+  static const int _dealStepMs = 55;
+  static const int _dealFlightMs = 360;
+  int get _dealRounds => _isDuz ? 5 : 7;
+
+  /// Gerçek masadaki gibi tam dağıtım: tur tur her oyuncuya 3'lü desteler
+  /// uçar (101'de 7 tur = 21 taş, Klasik'te 5 tur), en sonda gösterge açılır.
+  /// Kendi ıstakandaki taşlar, kendi destene düştüğü anda belirir.
   void _fxDeal() {
     if (widget.preferences.reducedMotionEnabled || widget.preferences.dataSaverEnabled) return;
-    for (var i = 0; i < 12; i++) {
-      Future<void>.delayed(Duration(milliseconds: 70 * i), () {
-        if (!mounted) return;
-        try {
-          final target = i % 4 == 0 ? _fxSeatAnchor(_viewerSeat) : _fxSeatAnchor((_viewerSeat + i % 4) % 4);
-          _fx.flyTileFrac(
-            tile: const GameTile(id: 'fx-deal', number: 1, colorIndex: 2, faceDown: true),
-            from: const Offset(.815, .22),
-            to: target,
-            puffOnLand: false,
-            duration: const Duration(milliseconds: 380),
-          );
-        } catch (_) {}
-      });
+    for (var round = 0; round < _dealRounds; round++) {
+      for (var k = 0; k < 4; k++) {
+        final seat = (_viewerSeat + k) % 4;
+        final step = round * 4 + k;
+        Future<void>.delayed(Duration(milliseconds: _dealStepMs * step), () {
+          if (!mounted) return;
+          try {
+            _fx.flyTileFrac(
+              tile: const GameTile(id: 'fx-deal', number: 1, colorIndex: 2, faceDown: true),
+              from: const Offset(.5, .40),
+              to: _fxSeatAnchor(seat),
+              puffOnLand: false,
+              duration: const Duration(milliseconds: _dealFlightMs),
+            );
+            if (k == 0) unawaited(GameAudio.sfx(round.isEven ? 'tile_drop' : 'tile_pick', enabled: _soundEnabled, volume: .55));
+          } catch (_) {}
+        });
+      }
     }
+    final total = _dealStepMs * _dealRounds * 4 + _dealFlightMs;
+    Future<void>.delayed(Duration(milliseconds: total), () {
+      if (mounted) unawaited(GameAudio.sfx('rack_slide', enabled: _soundEnabled, volume: .72));
+    });
+  }
+
+  /// Istakadaki taşın, kendi destesi ıstakaya ulaştığı ana göre gecikmesi.
+  int _dealRevealDelay(int slot) {
+    final rank = (slot % _rackCols) + (slot ~/ _rackCols) * _rackCols;
+    final round = (rank ~/ 3).clamp(0, _dealRounds - 1);
+    return round * 4 * _dealStepMs + _dealFlightMs;
   }
 
   void _fxOnTableEvent(String type, int seat, Map<String, dynamic> next) {
@@ -2246,7 +2283,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       GameAudio.setSoundPack(nextSoundPack);
     }
     try {
-      if (_state['started'] != true && value['started'] == true && _viewerSeat >= 0) _fxDeal();
+      // Dağıtım animasyonu intro bitince _fxDeal ile ve ıstaka açılışıyla eşzamanlı oynar.
     } catch (_) {}
     try {
       if ('${_state['phase']}' != 'finished' && '${value['phase']}' == 'finished' &&
@@ -2421,11 +2458,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       if (previousIntro > 0 && currentIntro <= 0) {
         _dealSequence++;
         _dealAnimating = !(widget.preferences.reducedMotionEnabled || widget.preferences.dataSaverEnabled);
-        for (var i=0;i<8;i++){
-          Future<void>.delayed(Duration(milliseconds:i*72),()=>unawaited(GameAudio.sfx(i.isEven?'tile_drop':'tile_pick',enabled:_soundEnabled,volume:.68)));
-        }
-        Future<void>.delayed(const Duration(milliseconds:610),()=>unawaited(GameAudio.sfx('rack_slide',enabled:_soundEnabled,volume:.70)));
-        Future<void>.delayed(const Duration(milliseconds: 1050), () {
+        if (_viewerSeat >= 0) _fxDeal();
+        Future<void>.delayed(Duration(milliseconds: _dealStepMs * _dealRounds * 4 + _dealFlightMs + 400), () {
           if (mounted && _dealAnimating) setState(() => _dealAnimating = false);
         });
       }
@@ -2444,6 +2478,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final currentTurn = _integer(value['current_seat']);
     final introJustEnded = previousIntro > 0 && currentIntro <= nowMs;
     final turnChanged = currentTurn != previousTurn;
+    if (turnChanged || '${value['phase']}' != '${_state['phase']}') {
+      _turnStartedAtMs = DateTime.now().millisecondsSinceEpoch;
+      _turnReminded = false;
+    }
     if (turnChanged) {
       debugPrint('OKEYX_TURN: room=${value['room_id']} seat=$currentTurn phase=${value['phase']} deadline=${value['turn_deadline_ms']}');
       _lastTurnSeat = currentTurn;
@@ -2457,7 +2495,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       if (mounted) setState(() => _showTurnCue = true);
       unawaited(GameAudio.sfx('turn', enabled: _soundEnabled, volume: .92));
       if (_vibrationEnabled) unawaited(HapticFeedback.heavyImpact());
-      Future<void>.delayed(const Duration(milliseconds: 1500), () {
+      Future<void>.delayed(const Duration(milliseconds: 2200), () {
         if (!mounted || cue != _turnCueSeq) return;
         setState(() => _showTurnCue = false);
       });
@@ -3923,7 +3961,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     if (_dealAnimating && _dealSequence > 0) {
       tile = _DealInTile(
         key: ValueKey('deal-$_dealSequence-$id'),
-        delayMs: (slot % _rackCols) * 32 + (slot ~/ _rackCols) * 120,
+        delayMs: _dealRevealDelay(slot),
         child: tile,
       );
     }

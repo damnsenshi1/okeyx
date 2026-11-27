@@ -1,4 +1,10 @@
-OKEYX 20.4.1
+OKEYX 20.4.2
+
+• Tam dağıtım animasyonu: taşlar tur tur 3'lü desteler hâlinde her oyuncuya uçar; senin taşların kendi destene düştüğü anda ıstakada belirir.
+• SIRA SENDE: daha uzun görünür; 10 sn hamle yapmazsan sesli ve titreşimli tekrar hatırlatır.
+• Klasik Okey: soldaki taş elindeki taşlarla üçlü kuruyorsa "İŞİNE YARAR" diye parlar.
+• Yönetici paneli: çark artık panelde ayarlanan ödülleri gösterir; Kasa Kulesi RTP ayarı eklendi (önceden 6. katta %114 ödüyordu); etkinlik bonusu RTP ile birlikte %99'u aşamaz; etkinlik ödülü 0 yapılabilir.
+• Dağıtım tamamen sistem rastgeleliğiyle (ölçüldü: 4 koltuk eşit).
 
 • Profil fotoğrafı yükleme düzeltildi; yüklenemezse nedeni yazar.
 

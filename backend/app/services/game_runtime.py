@@ -418,7 +418,7 @@ class Room:
         next_round=old.round_index if cancelled else old.round_index+1
         participant_meta={seat:(p.user_id,p.name,p.bot,p.bot_level) for seat,p in old.players.items()}
         fresh=Room(
-            seed=random.randrange(1,10_000_000),variant=old.variant,
+            seed=None,variant=old.variant,
             entry_fee=old.entry_fee,assisted=old.assisted,room_name=old.room_name,
             turbo=old.turbo,max_rounds=old.max_rounds,waiting=False,turn_seconds=old.turn_seconds,team_mode=old.team_mode,
             random_starter=True,intro_seconds=5
@@ -451,7 +451,7 @@ class Room:
         old=self.state
         participant_meta={seat:(p.user_id,p.name,p.bot,p.bot_level) for seat,p in old.players.items()}
         fresh=Room(
-            seed=random.randrange(1,10_000_000),variant=old.variant,
+            seed=None,variant=old.variant,
             entry_fee=old.entry_fee,assisted=old.assisted,room_name=old.room_name,
             turbo=old.turbo,max_rounds=old.max_rounds,waiting=to_waiting,
             turn_seconds=old.turn_seconds,team_mode=old.team_mode,
@@ -1308,6 +1308,26 @@ class Room:
         duz_finish_ids=list(self.duz_options(viewer).keys()) if (s.variant=='duz' and active_turn and s.phase=='discard') else []
         left_useful_tile_id=None
         left_useful_reason=None
+        if s.assisted and s.started and s.phase=='draw' and s.current_seat==viewer and s.variant=='duz':
+            # Klasik Okey: soldan almak serbest; taş elindeki iki taşla geçerli bir
+            # üçlü (seri ya da aynı sayı) kuruyorsa ya da eli bitiriyorsa parlar.
+            left=(viewer-1)%4
+            if s.discard_piles[left]:
+                lt=s.discard_piles[left][-1]
+                rules=self.service.rules
+                if rules._is_joker(lt):
+                    left_useful_tile_id=lt.id;left_useful_reason='OKEY!'
+                else:
+                    hand=[t for t in viewer_p.hand if not rules._is_joker(t)]
+                    found=False
+                    for i in range(len(hand)):
+                        for j in range(i+1,len(hand)):
+                            try:
+                                if rules.validate_meld([lt,hand[i],hand[j]]).valid:found=True;break
+                            except Exception:
+                                continue
+                        if found:break
+                    if found:left_useful_tile_id=lt.id;left_useful_reason='İŞİNE YARAR'
         if s.assisted and s.started and s.phase=='draw' and s.current_seat==viewer and s.variant!='duz':
             left=(viewer-1)%4
             if s.discard_piles[left]:

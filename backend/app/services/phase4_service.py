@@ -198,7 +198,7 @@ DEFAULT_PHASE4_CONFIG: dict[str, Any] = {
         "horse":{"title":"OkeyX Hipodrom","bet_options":[500,1000,2500,5000,10000,25000,50000,100000,250000],"rtp_percent":90.0,"horses":[{"id":1,"name":"Şimşek","probability":38,"base_multiplier":2.4,"tag":"Favori"},{"id":2,"name":"Rüzgâr","probability":29,"base_multiplier":3.15,"tag":"Dengeli"},{"id":3,"name":"Kuzgun","probability":20,"base_multiplier":4.45,"tag":"Riskli"},{"id":4,"name":"Yıldırım","probability":13,"base_multiplier":6.85,"tag":"Sürpriz"}]},
         "circus":{"title":"Sirk Işıkları","bet_options":[500,1000,2500,5000,10000,25000,50000,100000,250000],"rtp_percent":90.0,"lamp_count":12,"speed_ms":185,"exact_multiplier":2.55,"near_multiplier":1.15},
         "drop":{"title":"Okey Drop","bet_options":[500,1000,2500,5000,10000,25000,50000,100000,250000],"rtp_percent":91.0,"max_multiplier":50},
-        "tower":{"title":"Kasa Kulesi","bet_options":[1000,2500,5000,10000,25000,50000,100000,250000],"floors":6,"doors_per_floor":3},
+        "tower":{"title":"Kasa Kulesi","bet_options":[1000,2500,5000,10000,25000,50000,100000,250000],"floors":6,"doors_per_floor":3,"rtp_percent":92.0},
     },
 }
 
@@ -414,7 +414,7 @@ class Phase4Service:
             if str(event_id) in set(str(x) for x in claims):
                 return {"ok": False, "code": "event_already_claimed"}
             cfg = ev.get("config") if isinstance(ev.get("config"), dict) else {}
-            coins = max(0, min(2_000_000, int(cfg.get("reward_coins", 25_000) or 25_000)))
+            coins = max(0, min(2_000_000, int(cfg.get("reward_coins", 25_000) if cfg.get("reward_coins") is not None else 25_000)))
             diamonds = max(0, min(100, int(cfg.get("reward_diamonds", 0) or 0)))
             a["chips"] = int(a.get("chips", 0)) + coins
             a["diamonds"] = int(a.get("diamonds", 0)) + diamonds
@@ -812,8 +812,12 @@ class Phase4Service:
             if payout>0 and active_events:
                 bonus_percent=max(
                     0,
-                    min(100, max(int((ev.get("config") or {}).get("side_game_bonus_percent",10) or 0) for ev in active_events)),
+                    min(100, max(int((ev.get("config") or {}).get("side_game_bonus_percent",0) or 0) for ev in active_events)),
                 )
+                # Etkinlik bonusu oyunun RTP'si ile birlikte %99'u aşamaz: salon
+                # hiçbir ayarda kalıcı olarak para dağıtmaz.
+                game_rtp=float(cfg.get("rtp_percent",92) or 92)
+                bonus_percent=min(bonus_percent,max(0,int((99.0/max(1.0,game_rtp)-1.0)*100)))
                 if bonus_percent>0:
                     event_bonus=int(round(payout*bonus_percent/100.0))
                     a["chips"]=int(a.get("chips",0))+event_bonus

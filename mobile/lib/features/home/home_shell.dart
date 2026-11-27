@@ -3596,7 +3596,7 @@ class _HomeShellState extends State<HomeShell> {
               'wheel': {..._map(_account['wheel']), ..._map(out['wheel']), 'last_spin_day': _todayKey},
             });
           }
-          await _showWheelSpin(reward);
+          await _showWheelSpin(reward, segments: _list(out['segments']).map((x) => _integer(_map(x)['reward'])).toList());
           await _showRewardBurst('ÇARK ÖDÜLÜ', reward, Icons.casino_rounded);
         } else {
           final code='${out['code'] ?? ''}';
@@ -3646,13 +3646,13 @@ class _HomeShellState extends State<HomeShell> {
         await _refreshAccountBits();
       });
 
-  Future<void> _showWheelSpin(int reward) async {
+  Future<void> _showWheelSpin(int reward, {List<int> segments = const []}) async {
     if (!mounted) return;
     unawaited(GameAudio.sfx('wheel_spin', enabled: _preferences.soundEnabled, volume: .78));
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _PrizeWheelDialog(reward: reward, reducedMotion: _preferences.reducedMotionEnabled || _preferences.dataSaverEnabled),
+      builder: (_) => _PrizeWheelDialog(reward: reward, segments: segments, reducedMotion: _preferences.reducedMotionEnabled || _preferences.dataSaverEnabled),
     );
   }
 
@@ -4250,15 +4250,18 @@ class _SpinRewardIconState extends State<_SpinRewardIcon> with SingleTickerProvi
 class _PrizeWheelDialog extends StatefulWidget {
   final int reward;
   final bool reducedMotion;
+  /// Sunucudaki gerçek çark dilimleri (yönetici panelinden değiştirilebilir).
+  final List<int> segments;
 
-  const _PrizeWheelDialog({required this.reward, required this.reducedMotion});
+  const _PrizeWheelDialog({required this.reward, required this.reducedMotion, this.segments = const []});
 
   @override
   State<_PrizeWheelDialog> createState() => _PrizeWheelDialogState();
 }
 
 class _PrizeWheelDialogState extends State<_PrizeWheelDialog> with SingleTickerProviderStateMixin {
-  static const rewards = [500, 1000, 1500, 2500, 5000, 10000, 25000];
+  static const _fallback = [500, 1000, 1500, 2500, 5000, 10000, 25000];
+  late final List<int> rewards = widget.segments.where((x) => x >= 0).isNotEmpty ? widget.segments : _fallback;
   late final AnimationController _controller;
   late final Animation<double> _turns;
 
@@ -4298,7 +4301,7 @@ class _PrizeWheelDialogState extends State<_PrizeWheelDialog> with SingleTickerP
                 AnimatedBuilder(
                   animation: _turns,
                   builder: (_, child) => Transform.rotate(angle: _turns.value * 2 * math.pi, child: child),
-                  child: CustomPaint(size: const Size.square(220), painter: const _PrizeWheelPainter(rewards)),
+                  child: CustomPaint(size: const Size.square(220), painter: _PrizeWheelPainter(rewards)),
                 ),
                 const Positioned(top: 0, child: Icon(Icons.arrow_drop_down_rounded, color: Colors.white, size: 38, shadows: [Shadow(color: Colors.black54, blurRadius: 5)])),
                 Container(width: 48, height: 48, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1B124A), boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 7)]), child: const Icon(Icons.casino_rounded, color: OkeyXColors.gold)),

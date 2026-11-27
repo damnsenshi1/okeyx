@@ -880,7 +880,15 @@ class AccountStore:
             self._save();return {'ok':True,'reward':reward,'chips':a['chips'],'achievement':item}
 
     def reward_config(self)->dict:
-        with self._lock:return deepcopy(self._data.setdefault('reward_config',{}))
+        """Panelde ve oyunda kullanılan GERÇEK içerik: hiç düzenlenmediyse
+        varsayılan çark/sandık ödülleri döner (boş liste gösterilmez)."""
+        with self._lock:
+            cfg=deepcopy(self._data.setdefault('reward_config',{}))
+        w=cfg.setdefault('wheel',{});w.setdefault('daily_limit',1)
+        if not w.get('segments'):w['segments']=[{'reward':x,'weight':1} for x in WHEEL_REWARDS]
+        c=cfg.setdefault('chest',{});c.setdefault('daily_limit',5)
+        if not c.get('rewards'):c['rewards']=[{'reward':x,'weight':1} for x in CHEST_REWARDS]
+        return cfg
 
     _ECONOMY_DEFAULTS={'commission_percent':15,'canak_percent':10,'welcome_chips':1_000_000}
     def economy(self)->dict:

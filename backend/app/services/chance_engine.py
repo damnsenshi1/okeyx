@@ -443,27 +443,39 @@ def play_drop(a: dict[str, Any], cfg: dict[str, Any], wager: int) -> dict[str, A
 
 
 # --- KASA KULESİ ------------------------------------------------------------
-TOWER_MULTIPLIERS = [1.35, 1.9, 2.8, 4.4, 7.5, 13.0]
+TOWER_MULTIPLIERS = [1.35, 1.9, 2.8, 4.4, 7.5, 13.0]  # eski sabit tablo (yalnız uyumluluk)
+TOWER_FLOORS = 6
+
+
+def tower_multipliers(cfg: dict[str, Any]) -> list[float]:
+    """Her kat 3 kapıdan 1'i tuzak: k. katı geçme olasılığı (2/3)^k.
+    Çarpan = RTP / (2/3)^k ⇒ hangi katta kasayı alırsan al beklenen geri ödeme
+    tam olarak ayarlanan RTP olur. Eski sabit tablo 6. katta %114 ödüyordu."""
+    rtp = max(60.0, min(98.0, float(cfg.get("rtp_percent", 92.0)))) / 100.0
+    return [round(rtp / ((2 / 3) ** k), 2) for k in range(1, TOWER_FLOORS + 1)]
 
 
 def tower_catalog(cfg: dict[str, Any]) -> dict[str, Any]:
     out = deepcopy(cfg)
     out.setdefault("title", "Kasa Kulesi")
     out["bet_options"] = cfg.get("bet_options") or [1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000]
-    out["floors"] = len(TOWER_MULTIPLIERS)
-    out["multipliers"] = list(TOWER_MULTIPLIERS)
+    out["floors"] = TOWER_FLOORS
+    out["multipliers"] = tower_multipliers(cfg)
+    out["rtp_percent"] = round(float(cfg.get("rtp_percent", 92.0)), 2)
+    out["active_rtp_percent"] = out["rtp_percent"]
     out["doors_per_floor"] = 3
     return out
 
 
 def tower_start(a: dict[str, Any], cfg: dict[str, Any], wager: int, challenges: dict[str, Any]) -> dict[str, Any]:
+    _tm = tower_multipliers(cfg)
     wager = validate_bet(cfg, wager)
     charge(a, wager)
     cid = uuid.uuid4().hex[:18]
     now = int(time.time() * 1000)
     # One trap per floor. It is committed server-side at start and never changed
     # after the player chooses a door.
-    traps = [secrets.randbelow(3) for _ in TOWER_MULTIPLIERS]
+    traps = [secrets.randbelow(3) for _ in _tm]
     challenges[cid] = {"wager": wager, "floor": 0, "traps": traps, "used": False, "created": now, "expires": now + 120_000}
     return {
         "ok": True,
@@ -472,12 +484,13 @@ def tower_start(a: dict[str, Any], cfg: dict[str, Any], wager: int, challenges: 
         "challenge_id": cid,
         "wager": wager,
         "floor": 0,
-        "next_multiplier": TOWER_MULTIPLIERS[0],
+        "next_multiplier": _tm[0],
         "expires_at_ms": now + 120_000,
     }
 
 
 def tower_choose(a: dict[str, Any], cfg: dict[str, Any], cid: str, choice: int, challenges: dict[str, Any]) -> dict[str, Any]:
+    _tm = tower_multipliers(cfg)
     row = challenges.get(cid)
     if not row:
         raise ValueError("tower_challenge_not_found")
@@ -487,7 +500,7 @@ def tower_choose(a: dict[str, Any], cfg: dict[str, Any], cid: str, choice: int, 
         row["used"] = True
         raise ValueError("tower_challenge_expired")
     floor = int(row.get("floor", 0))
-    if floor < 0 or floor >= len(TOWER_MULTIPLIERS):
+    if floor < 0 or floor >= len(_tm):
         raise ValueError("tower_finished")
     choice = int(choice)
     if choice not in (0, 1, 2):
@@ -497,18 +510,19 @@ def tower_choose(a: dict[str, Any], cfg: dict[str, Any], cid: str, choice: int, 
         row["used"] = True
         return {"ok": True, "game": "tower", "action": "choose", "challenge_id": cid, "floor": floor, "choice": choice, "safe": False, "payout_coins": 0, "multiplier": 0.0, "finished": True}
     row["floor"] = floor + 1
-    if row["floor"] >= len(TOWER_MULTIPLIERS):
-        mult = TOWER_MULTIPLIERS[-1]
+    if row["floor"] >= len(_tm):
+        mult = _tm[-1]
         payout = int(round(int(row["wager"]) * mult))
         a["chips"] += payout
         a["stats"]["chips_won"] = int(a["stats"].get("chips_won", 0)) + payout
         row["used"] = True
         return {"ok": True, "game": "tower", "action": "choose", "challenge_id": cid, "floor": floor, "choice": choice, "safe": True, "payout_coins": payout, "multiplier": mult, "finished": True, "cleared": True}
-    current_mult = TOWER_MULTIPLIERS[floor]
-    return {"ok": True, "game": "tower", "action": "choose", "challenge_id": cid, "floor": row["floor"], "choice": choice, "safe": True, "payout_coins": 0, "current_multiplier": current_mult, "next_multiplier": TOWER_MULTIPLIERS[row["floor"]], "finished": False}
+    current_mult = _tm[floor]
+    return {"ok": True, "game": "tower", "action": "choose", "challenge_id": cid, "floor": row["floor"], "choice": choice, "safe": True, "payout_coins": 0, "current_multiplier": current_mult, "next_multiplier": _tm[row["floor"]], "finished": False}
 
 
 def tower_cashout(a: dict[str, Any], cfg: dict[str, Any], cid: str, challenges: dict[str, Any]) -> dict[str, Any]:
+    _tm = tower_multipliers(cfg)
     row = challenges.get(cid)
     if not row:
         raise ValueError("tower_challenge_not_found")
@@ -517,7 +531,7 @@ def tower_cashout(a: dict[str, Any], cfg: dict[str, Any], cid: str, challenges: 
     floor = int(row.get("floor", 0))
     if floor <= 0:
         raise ValueError("tower_nothing_to_cashout")
-    mult = TOWER_MULTIPLIERS[floor - 1]
+    mult = _tm[floor - 1]
     payout = int(round(int(row["wager"]) * mult))
     a["chips"] += payout
     a["stats"]["chips_won"] = int(a["stats"].get("chips_won", 0)) + payout
