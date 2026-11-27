@@ -17,7 +17,9 @@ def healthz():
     try:
         from app.api import ops_extra as _ox
         _s = _ox.fcm()
-        runtime['push'] = {'configured': _s is not None, 'project': getattr(_s, 'project', '') if _s else '', 'reason': '' if _s else _ox.FCM_ERROR}
+        import os as _os
+        _names = {k: len(v or '') for k, v in _os.environ.items() if 'FCM' in k.upper() or 'FIREBASE' in k.upper()}
+        runtime['push'] = {'configured': _s is not None, 'project': getattr(_s, 'project', '') if _s else '', 'reason': '' if _s else _ox.FCM_ERROR, 'env_lengths': _names}
     except Exception as exc:  # pragma: no cover
         runtime['push'] = {'configured': False, 'error': type(exc).__name__}
     return {'ok': True, 'service': 'okeyx-v20', 'runtime': runtime, 'storage': {
