@@ -1150,7 +1150,7 @@ async def _execute_action(room_id:str,body:ActionIn):
                 if body.request_id:m['dedupe'][body.request_id]=response
                 return response
             not_ready=[seat for seat in m.get('player_ids',{}) if seat!=owner and seat not in m.setdefault('ready_seats',set())]
-            if not_ready:
+            if not_ready and not bool((body.payload or {}).get('force')):
                 response={'ok':False,'code':'players_not_ready','payload':{'seats':not_ready},'request_id':body.request_id,'state':_state(room_id,body.seat)}
                 if body.request_id:m['dedupe'][body.request_id]=response
                 return response

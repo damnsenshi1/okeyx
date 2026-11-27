@@ -26,6 +26,12 @@ def test_private_host_start_requires_filled_seats_and_ready(tmp_path,monkeypatch
         assert added['ok'] is True and game.ROOMS[c['room_id']].state.phase=='waiting'
     # Hazır sistemi: davetli oyuncu HAZIRIM'a basmadan masa başlamaz.
     start.request_id='b'; out=asyncio.run(game._execute_action(c['room_id'],start)); assert out['ok'] is False and out['code']=='players_not_ready'
+    # Masa sahibi onaylayarak hazır olmayanı beklemeden başlatabilir (force).
+    forced=game.ActionIn(seat=c['seat'],kind='start_match',reconnect_token=c['reconnect_token'],request_id='f',payload={'force':True})
+    import copy
+    room_backup=copy.deepcopy(game.ROOMS[c['room_id']]);meta_backup=copy.deepcopy({k:v for k,v in game.ROOM_META[c['room_id']].items() if k not in ('sockets','spectators')})
+    out=asyncio.run(game._execute_action(c['room_id'],forced)); assert out['ok'] is True
+    game.ROOMS[c['room_id']]=room_backup;game.ROOM_META[c['room_id']].update(meta_backup)
     j=[s for s,pid in game.ROOM_META[c['room_id']]['player_ids'].items() if pid=='p2'][0]
     tok=game.ROOM_META[c['room_id']]['seat_tokens'][j]
     asyncio.run(game.set_ready(c['room_id'],game.ReadyIn(seat=j,reconnect_token=tok,ready=True)))

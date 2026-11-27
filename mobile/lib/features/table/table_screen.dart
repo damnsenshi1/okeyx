@@ -5216,9 +5216,9 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                   const SizedBox(width:6),
                                   Expanded(flex:7,child:FilledButton.icon(
                                     style:FilledButton.styleFrom(backgroundColor:current<required?const Color(0xFF9A6A2F):tableReady?const Color(0xFF8A5A1C):const Color(0xFF231665),foregroundColor:Colors.white,shadowColor:tableReady?OkeyXColors.gold:Colors.transparent,elevation:tableReady?14:2,padding:EdgeInsets.symmetric(vertical:shortViewport?9:11),side:BorderSide(color:tableReady?OkeyXColors.gold.withValues(alpha:.75):Colors.white12,width:tableReady?1.4:1)),
-                                    onPressed:_busy?null:(current<required?_leaveForStore:(isHost?(tableReady?()=>_startMatchFromWaiting(required,current):null):(readySupported?()=>unawaited(_toggleReady(!myReady)):null))),
+                                    onPressed:_busy?null:(current<required?_leaveForStore:(isHost?(tableReady?()=>_startMatchFromWaiting(required,current):(emptyCount==0&&notReadyCount>0?()=>unawaited(_forceStart(notReadyCount)):null)):(readySupported?()=>unawaited(_toggleReady(!myReady)):null))),
                                     icon:Icon(current<required?Icons.shopping_bag_rounded:(isHost?(tableReady?Icons.play_arrow_rounded:Icons.hourglass_bottom_rounded):(myReady?Icons.check_circle_rounded:Icons.front_hand_rounded)),size:16),
-                                    label:FittedBox(child:Text(current<required?'ALTIN AL':isHost?(tableReady?'OYUNU BAŞLAT':emptyCount>0?'$emptyCount KOLTUK BOŞ':'$notReadyCount HAZIR DEĞİL'):(!readySupported?'MASA SAHİBİ BAŞLATACAK':myReady?'HAZIRIM ✓ (İPTAL)':'HAZIRIM'),style:const TextStyle(fontWeight:FontWeight.w900))),
+                                    label:FittedBox(child:Text(current<required?'ALTIN AL':isHost?(tableReady?'OYUNU BAŞLAT':emptyCount>0?'$emptyCount KOLTUK BOŞ':'$notReadyCount HAZIR DEĞİL • BAŞLAT'):(!readySupported?'MASA SAHİBİ BAŞLATACAK':myReady?'HAZIRIM ✓ (İPTAL)':'HAZIRIM'),style:const TextStyle(fontWeight:FontWeight.w900))),
                                   )),
                                 ]),
                               ] else ...[
@@ -5419,9 +5419,12 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       if (out['ok'] == true) {
         unawaited(GameAudio.sfx(ready ? 'reward' : 'ui_tap', enabled: _soundEnabled, volume: .7));
         if (_vibrationEnabled) unawaited(HapticFeedback.mediumImpact());
+        if (mounted) setState(() {});
+      } else {
+        _tableNotice(out['code'] == 'waiting_only' ? 'Oyun başladı, hazır durumu artık gerekmiyor.' : 'Hazır durumu gönderilemedi (${out['code'] ?? 'hata'}).');
       }
-    } catch (_) {
-      _tableNotice('Hazır durumu gönderilemedi.');
+    } catch (e) {
+      _tableNotice('Hazır durumu gönderilemedi: ${_friendlyCode('$e')}');
     }
   }
 
@@ -5723,6 +5726,23 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       return;
     }
     await _act('start_match');
+  }
+
+  /// Masa sahibi, HAZIRIM'a basmayan (ya da eski sürüm kullanan) oyuncuları
+  /// beklemeden onay alarak oyunu başlatabilir.
+  Future<void> _forceStart(int notReady) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Herkes hazır değil'),
+        content: Text('$notReady oyuncu henüz HAZIRIM demedi. Yine de başlatılsın mı?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('BEKLE')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('YİNE DE BAŞLAT')),
+        ],
+      ),
+    );
+    if (go == true && mounted) await _act('start_match', {'force': true});
   }
 
   Future<void> _leaveWaitingRoom() async {

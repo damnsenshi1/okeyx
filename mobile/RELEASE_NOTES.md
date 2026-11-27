@@ -1,4 +1,8 @@
-OKEYX 20.3.5
+OKEYX 20.3.6
+
+• Masa sahibi, HAZIRIM demeyen oyuncu varsa onay vererek "YİNE DE BAŞLAT" ile oyunu başlatabilir.
+• HAZIRIM gönderilemezse nedeni ekranda yazar.
+• İŞLE, elindeki okeyi artık başka pere otomatik koymaz.
 
 • Anlık bildirimler: davet, arkadaşlık, hediye ve etkinlik bildirimleri telefona anında düşer.
 
