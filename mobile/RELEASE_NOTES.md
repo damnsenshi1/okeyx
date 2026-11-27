@@ -1,3 +1,11 @@
+OKEYX 20.7.0
+
+• Yeni masa düzeni (101 Plus tarzı): ıstaka düz, önden görünür ve ekranın neredeyse tamamını kaplar; taşlar daha büyük.
+• Her sıranın altında raf; taşlar rafa oturur. Varsayılan kaplama açık bal ahşap (Ayarlar → Istaka: Bal ahşap / Ceviz / Gri kadife). Mağaza ıstakaları da yeni tasarımda.
+• ÇİFT DİZ solda, SERİ DİZ sağda büyük düğmeler.
+• Hediye ve Sohbet sağ üstte; mikrofon ve emoji sağ sütunda.
+• Seri/çift alanı ince ızgaralı, düzenli panel.
+
 OKEYX 20.6.1
 
 • Yeni varsayılan ıstaka: klasik gri kadife okey ıstakası (Ayarlar → Istaka: Gri kadife / Ceviz).

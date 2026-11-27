@@ -49,7 +49,7 @@ _RackSkin _skinFor(String style) => switch (style) {
       'marble' => const _RackSkin(null, Color(0xFFF4F2EE), Color(0xFFB9B5AD), Color(0xFF8C887F), texture: false, flat: Color(0xFFE2DED6)),
       'classic' => _RackSkin(_mul(1.05, .82, .58, add: 10), const Color(0xFFF2B866), const Color(0xFFB0661F), const Color(0xFF6A3A12)),
       // Varsayılan: açık bal rengi ahşap (klasik kahvehane ıstakası)
-      _ => _RackSkin(_mul(1.25, .92, .6, add: 24, sat: 1.05), const Color(0xFFFFCF7A), const Color(0xFFC07420), const Color(0xFF7A4412)),
+      _ => _RackSkin(_mul(1.38, 1.05, .66, add: 42, sat: .95), const Color(0xFFFFD98C), const Color(0xFFC98A2E), const Color(0xFF8A5418)),
     };
 
 /// Kozmetik ya da yerel tercih kimliğini işlenmiş ıstaka stiline çevirir.
