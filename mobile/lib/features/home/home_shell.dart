@@ -198,6 +198,8 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
+  /// Sunucudan ilk cüzdan gelene kadar eski (telefonda kayıtlı) sayı gösterilmez.
+  bool _walletSynced = false;
   int get _chips => _integer(_account['chips'], fallback: _profile.coins);
   int get _level => _integer(_account['level'], fallback: _profile.level);
   int get _xp => _integer(_account['xp'], fallback: _profile.xp);
@@ -550,9 +552,13 @@ class _HomeShellState extends State<HomeShell> {
         // Sunucu cüzdanı tek doğru kaynaktır: altın gönderince/kaybedince
         // eski (yüksek) Supabase değeri ekranda kalmasın.
         merged['chips'] = _integer(account['chips'], fallback: _profile.coins);
-        merged['diamonds'] = math.max(_profile.diamonds, _integer(account['diamonds'], fallback: _profile.diamonds));
-        merged['level'] = math.max(_profile.level, _integer(account['level'], fallback: _profile.level));
-        merged['xp'] = math.max(_profile.xp, _integer(account['xp'], fallback: _profile.xp));
+        // Altın, elmas, seviye ve XP'nin tek doğru kaynağı oyun sunucusudur.
+        // Eskiden telefondaki profil ile "büyük olan" gösteriliyordu; eski
+        // yüksek değer ekranda kalıp birkaç saniye sonra değişiyordu.
+        merged['diamonds'] = _integer(account['diamonds'], fallback: _profile.diamonds);
+        merged['level'] = _integer(account['level'], fallback: _profile.level);
+        merged['xp'] = _integer(account['xp'], fallback: _profile.xp);
+        _walletSynced = true;
         _account = {..._account, ...merged};
         _phase4Hub = {..._phase4Hub, 'wallet': <String,dynamic>{
           'coins': _integer(_account['chips'], fallback: _profile.coins),
@@ -887,12 +893,12 @@ class _HomeShellState extends State<HomeShell> {
           const Spacer(),
           GestureDetector(
             onTap: () => setState(() => _selected = 6),
-            child: OkxMoneyPill(icon: const OkxCoin(size: 18), value: compact ? okxShort(_chips) : okxFormat(_chips), onPlus: () => setState(() => _selected = 6)),
+            child: OkxMoneyPill(icon: const OkxCoin(size: 18), value: !_walletSynced ? '…' : compact ? okxShort(_chips) : okxFormat(_chips), onPlus: () => setState(() => _selected = 6)),
           ),
           const SizedBox(width: 8),
           GestureDetector(
             onTap: () => setState(() => _selected = 6),
-            child: OkxMoneyPill(icon: const OkxGem(size: 16), value: okxShort(_integer(_account['diamonds'], fallback: _profile.diamonds)), onPlus: () => setState(() => _selected = 6)),
+            child: OkxMoneyPill(icon: const OkxGem(size: 16), value: !_walletSynced ? '…' : okxShort(_integer(_account['diamonds'], fallback: _profile.diamonds)), onPlus: () => setState(() => _selected = 6)),
           ),
           const SizedBox(width: 8),
           _roundIcon(_preferences.radioEnabled ? Icons.graphic_eq_rounded : Icons.radio_rounded, _showRadioMenu, active: _preferences.radioEnabled),

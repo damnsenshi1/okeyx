@@ -1,3 +1,7 @@
+OKEYX 20.5.4
+
+• Altın, elmas, seviye artık açılışta doğrudan sunucudan gelir; eski değer bir an görünüp sonra değişmez.
+
 OKEYX 20.5.3
 
 • Masa kur ekranında "TURBO • GİRİŞ ×10" yazısı artık sığıyor.
