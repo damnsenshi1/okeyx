@@ -1,4 +1,9 @@
-OKEYX 20.3.8
+OKEYX 20.3.9
+
+• Maç bitince özel masada aynı oyuncularla BEKLEME ODASINA dönülür; herkes HAZIRIM deyince masa sahibi başlatır. 20 sn'den uzun kopuk olanın koltuğu boşalır.
+• Bildirimlerde OKEYX simgesi ve altın renk; aynı bildirim iki kez gelmez.
+• Yönetici paneline SİSTEM TESTİ: botlarla 50–500 maç, veritabanı, masa kaydı ve test bildirimi; rapor kopyalanabilir.
+• Klasik Okey: botların soldan alıp atarak eli bitirmediği döngü düzeltildi.
 
 • "Seri açtı / Çift açtı" yazısı her açılışta çıkar (hemen taş atılsa bile).
 • Oyundan ayrılan oyuncunun yerinde "Boş Koltuk" değil, adı ve "(ayrıldı)" yazar; yerine bot oynar.

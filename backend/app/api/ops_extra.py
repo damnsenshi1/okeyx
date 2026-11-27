@@ -244,7 +244,7 @@ class FcmSender:
     def send(self, token: str, title: str, body: str, data: dict[str, str] | None = None) -> bool:
         msg = {'message': {'token': token, 'notification': {'title': title[:80], 'body': body[:200]},
                            'data': {k: str(v) for k, v in (data or {}).items()},
-                           'android': {'priority': 'high'}}}
+                           'android': {'priority': 'high', 'notification': {'icon': 'ic_stat_okeyx', 'color': '#FFC845', 'channel_id': 'okeyx_genel', 'sound': 'default'}}}}
         r = self._http.post(f'https://fcm.googleapis.com/v1/projects/{self.project}/messages:send', json=msg,
                             headers={'Authorization': f'Bearer {self._access()}'})
         return r.status_code == 200

@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -3675,6 +3676,11 @@ class _HomeShellState extends State<HomeShell> {
     if (token != null && token.isNotEmpty) {
       try {
         await _api.registerPush(token);
+        // Arka plan yoklayıcısı, anlık bildirimle gelenleri ikinci kez göstermesin.
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('okx_push_ok', true);
+        } catch (_) {}
       } catch (_) {}
     }
     _pushTapSub ??= PushService.taps.listen((data) {

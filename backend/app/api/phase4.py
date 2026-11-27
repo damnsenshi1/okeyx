@@ -400,3 +400,104 @@ def phase4_admin_live_event_upsert(body: LiveEventIn, x_admin_key: str | None = 
 def phase4_admin_live_event_delete(event_id: str, actor: str = "admin", x_admin_key: str | None = Header(None)):
     _admin(x_admin_key)
     return _svc().admin_delete_live_event(event_id, actor)
+
+
+# ---------------------------------------------------------------- sistem testi
+class StaffSelfTestIn(BaseModel):
+    actor_id: str
+    games: int = 200
+    push: bool = True
+
+
+_SELFTEST: dict = {'running': False, 'result': None, 'progress': 0, 'total': 0, 'started_at': 0}
+
+
+def _selftest_worker(actor_id: str, games: int, push: bool) -> None:
+    import time as _t
+    import random as _r
+    from app.services import selftest as st
+    checks: list[dict] = []
+    started = _t.time()
+    try:
+        # 1) Botlarla maç simülasyonu (canlı masalara dokunmaz). Her maçtan sonra
+        # kısa mola: testi çalıştırmak gerçek oyuncuların hamlelerini bekletmesin.
+        base = _r.randrange(1, 9_000_000)
+        played = passed = 0
+        failures: list[dict] = []
+        reasons: dict[str, int] = {}
+        for i in range(games):
+            cfg = st._CONFIGS[i % len(st._CONFIGS)]
+            try:
+                res = st.play_one(base + i, cfg)
+            except Exception as exc:  # noqa: BLE001
+                res = {'ok': False, 'seed': base + i, 'mode': st._label(cfg), 'error': f'{type(exc).__name__}: {str(exc)[:120]}'}
+            played += 1
+            if res.get('ok'):
+                passed += 1
+                reasons[str(res.get('reason') or 'bitti')] = reasons.get(str(res.get('reason') or 'bitti'), 0) + 1
+            elif len(failures) < 15:
+                failures.append(res)
+            _SELFTEST['progress'] = played
+            _t.sleep(0.02)
+        checks.append({'name': f'Botlarla {games} maç', 'ok': played == passed,
+                       'detail': f'{passed}/{played} sorunsuz bitti • tohum {base}', 'end_reasons': reasons, 'failures': failures})
+        # 2) Depolama
+        try:
+            status = STORE.remote_status()
+            checks.append({'name': 'Veritabanı (Supabase)', 'ok': bool(status.get('loaded')) and not status.get('error'),
+                           'detail': f"{'bağlı' if status.get('enabled') else 'yerel dosya'}{(' • hata: ' + str(status.get('error'))) if status.get('error') else ''}"})
+        except Exception as exc:  # noqa: BLE001
+            checks.append({'name': 'Veritabanı (Supabase)', 'ok': False, 'detail': str(exc)[:120]})
+        # 3) Oda kaydı (sunucu yeniden başlayınca masaların geri gelmesi)
+        try:
+            from app.api import game as _g
+            from app.services.runtime_persistence import build_runtime_blob
+            blob = build_runtime_blob(_g.ROOMS, _g.ROOM_META)
+            checks.append({'name': 'Masa kaydı (yeniden başlatma koruması)', 'ok': len(blob) > 0, 'detail': f'{len(_g.ROOMS)} masa • {len(blob) // 1024} KB'})
+        except Exception as exc:  # noqa: BLE001
+            checks.append({'name': 'Masa kaydı (yeniden başlatma koruması)', 'ok': False, 'detail': f'{type(exc).__name__}: {str(exc)[:120]}'})
+        # 4) Anlık bildirim
+        if push:
+            try:
+                from app.api.ops_extra import fcm, push_to_player
+                if not fcm():
+                    checks.append({'name': 'Anlık bildirim', 'ok': False, 'detail': 'Firebase anahtarı sunucuda yok'})
+                else:
+                    acc = STORE.get(actor_id) or {}
+                    tokens = len(acc.get('push_tokens') or [])
+                    sent = push_to_player(actor_id, 'OKEYX test bildirimi', 'Bu bildirimi görüyorsan anlık bildirim çalışıyor.', {'kind': 'event'})
+                    checks.append({'name': 'Anlık bildirim', 'ok': sent > 0,
+                                   'detail': f'{sent} cihaza gönderildi' if sent else (f'{tokens} kayıtlı cihaz var ama gönderilemedi' if tokens else 'Bu hesapta kayıtlı cihaz yok (oyunu açıp bildirim izni ver)')})
+            except Exception as exc:  # noqa: BLE001
+                checks.append({'name': 'Anlık bildirim', 'ok': False, 'detail': f'{type(exc).__name__}: {str(exc)[:120]}'})
+    finally:
+        _SELFTEST['result'] = {'checks': checks, 'seconds': round(_t.time() - started, 1), 'finished_at': int(_t.time()),
+                               'ok': bool(checks) and all(c['ok'] for c in checks)}
+        _SELFTEST['running'] = False
+
+
+@router.post("/phase4/staff/selftest")
+def staff_selftest_start(body: StaffSelfTestIn, x_account_token: str | None = Header(None)):
+    _require(body.actor_id, x_account_token)
+    try:
+        _svc().require_staff(body.actor_id, "moderate")
+    except PermissionError:
+        raise HTTPException(403, "staff_permission_denied")
+    if _SELFTEST['running']:
+        return {'ok': True, 'running': True, 'progress': _SELFTEST['progress'], 'total': _SELFTEST['total']}
+    import threading
+    import time as _t
+    games = max(10, min(int(body.games), 500))
+    _SELFTEST.update({'running': True, 'result': None, 'progress': 0, 'total': games, 'started_at': int(_t.time())})
+    threading.Thread(target=_selftest_worker, args=(body.actor_id, games, bool(body.push)), daemon=True).start()
+    return {'ok': True, 'running': True, 'progress': 0, 'total': games}
+
+
+@router.get("/phase4/staff/{player_id}/selftest")
+def staff_selftest_status(player_id: str, x_account_token: str | None = Header(None)):
+    _require(player_id, x_account_token)
+    try:
+        _svc().require_staff(player_id, "moderate")
+    except PermissionError:
+        raise HTTPException(403, "staff_permission_denied")
+    return {'ok': True, 'running': _SELFTEST['running'], 'progress': _SELFTEST['progress'], 'total': _SELFTEST['total'], 'result': _SELFTEST['result']}

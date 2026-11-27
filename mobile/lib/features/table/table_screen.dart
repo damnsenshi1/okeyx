@@ -6280,6 +6280,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         finishTag: finishTag,
         rows: rows,
         matchFinished: finished,
+        backToWaiting: finished && _state['quick_match'] != true && _state['practice'] != true,
         roundIndex: _integer(_state['round_index']),
         maxRounds: _integer(_state['max_rounds']),
         turbo: _state['turbo'] == true,
@@ -6735,6 +6736,8 @@ class _RoundResultDialog extends StatefulWidget {
   final String finishTag;
   final List<Map<String, dynamic>> rows;
   final bool matchFinished;
+  /// Özel masa: maç sonu bekleme odasına dönülür (herkes HAZIRIM der).
+  final bool backToWaiting;
   final int roundIndex;
   final int maxRounds;
   final bool turbo;
@@ -6750,6 +6753,7 @@ class _RoundResultDialog extends StatefulWidget {
     required this.finishTag,
     required this.rows,
     required this.matchFinished,
+    this.backToWaiting = false,
     required this.roundIndex,
     required this.maxRounds,
     required this.turbo,
@@ -6779,7 +6783,7 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
       if(_sharing)return;
       if (_left <= 1) {
         _timer?.cancel();
-        Navigator.of(context).pop(widget.matchFinished ? 'menu' : 'next');
+        Navigator.of(context).pop(widget.matchFinished ? (widget.backToWaiting ? 'rematch' : 'menu') : 'next');
       } else {
         setState(() => _left--);
       }
@@ -6937,7 +6941,7 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
                             OkxButton.ghost(label: 'MENÜ', icon: Icons.home_rounded, height: 42, onTap: () => Navigator.of(context).pop('menu')),
                             OkxButton.ghost(label: 'PAYLAŞ', icon: _sharing ? Icons.hourglass_top_rounded : Icons.ios_share_rounded, height: 42, onTap: _sharing ? null : () => unawaited(_shareResult())),
                             OkxButton(
-                              label: widget.matchFinished ? 'TEKRAR OYNA ($_left)' : 'SONRAKİ EL ($_left)',
+                              label: widget.matchFinished ? (widget.backToWaiting ? 'BEKLEME ODASI ($_left)' : 'TEKRAR OYNA ($_left)') : 'SONRAKİ EL ($_left)',
                               icon: Icons.replay_rounded,
                               height: 42,
                               style: widget.matchFinished ? OkxButtonStyle.green : OkxButtonStyle.brass,
@@ -7059,7 +7063,7 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
             const SizedBox(width: 7),
             Expanded(flex: 3, child: OkxButton.ghost(label: 'PAYLAŞ', icon: _sharing ? Icons.hourglass_top_rounded : Icons.ios_share_rounded, height: 44, onTap: _sharing ? null : () => unawaited(_shareResult()))),
             const SizedBox(width: 7),
-            Expanded(flex: 4, child: OkxButton(label: widget.matchFinished ? 'TEKRAR OYNA ($_left)' : 'SONRAKİ EL ($_left)', icon: Icons.replay_rounded, height: 44, style: widget.matchFinished ? OkxButtonStyle.green : OkxButtonStyle.brass, onTap: () => Navigator.of(context).pop(widget.matchFinished ? 'rematch' : 'next'))),
+            Expanded(flex: 4, child: OkxButton(label: widget.matchFinished ? (widget.backToWaiting ? 'BEKLEME ODASI ($_left)' : 'TEKRAR OYNA ($_left)') : 'SONRAKİ EL ($_left)', icon: Icons.replay_rounded, height: 44, style: widget.matchFinished ? OkxButtonStyle.green : OkxButtonStyle.brass, onTap: () => Navigator.of(context).pop(widget.matchFinished ? 'rematch' : 'next'))),
           ]),
         ]),
       )),

@@ -33,6 +33,7 @@ class OkxNotifyWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, para
         val token = flutter.getString("flutter.okx_bg_token", null)
         val api = flutter.getString("flutter.okx_bg_api", null)
         val state = applicationContext.getSharedPreferences("okx_bg_state", Context.MODE_PRIVATE)
+        val pushOk = flutter.getBoolean("flutter.okx_push_ok", false)
         ensureChannel(applicationContext)
         try {
             if (!pid.isNullOrBlank() && !token.isNullOrBlank() && !api.isNullOrBlank()) {
@@ -47,6 +48,8 @@ class OkxNotifyWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, para
                             val id = n.optString("id")
                             if (id.isBlank() || seen.contains(id) || n.optBoolean("read")) continue
                             seen.add(id)
+                            // Anlık bildirim (Firebase) açıksa bu türler zaten anında geldi; tekrar gösterme.
+                            if (pushOk && PUSH_KINDS.contains(n.optString("kind"))) continue
                             // Çok eski bildirimleri telefona düşürme (ilk kurulumda yığılmasın).
                             if (nowSec - n.optLong("created_at", nowSec) > 6 * 3600) continue
                             notify(applicationContext, id.hashCode(), n.optString("title", "OKEYX"), n.optString("message", ""))
@@ -88,6 +91,7 @@ class OkxNotifyWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, para
 
     companion object {
         private const val CHANNEL = "okeyx_genel"
+        private val PUSH_KINDS = setOf("friend_request", "friend", "invite", "canak", "vip", "support", "season", "referral", "tournament", "daily_ready", "event")
 
         fun ensureChannel(ctx: Context) {
             if (Build.VERSION.SDK_INT >= 26) {
@@ -104,7 +108,9 @@ class OkxNotifyWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, para
             val open = Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             val pi = PendingIntent.getActivity(ctx, id, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             val n = NotificationCompat.Builder(ctx, CHANNEL)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_stat_okeyx)
+                .setColor(0xFFFFC845.toInt())
+                .setLargeIcon(android.graphics.BitmapFactory.decodeResource(ctx.resources, R.mipmap.ic_launcher))
                 .setContentTitle(title)
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))

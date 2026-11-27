@@ -389,6 +389,7 @@ def _state(room_id:str,viewer:int)->dict:
     state['occupied_count']=_occupied_count(room_id)
     state['empty_count']=max(0,4-state['occupied_count'])
     state['quick_match']=bool(m.get('quick_match',False))
+    state['practice']=bool(m.get('practice',False))
     state['spectator_count']=len(m.setdefault('spectators',{}))
     return state
 
@@ -1143,6 +1144,11 @@ async def _execute_action(room_id:str,body:ActionIn):
     if body.seat in m['player_ids'] and r.state.player(body.seat).bot:
         r.restore_human(body.seat)
 
+    if body.kind=='rematch' and not m.get('quick_match') and not m.get('practice'):
+        # Özel masada maç sonu doğrudan yeni maça değil bekleme odasına döner:
+        # bağlantısı kopan oyuncu yüzünden maç başlayıp bota kalmasın.
+        body.payload=dict(body.payload or {},to_waiting=True)
+
     if body.kind=='start_match':
         owner=int(m.get('owner_seat',0) or 0)
         if not m.get('quick_match') and body.seat!=owner:
@@ -1206,6 +1212,8 @@ async def _execute_action(room_id:str,body:ActionIn):
         m['settled']=False
         m['recorded_rounds']=set()
         m['economy_charged']=False
+        if r.state.phase=='waiting':
+            _reset_seats_for_waiting(room_id,body.seat)
     if result.ok:m['afk_strikes'][body.seat]=0
     _record_round_if_finished(room_id)
     _settle_if_finished(room_id)
@@ -1222,6 +1230,30 @@ async def _execute_action(room_id:str,body:ActionIn):
     # receive the same revision immediately over their sockets.
     await _broadcast(room_id,skip_seat=body.seat)
     return response
+
+def _reset_seats_for_waiting(room_id:str,actor:int|None=None)->None:
+    """Maç sonu bekleme odası: hazırlar sıfırlanır, bağlantısı kopan ya da
+    oyundan ayrılan oyuncuların koltuğu boşaltılır, gerekirse masa sahibi devredilir."""
+    r=ROOMS[room_id];m=ROOM_META[room_id]
+    m['ready_seats']=set();m['left_seats']=set()
+    explicit=m.setdefault('bot_seats',set())
+    for seat in range(4):
+        pid=m['player_ids'].get(seat)
+        p=r.state.player(seat)
+        # Kısa kopukluk (ekran kapandı, ağ değişti) koltuğu kaybettirmez; 20 sn'den
+        # uzun kopuk olan ya da oyundan ayrılan oyuncunun koltuğu boşalır.
+        gone_for=_now()-float(m.get('disconnect_at',{}).get(seat) or _now())
+        if pid and (seat==actor or m['connected'].get(seat,False) or gone_for<20):
+            p.bot=False
+            continue
+        if seat in explicit and not pid:
+            continue
+        m['player_ids'].pop(seat,None);m['seat_tokens'].pop(seat,None)
+        p.bot=True;p.user_id=f'bot-seat-{seat}';p.name=['Sen','Deniz','Mert','Eylül'][seat]
+    owner=int(m.get('owner_seat',0) or 0)
+    if owner not in m['player_ids']:
+        remaining=sorted(int(s) for s,pid in m['player_ids'].items() if pid)
+        if remaining:m['owner_seat']=remaining[0]
 
 @router.post('/game/{room_id}/action')
 async def game_action(room_id:str,body:ActionIn):

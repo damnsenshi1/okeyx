@@ -440,7 +440,7 @@ class Room:
         return ActionResult(True,payload={'round_index':self.state.round_index})
 
 
-    def rematch(self)->ActionResult:
+    def rematch(self,to_waiting:bool=False)->ActionResult:
         """Start a fresh match in the same room with the same seats/config.
 
         Match totals are reset, identities are preserved and the normal 5-second
@@ -453,7 +453,7 @@ class Room:
         fresh=Room(
             seed=random.randrange(1,10_000_000),variant=old.variant,
             entry_fee=old.entry_fee,assisted=old.assisted,room_name=old.room_name,
-            turbo=old.turbo,max_rounds=old.max_rounds,waiting=False,
+            turbo=old.turbo,max_rounds=old.max_rounds,waiting=to_waiting,
             turn_seconds=old.turn_seconds,team_mode=old.team_mode,
             random_starter=True,intro_seconds=5
         )
@@ -475,6 +475,11 @@ class Room:
         self.start_intro_seconds=5
         self.bot_next_action_at_ms=0
         self.recalculate_turbo()
+        if to_waiting:
+            # Özel masa: aynı oyuncularla bekleme odasına dönülür; herkes
+            # HAZIRIM deyince masa sahibi yeni maçı başlatır.
+            self.state.log.append('Yeni maç için bekleme odası.')
+            return ActionResult(True,'back_to_waiting',{'round_index':1})
         self.state.log.append('Rövanş başlıyor.')
         return ActionResult(True,'rematch_started',{'round_index':1})
 
@@ -535,12 +540,22 @@ class Room:
         p=self.state.player(seat);rules=self.service.rules
         if self.state.phase=='draw':
             left=(seat-1)%4;took=False
-            if self.state.discard_piles[left] and p.bot_level!='afk':
+            # Botlar hep soldan alıp atarsa deste hiç azalmaz ve el sonsuza kadar
+            # sürer; art arda 8 soldan alıştan sonra desteden çekmek zorunlu.
+            streak=int(getattr(self,'_duz_left_streak',0) or 0)
+            taken_id=None
+            if self.state.discard_piles[left] and p.bot_level!='afk' and streak<8:
                 lt=self.state.discard_piles[left][-1]
-                gain=rules._is_joker(lt) or self._tile_synergy(p.hand,lt)>=(8 if p.bot_level=='hard' else 12)
+                worst=min((self._tile_synergy(p.hand,t) for t in p.hand if not rules._is_joker(t)),default=0)
+                gain=rules._is_joker(lt) or (self._tile_synergy(p.hand,lt)>=(8 if p.bot_level=='hard' else 12) and self._tile_synergy(p.hand,lt)>worst+3)
                 if p.bot_level=='easy' and random.random()<0.5:gain=False
-                if gain:took=bool(self.draw(seat,'left').ok)
+                if gain:
+                    took=bool(self.draw(seat,'left').ok)
+                    if took:taken_id=lt.id
             if not took and not self.draw(seat,'stock').ok:return
+            self._duz_left_streak=streak+1 if took else 0
+        else:
+            taken_id=None
         if self.state.phase!='discard':return
         p=self.state.player(seat)
         if p.bot_level!='afk':
@@ -548,7 +563,7 @@ class Room:
             if opts:
                 pick=next((tid for tid in opts if rules._is_joker(next(t for t in p.hand if t.id==tid))),None) or next(iter(opts))
                 self.duz_finish(seat,pick);return
-        pool=[t for t in p.hand if not rules._is_joker(t)] or list(p.hand)
+        pool=[t for t in p.hand if not rules._is_joker(t) and t.id!=taken_id] or [t for t in p.hand if not rules._is_joker(t)] or list(p.hand)
         ordered=sorted(pool,key=lambda t:(self._tile_synergy(p.hand,t),-int(rules._norm(t).number or 0)))
         pick=random.choice(ordered[:3]) if p.bot_level=='easy' else ordered[0]
         self._duz_discard(seat,pick.id)
@@ -1028,7 +1043,7 @@ class Room:
         was_opened=self.state.player(seat).opened if seat in self.state.players else False
         if kind=='start_match':return self.start_match(seat)
         if kind=='new_hand':return self.new_hand()
-        if kind=='rematch':return self.rematch()
+        if kind=='rematch':return self.rematch(bool(payload.get('to_waiting')))
         if kind=='return_to_game':return ActionResult(True,'human_restored')
         if self.state.phase=='waiting':return ActionResult(False,'match_not_started')
         if self.state.phase=='finished':return ActionResult(False,'game_finished')
