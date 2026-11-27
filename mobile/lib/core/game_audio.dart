@@ -55,7 +55,7 @@ class GameAudio {
     } catch(e){ debugPrint('OKEYX_AUDIO_POOL[$name/$asset] $e'); return null; }
   }
   static Future<void> prewarm({bool all=false}) async {
-    for(final n in const ['ui_tap','tile_pick','tile_drop','discard','take_left','turn','countdown','warning','game_start','pair_open','series_open','reward','win','lose','slap','glass_break','shockwave','coin_shower']) { await _pool(n); }
+    for(final n in const ['ui_tap','tile_pick','tile_drop','discard','take_left','turn','countdown','warning','game_start','pair_open','series_open','reward','win','lose','gift_whoosh','gift_tomato','gift_slipper','glass_break','shockwave','coin_shower']) { await _pool(n); }
   }
   static Future<void> setVolumes({double? music,double? sfx,double? radio,double? ambience}) async {
     if(music!=null)_musicVolume=music.clamp(0,1).toDouble(); if(sfx!=null)_sfxVolume=sfx.clamp(0,1).toDouble();

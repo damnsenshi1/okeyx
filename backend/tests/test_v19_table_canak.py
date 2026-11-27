@@ -11,6 +11,7 @@ def _setup(tmp_path: Path, monkeypatch):
         s.ensure(pid, pid.upper(), None, None, is_guest=False)
     monkeypatch.setattr(game, 'STORE', s)
     r = game.new_room(variant='non_fold', entry_fee=5000, assisted=True, turbo=False, max_rounds=1, room_name='t', waiting=True)
+    r.state.started = True; r.state.phase = 'draw'
     m = game._ensure_meta(r.state.room_id)
     for seat, pid in ((0, 'p1'), (1, 'p2')):
         m['player_ids'][seat] = pid
@@ -36,3 +37,12 @@ def test_okey_finish_breaks_canak(tmp_path, monkeypatch):
     assert s.get('p2')['chips'] == before - 500 + 5000
     st = game._state(r.state.room_id, 0)
     assert st['canak']['pot'] == 0 and st['canak']['last']['kind'] == 'okey'
+
+
+def test_canak_charged_once_per_hand(tmp_path, monkeypatch):
+    s, r, m = _setup(tmp_path, monkeypatch)
+    game._canak_round_start(r.state.room_id)
+    game._canak_round_start(r.state.room_id)
+    assert m['canak_pot'] == 1000
+    game._table_canak(r.state.room_id, r, m, {'joker_finish': False}, 0)
+    assert m['canak_pot'] == 1000

@@ -142,6 +142,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   OkeyXLiveFeatures _liveFeatures = const OkeyXLiveFeatures();
   VoiceChatService? _voiceChat;
   bool _voiceEnabled = false;
+  bool _voiceMicOn = false;
+  int _micPulse = 0;
+  String? _voiceInvite;
+  bool _voiceAutoTried = false;
   bool _voiceBusy = false;
   final Set<String> _voiceMutedPlayers = <String>{};
   Set<String> _voiceSpeakingPlayers = <String>{};
@@ -235,7 +239,39 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         .where((id) => id.isNotEmpty && id != widget.profile.userId);
   }
 
-  Future<void> _toggleVoice() async {
+  VoiceChatService _ensureVoice(String roomId) => _voiceChat ??= VoiceChatService(
+        client: Supabase.instance.client,
+        roomId: roomId,
+        playerId: widget.profile.userId,
+        onSpeakingChanged: (speaking) {
+          if (!mounted) return;
+          setState(() => _voiceSpeakingPlayers = speaking);
+          unawaited(GameAudio.setVoiceDucked(speaking.any((id) => id != widget.profile.userId)));
+        },
+        onError: (message) {
+          if (mounted) _tableNotice(message);
+        },
+        onRemoteMic: (from) {
+          if (!mounted || _voiceEnabled) return;
+          final p = _list(_state['players']).map(_map).firstWhere((x) => '${x['player_id']}' == from, orElse: () => const <String, dynamic>{});
+          setState(() => _voiceInvite = '${p['name'] ?? 'Bir oyuncu'}');
+          Future<void>.delayed(const Duration(seconds: 8), () { if (mounted) setState(() => _voiceInvite = null); });
+        },
+      );
+
+  /// Dinlemeden önce yalnızca kanalı izle: biri mikrofon açarsa "dinle" daveti çıkar.
+  Future<void> _autoJoinVoice() async {
+    if (_voiceEnabled || _voiceBusy || _voiceAutoTried) return;
+    final roomId = '${_state['room_id'] ?? _api.roomId ?? ''}'.trim();
+    if (roomId.isEmpty) return;
+    _voiceAutoTried = true;
+    try {
+      await _ensureVoice(roomId).watch();
+    } catch (_) {}
+  }
+
+  /// Dokun: mikrofonu aç/kapat. Basılı tut: bas-konuş.
+  Future<void> _toggleVoice({bool? talk}) async {
     if (_voiceBusy) return;
     final roomId = '${_state['room_id'] ?? _api.roomId ?? ''}'.trim();
     if (roomId.isEmpty) {
@@ -244,31 +280,18 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     }
     setState(() => _voiceBusy = true);
     try {
-      if (_voiceEnabled) {
-        await _voiceChat?.disable();
-        await GameAudio.setVoiceDucked(false);
-        if (mounted) setState(() { _voiceEnabled = false; _voiceSpeakingPlayers = <String>{}; });
-        try { await LobbyApiClient(widget.profile).setVoice(enabled:false); } catch (_) {}
-        return;
+      final voice = _ensureVoice(roomId);
+      if (!voice.joined) {
+        await voice.join(_voicePeerIds());
+        _voiceEnabled = true;
       }
-      _voiceChat ??= VoiceChatService(
-        client: Supabase.instance.client,
-        roomId: roomId,
-        playerId: widget.profile.userId,
-        onSpeakingChanged: (speaking) {
-          if (!mounted) return;
-          setState(() => _voiceSpeakingPlayers = speaking);
-          unawaited(GameAudio.setVoiceDucked(speaking.isNotEmpty));
-        },
-        onError: (message) {
-          if (mounted) _tableNotice(message);
-        },
-      );
-      await _voiceChat!.enable(_voicePeerIds());
+      final next = talk ?? !_voiceMicOn;
+      await voice.setMic(next);
       if (!mounted) return;
-      setState(() => _voiceEnabled = true);
-      try { await LobbyApiClient(widget.profile).setVoice(enabled:true); } catch (_) {}
-      _tableNotice('Mikrofon açık. Oyuncuya dokunup sesini ayrı kapatabilirsin.');
+      setState(() => _voiceMicOn = next);
+      try { await LobbyApiClient(widget.profile).setVoice(enabled: next); } catch (_) {}
+      if (talk == null) _tableNotice(next ? 'Mikrofon açık. Herkes seni duyuyor.' : 'Mikrofon kapalı. Masayı dinlemeye devam ediyorsun.');
+      if (_vibrationEnabled) unawaited(HapticFeedback.selectionClick());
     } catch (_) {
       if (mounted) _tableNotice('Mikrofon izni verilmedi veya sesli sohbet başlatılamadı.');
     } finally {
@@ -330,7 +353,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             children: [
               Positioned.fill(child: RepaintBoundary(child: OkxFelt(theme: widget.preferences.tableTheme, photo: true))),
               // Üst çubuk
-              Positioned(left: f.x(12), top: f.y(10), child: _stakeHud(f)),
+              Positioned(left: f.x(12), top: f.y(10), child: ConstrainedBox(constraints: BoxConstraints(maxWidth: f.x(400)), child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: _stakeHud(f)))),
               // Turbo: masaya yeni işlenen her yıldızlı taş için bir yıldız,
               // seri alanından çarpana uçar ve ×N rozeti büyüyerek güncellenir.
               if (_turboFxSeq > 0)
@@ -434,7 +457,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   Widget _stakeHud(_Frame f) {
     final stake = _integer(_state['entry_fee']);
     final x = _integer(_state['multiplier']).clamp(1, 99);
-    final variant = _isDuz ? 'KLASİK OKEY' : (_state['variant'] == 'fold' ? '101 KATLAMALI' : '101 KLASİK');
+    final variant = _isDuz ? 'KLASİK OKEY' : (_state['variant'] == 'fold' ? '101 KATLAMALI' : '101 KATLAMASIZ');
+    final canak = _map(_state['canak']);
     final round = _integer(_state['round_index']);
     final maxRounds = _integer(_state['max_rounds']);
     Widget sep() => Container(width: 1, height: 12, margin: const EdgeInsets.symmetric(horizontal: 8), color: OkeyXColors.line2);
@@ -446,10 +470,11 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         const OkxCoin(size: 14),
         const SizedBox(width: 6),
         Text(_formatNumber(stake), style: _hudText),
-        if (_state['turbo'] == true) ...[sep(), AnimatedSwitcher(duration: const Duration(milliseconds: 280), transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child), child: Text('TURBO ×$x', key: ValueKey('turbo-$x'), style: _hudText.copyWith(color: OkeyXColors.gold, fontSize: 14, fontWeight: FontWeight.w900)))],
+        if (_state['turbo'] == true) ...[sep(), AnimatedSwitcher(duration: const Duration(milliseconds: 280), transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child), child: Text(x > 1 ? 'TURBO • PUAN ×$x' : 'TURBO', key: ValueKey('turbo-$x'), style: _hudText.copyWith(color: OkeyXColors.gold, fontSize: 13, fontWeight: FontWeight.w900)))],
         sep(),
         Text(variant, style: _hudText),
         if (maxRounds > 0) ...[sep(), Text('EL ${math.max(1, round)}/$maxRounds', style: _hudText)],
+        if (canak['enabled'] == true) ...[sep(), _canakBadge()],
       ]),
     );
   }
@@ -499,14 +524,38 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _voiceButton(_Frame f) => _squareButton(
-        _voiceEnabled ? Icons.mic_rounded : Icons.mic_off_rounded,
-        '',
-        _voiceBusy ? null : () => unawaited(_toggleVoice()),
-        f,
-        active: _voiceEnabled,
-        small: true,
-      );
+  /// Mikrofon: dokun = aç/kapat, basılı tut = bas-konuş. Konuşurken nabız gibi atar.
+  Widget _voiceButton(_Frame f) {
+    final talking = _voiceMicOn && _voiceSpeakingPlayers.contains(widget.profile.userId);
+    return GestureDetector(
+      onLongPressStart: _voiceBusy ? null : (_) => unawaited(_toggleVoice(talk: true)),
+      onLongPressEnd: _voiceBusy ? null : (_) => unawaited(_toggleVoice(talk: false)),
+      child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+        if (_voiceMicOn)
+          TweenAnimationBuilder<double>(
+            key: ValueKey('mic-pulse-$_micPulse'),
+            tween: Tween(begin: 0, end: 1),
+            duration: Duration(milliseconds: talking ? 700 : 1600),
+            onEnd: () { if (mounted && _voiceMicOn) setState(() => _micPulse++); },
+            builder: (context, v, _) {
+              return Container(
+              width: f.s(44) * (1 + .25 * v),
+              height: f.s(44) * (1 + .25 * v),
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: OkeyXColors.mint.withValues(alpha: (1 - v) * .8), width: 2)),
+            );
+            },
+          ),
+        _squareButton(
+          _voiceMicOn ? Icons.mic_rounded : Icons.mic_off_rounded,
+          '',
+          _voiceBusy ? null : () => unawaited(_toggleVoice()),
+          f,
+          active: _voiceMicOn,
+          small: true,
+        ),
+      ]),
+    );
+  }
 
   // ───────────── Seri ve çift alanları ─────────────
 
@@ -614,7 +663,23 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       final o = _integer(m['owner_seat']);
       if (!owners.contains(o)) owners.add(o);
     }
-    final tw = f.s(23).clamp(16.0, 32.0).toDouble();
+    // Tüm perler kaydırmadan sığsın: gerekiyorsa taş boyunu küçült.
+    var tw = f.s(23).clamp(16.0, 32.0).toDouble();
+    final zoneW = f.x(386) - 22, zoneH = f.y(188) - 34;
+    double need(double t) {
+      var h = 0.0;
+      for (final o in owners) {
+        var rowW = 0.0, rows = 1;
+        for (final m in melds.where((m) => _integer(m['owner_seat']) == o)) {
+          final w = _list(m['tiles']).length * (t + 1.5) + 7 + 7;
+          if (rowW > 0 && rowW + w > zoneW) { rows++; rowW = 0; }
+          rowW += w;
+        }
+        h += 23 + rows * (t * 1.42 + 7 + 6);
+      }
+      return h;
+    }
+    while (tw > 13 && need(tw) > zoneH) { tw -= 1; }
     final children = <Widget>[];
     for (final o in owners) {
       final p = _playerAtSeat(o);
@@ -646,7 +711,18 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       final o = _integer(m['owner_seat']);
       if (!owners.contains(o)) owners.add(o);
     }
-    final tw = f.s(20).clamp(14.0, 28.0).toDouble();
+    var tw = f.s(20).clamp(14.0, 28.0).toDouble();
+    final zoneW = f.x(178) - 20, zoneH = f.y(188) - 34;
+    double need(double t) {
+      var h = 0.0;
+      for (final o in owners) {
+        final n = melds.where((m) => _integer(m['owner_seat']) == o).length;
+        final per = math.max(1, (zoneW / (2 * (t + 1.5) + 7 + 6)).floor());
+        h += 23 + (n / per).ceil() * (t * 1.42 + 7 + 6);
+      }
+      return h;
+    }
+    while (tw > 12 && need(tw) > zoneH) { tw -= 1; }
     return _zoneShell(
       label: 'ÇİFT ALANI',
       gold: true,
@@ -719,37 +795,25 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       SizedBox(height: f.s(10)),
       if (indicator.isNotEmpty) SizedBox(width: tw, height: th, child: TileWidget(tile: _tile(indicator), bigNumber: _bigNumbers)),
       label('GÖSTERGE'),
-      if (_map(_state['canak'])['enabled'] == true) ...[SizedBox(height: f.s(8)), _canakBadge(tw)],
     ]);
   }
 
-  /// Masa çanağı: okeyle ya da çiftten biten kırar, kırılmazsa birikir.
-  Widget _canakBadge(double tw) {
+  /// Masa çanağı (üst bilgi çubuğunda): okeyle ya da çiftten biten kırar, kırılmazsa birikir.
+  Widget _canakBadge() {
     final c = _map(_state['canak']);
     final pot = _integer(c['pot']);
     return Tooltip(
-      message: 'Çanak okey: her el sonunda ${_compactMoney(_integer(c['fee']))} altın çanağa girer. Okey atarak ya da çiftten biten çanağı kırar ve hepsini alır.',
+      message: 'Çanak okey: her el başında ${_compactMoney(_integer(c['fee']))} altın çanağa girer. Okey atarak ya da çiftten biten çanağı kırar ve hepsini alır.',
       triggerMode: TooltipTriggerMode.tap,
-      child: Container(
-        width: tw * 1.7,
-        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF6B3E14), Color(0xFF3A1F08)]),
-          border: Border.all(color: OkeyXColors.gold.withValues(alpha: .75), width: 1.2),
-          boxShadow: [BoxShadow(color: OkeyXColors.gold.withValues(alpha: pot > 0 ? .35 : .1), blurRadius: 10)],
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Text('🏺', style: TextStyle(fontSize: 13, height: 1)),
+        const SizedBox(width: 4),
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: pot.toDouble()),
+          duration: const Duration(milliseconds: 700),
+          builder: (context, v, _) => Text('ÇANAK ${_compactMoney(v.round())}', style: _hudText.copyWith(color: OkeyXColors.gold, fontWeight: FontWeight.w900)),
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('🏺', style: TextStyle(fontSize: 16, height: 1)),
-          const SizedBox(height: 2),
-          const FittedBox(child: Text('ÇANAK', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1.4, color: Color(0xFFFFE3A0)))),
-          TweenAnimationBuilder<double>(
-            tween: Tween(end: pot.toDouble()),
-            duration: const Duration(milliseconds: 700),
-            builder: (context, v, _) => FittedBox(child: Text(_compactMoney(v.round()), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: OkeyXColors.gold))),
-          ),
-        ]),
-      ),
+      ]),
     );
   }
 
@@ -807,7 +871,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final av = f.s(46).clamp(36.0, 66.0).toDouble();
     final sideAv = f.s(40).clamp(34.0, 48.0).toDouble();
     return [
-      Positioned(left: 0, right: 0, top: f.y(12), child: Align(alignment: Alignment.topCenter, child: _opponent(_playerAtSeat(_relativeSeat(2)), av, f, side: 0))),
+      Positioned(left: 0, right: 0, top: f.y(5), child: Align(alignment: Alignment.topCenter, child: _opponent(_playerAtSeat(_relativeSeat(2)), f.s(36).clamp(30.0, 50.0).toDouble(), f, side: 0))),
       Positioned(left: f.x(10), top: f.y(150), child: _opponent(_playerAtSeat(_relativeSeat(3)), sideAv, f, side: -1)),
       Positioned(right: f.x(4), top: f.y(150), child: _opponent(_playerAtSeat(_relativeSeat(1)), sideAv, f, side: 1)),
     ];
@@ -837,12 +901,24 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final hand = _integer(player['hand_count']);
     final nearFinish = hand > 0 && hand <= 1 && opened;
     final plate = ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: side == 1 ? f.s(78).clamp(66.0, 94.0).toDouble() : f.s(118).clamp(92.0, 170.0).toDouble(), minWidth: side == 1 ? f.s(64).clamp(58.0, 78.0).toDouble() : f.s(84).clamp(70.0, 130.0).toDouble()),
+      constraints: BoxConstraints(maxWidth: side == 1 ? f.s(78).clamp(66.0, 94.0).toDouble() : side == 0 ? f.s(210).clamp(150.0, 280.0).toDouble() : f.s(118).clamp(92.0, 170.0).toDouble(), minWidth: side == 1 ? f.s(64).clamp(58.0, 78.0).toDouble() : f.s(84).clamp(70.0, 130.0).toDouble()),
       child: OkxLeather(
         radius: 12,
         padding: const EdgeInsets.fromLTRB(10, 5, 10, 6),
         shadows: const [BoxShadow(color: Color(0x66000000), blurRadius: 10, offset: Offset(0, 4))],
-        child: Column(
+        child: side == 0
+            // Karşıdaki oyuncu: tek satır, seri alanının üstüne binmesin.
+            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                if (_state['team_mode'] == 'paired') ...[_seatTag('EŞİN', mint: true), const SizedBox(width: 5)],
+                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: vip > 0 ? const Color(0xFFFFE3A0) : OkeyXColors.cream))),
+                if (vip > 0) ...[const SizedBox(width: 3), const Icon(Icons.workspace_premium_rounded, size: 11, color: OkeyXColors.gold)],
+                const SizedBox(width: 6),
+                Text('LV ${_integer(player['level'])}', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: OkeyXColors.muted)),
+                if (opened) ...[const SizedBox(width: 5), _seatTag(pairs ? 'ÇİFT ${_integer(player['opening_pairs'])}' : 'AÇTI ${_integer(player['opening_score'])}', gold: !pairs, mint: pairs)]
+                else if (_state['started'] == true && hand > 0) ...[const SizedBox(width: 5), Text('$hand taş', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: OkeyXColors.dim))],
+                if (nearFinish) ...[const SizedBox(width: 4), _seatTag('SON TAŞ', danger: true)],
+              ])
+            : Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: side == 1 ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
@@ -2294,6 +2370,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     });
 
     unawaited(_syncVoicePeers(value));
+    if (value['started'] == true) unawaited(_autoJoinVoice());
 
     final currentTurn = _integer(value['current_seat']);
     final introJustEnded = previousIntro > 0 && currentIntro <= nowMs;
@@ -2413,9 +2490,13 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       final giftDef = _giftByIdOrName(_giftId, _giftKind);
       final sound = switch (giftDef?.id ?? _giftKind.toLowerCase()) {
         'tea' || 'coffee' || 'çay' || 'türk kahvesi' => 'gift_coffee',
-        'rose' || 'gül' => 'gift_rose',
-        'tomato' || 'egg' || 'domates' || 'yumurta' => 'splat',
-        'slipper' || 'fish' || 'rubber_chicken' || 'terlik' || 'balık tokadı' || 'yumruk' => 'slap',
+        'rose' || 'gül' || 'heart' || 'kalp' => 'gift_rose',
+        'tomato' || 'domates' => 'gift_tomato',
+        'egg' || 'yumurta' => 'gift_egg',
+        'slipper' || 'terlik' || 'yumruk' => 'gift_slipper',
+        'fish' || 'balık tokadı' => 'gift_fish',
+        'rubber_chicken' || 'lastik tavuk' => 'gift_chicken',
+        'applause' || 'alkış' => 'gift_applause',
         'nazar' || 'nazar boncuğu' => 'gift_glass',
         'money_rain' || 'para yağmuru' => 'coin_shower',
         'rocket' || 'roket' => 'spawn_lightning',
@@ -2426,9 +2507,9 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       };
       // Ses, hediye hedefe çarptığı anda (uçuşun sonunda) çalar.
       unawaited(GameAudio.sfx('gift_whoosh', enabled: _soundEnabled, volume: .55));
-      unawaited(Future<void>.delayed(Duration(milliseconds: giftDef?.style == 'big' ? 0 : 760), () => GameAudio.sfx(sound, enabled: _soundEnabled, volume: sound == 'slap' ? .95 : .8)));
+      unawaited(Future<void>.delayed(Duration(milliseconds: giftDef?.style == 'big' ? 0 : 760), () => GameAudio.sfx(sound, enabled: _soundEnabled, volume: sound == 'gift_slipper' ? .95 : .8)));
       if (_vibrationEnabled) {
-        final heavy = sound == 'slap' || giftDef?.style == 'big';
+        final heavy = sound == 'gift_slipper' || sound == 'gift_fish' || giftDef?.style == 'big';
         unawaited(heavy ? HapticFeedback.heavyImpact() : HapticFeedback.mediumImpact());
       }
       Future<void>.delayed(const Duration(milliseconds: 2700), () {
@@ -3203,6 +3284,37 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   Positioned.fill(child: _bigGiftOverlay()),
                 if (_canakBreak != null)
                   Positioned.fill(child: IgnorePointer(child: _canakBreakOverlay())),
+                if (_voiceInvite != null && !_voiceEnabled)
+                  Positioned(
+                    top: 56,
+                    left: 0,
+                    right: 0,
+                    child: Center(child: GestureDetector(
+                      onTap: () async {
+                        final roomId = '${_state['room_id'] ?? _api.roomId ?? ''}'.trim();
+                        setState(() => _voiceInvite = null);
+                        try {
+                          await _ensureVoice(roomId).join(_voicePeerIds());
+                          if (mounted) setState(() => _voiceEnabled = true);
+                          _tableNotice('Masayı dinliyorsun. Konuşmak için mikrofona dokun ya da basılı tut.');
+                        } catch (_) {}
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFF1B3A2C), Color(0xFF0F241B)]),
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(color: OkeyXColors.mint.withValues(alpha: .7)),
+                          boxShadow: const [BoxShadow(color: Color(0x88000000), blurRadius: 12)],
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.headset_mic_rounded, size: 16, color: OkeyXColors.mint),
+                          const SizedBox(width: 8),
+                          Text('$_voiceInvite mikrofonu açtı • DİNLE', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: OkeyXColors.cream)),
+                        ]),
+                      ),
+                    )),
+                  ),
 
                 if (_showTurnCue && _state['started'] == true && !_introActive && !const {'waiting','finished'}.contains('${_state['phase']}'))
                   Positioned.fill(child: IgnorePointer(child: _turnCueOverlay())),
@@ -4527,14 +4639,22 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     const voiceLines=['Hadi kardeşim, ağaç olduk!','Okey bende!','Taşını at da oynayalım!','Bol şans!','Son taş!','Vay be!','Çift gidiyorum!','Eline sağlık!'];
     final emojis = _chatEmojiSet();
     try {
-      await showModalBottomSheet<void>(
+      // Sohbet artık yandan açılan ince panel: masa solda görünmeye devam eder.
+      await showGeneralDialog<void>(
         context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        barrierDismissible: true,
+        barrierLabel: 'Sohbet',
+        barrierColor: const Color(0x33000000),
+        transitionDuration: const Duration(milliseconds: 220),
+        transitionBuilder: (c, a, _, child) => SlideTransition(
+          position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+          child: child,
         ),
-        builder: (sheetContext) => StatefulBuilder(
+        pageBuilder: (sheetContext, _, __) => Align(
+          alignment: Alignment.centerRight,
+          child: SizedBox(
+            width: math.min(360.0, MediaQuery.sizeOf(sheetContext).width * .4),
+            child: Material(color: Colors.transparent, child: StatefulBuilder(
           builder: (sheetContext, setSheetState) {
             final chat = _list(_state['chat']).map(_map).where((e) => '${e['kind']}' != 'gift').toList().reversed.take(18).toList().reversed;
             return SafeArea(
@@ -4543,7 +4663,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                 radius: 22,
                 padding: EdgeInsets.zero,
                 child: SizedBox(
-                height: MediaQuery.sizeOf(sheetContext).height * .74,
+                height: MediaQuery.sizeOf(sheetContext).height,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
                   child: Column(
@@ -4552,8 +4672,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                       Row(
                         children: [
                           const Text('MASA SOHBETİ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-                          const SizedBox(width: 8),
-                          const Expanded(child: Text('Mesajlar masada konuşma balonu olarak da görünür.', style: TextStyle(fontSize: 9, color: Colors.white38))),
+                          const Spacer(),
                           IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
                         ],
                       ),
@@ -4660,6 +4779,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               ),
             );
           },
+        )),
+          ),
         ),
       );
     } finally {
@@ -4747,31 +4868,39 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               child: Row(children: [
                 Expanded(
                   flex: 7,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 420,
-                        height: 220,
-                        padding: const EdgeInsets.all(10),
-                        decoration: walnutDecoration(radius: BorderRadius.circular(120), rack: widget.preferences.rackStyle),
-                        child: OkxFelt(theme: widget.preferences.tableTheme, borderRadius: BorderRadius.circular(110), child: Stack(children: [
-                          Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            Text('${_state['room_name'] ?? 'OkeyX Masası'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: OkeyXFonts.serif, fontSize: 21, fontWeight: FontWeight.w700, color: OkeyXColors.cream)),
-                            const SizedBox(height: 5),
-                            Text(
-                              '${_state['turbo'] == true ? 'TURBO' : 'STANDART'}  •  ${_state['variant'] == 'fold' ? 'KATLAMALI' : 'KATLAMASIZ'}  •  ${_state['assisted'] == false ? 'YARDIMSIZ' : 'YARDIMLI'}',
-                              maxLines:1,overflow:TextOverflow.ellipsis,
-                              style:const TextStyle(fontSize:9,color:Colors.white60,fontWeight:FontWeight.w900,letterSpacing:.35),
-                            ),
-                          ])),
-                        ])),
-                      ),
-                      Positioned(top: 0, child: _waitingSeat(at((_viewerSeat + 2) % 4))),
-                      Positioned(bottom: 0, child: _waitingSeat(at(_viewerSeat), mine: true)),
-                      Positioned(left: 0, child: _waitingSeat(at((_viewerSeat + 3) % 4))),
-                      Positioned(right: 0, child: _waitingSeat(at((_viewerSeat + 1) % 4))),
-                    ],
+                  // Masa ve koltuklar sabit bir tuvalde çizilip ekrana ölçeklenir;
+                  // koltuklar masa adının üstüne binmez, yazılar kesilmez.
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: SizedBox(
+                      width: 640,
+                      height: 360,
+                      child: Stack(children: [
+                        Positioned(
+                          left: 130, top: 78, width: 380, height: 204,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: walnutDecoration(radius: BorderRadius.circular(110), rack: widget.preferences.rackStyle),
+                            child: OkxFelt(theme: widget.preferences.tableTheme, borderRadius: BorderRadius.circular(100), child: Center(child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 28),
+                              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                FittedBox(fit: BoxFit.scaleDown, child: Text('${_state['room_name'] ?? 'OkeyX Masası'}', maxLines: 1, style: const TextStyle(fontFamily: OkeyXFonts.serif, fontSize: 21, fontWeight: FontWeight.w700, color: OkeyXColors.cream))),
+                                const SizedBox(height: 6),
+                                FittedBox(fit: BoxFit.scaleDown, child: Text(
+                                  '${_isDuz ? 'KLASİK OKEY' : _state['variant'] == 'fold' ? '101 KATLAMALI' : '101 KATLAMASIZ'}  •  ${_state['turbo'] == true ? 'TURBO' : 'NORMAL'}  •  ${_state['assisted'] == false ? 'YARDIMSIZ' : 'YARDIMLI'}${_state['team_mode'] == 'paired' ? '  •  EŞLİ' : ''}',
+                                  maxLines: 1,
+                                  style: const TextStyle(fontSize: 10, color: Color(0xCCFFE3A0), fontWeight: FontWeight.w900, letterSpacing: .6),
+                                )),
+                              ]),
+                            ))),
+                          ),
+                        ),
+                        Positioned(left: 265, top: 0, child: _waitingSeat(at((_viewerSeat + 2) % 4), rel: 2)),
+                        Positioned(left: 265, bottom: 0, child: _waitingSeat(at(_viewerSeat), mine: true, rel: 0)),
+                        Positioned(left: 0, top: 128, child: _waitingSeat(at((_viewerSeat + 3) % 4), rel: 3)),
+                        Positioned(right: 0, top: 128, child: _waitingSeat(at((_viewerSeat + 1) % 4), rel: 1)),
+                      ]),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -4786,7 +4915,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Text(quickMatch ? 'HIZLI EŞLEŞME' : 'ÖZEL MASA', style: const TextStyle(fontSize: 9, color: OkeyXColors.ruby, fontWeight: FontWeight.w900, letterSpacing: 1.25)),
+                              Text(quickMatch ? 'HIZLI EŞLEŞME' : 'ÖZEL MASA', style: const TextStyle(fontSize: 9, color: OkeyXColors.gold, fontWeight: FontWeight.w900, letterSpacing: 1.25)),
                               const SizedBox(height: 4),
                               if (quickMatch)
                                 ValueListenableBuilder<int>(
@@ -4806,7 +4935,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                       const SizedBox(height: 3),
                                       Text('$occupiedCount/4 koltuk dolu${botCount > 0 ? ' • $botCount bot' : ''}', style: const TextStyle(fontSize: 9.5, color: OkeyXColors.gold, fontWeight: FontWeight.w800)),
                                       const SizedBox(height: 3),
-                                      Text(status, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: tableReady ? OkeyXColors.ruby : seconds > 0 ? OkeyXColors.gold : OkeyXColors.mint)),
+                                      Text(status, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: tableReady ? OkeyXColors.gold : seconds > 0 ? OkeyXColors.gold : OkeyXColors.mint)),
                                     ]);
                                   },
                                 )
@@ -4843,7 +4972,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                   Expanded(flex:4,child:OutlinedButton.icon(style:OutlinedButton.styleFrom(foregroundColor:const Color(0xFFFF8E91),side:const BorderSide(color:Color(0x55FF5B63))),onPressed:_busy?null:_leaveWaitingRoom,icon:const Icon(Icons.logout_rounded,size:13),label:const FittedBox(child:Text('AYRIL')))),
                                   const SizedBox(width:6),
                                   Expanded(flex:7,child:FilledButton.icon(
-                                    style:FilledButton.styleFrom(backgroundColor:current<required?const Color(0xFF9A6A2F):tableReady?OkeyXColors.rubyDeep:const Color(0xFF4B3828),foregroundColor:Colors.white,shadowColor:tableReady?OkeyXColors.ruby:Colors.transparent,elevation:tableReady?14:2,padding:EdgeInsets.symmetric(vertical:shortViewport?9:11),side:BorderSide(color:tableReady?OkeyXColors.ruby.withValues(alpha:.75):Colors.white12,width:tableReady?1.4:1)),
+                                    style:FilledButton.styleFrom(backgroundColor:current<required?const Color(0xFF9A6A2F):tableReady?const Color(0xFF8A5A1C):const Color(0xFF4B3828),foregroundColor:Colors.white,shadowColor:tableReady?OkeyXColors.gold:Colors.transparent,elevation:tableReady?14:2,padding:EdgeInsets.symmetric(vertical:shortViewport?9:11),side:BorderSide(color:tableReady?OkeyXColors.gold.withValues(alpha:.75):Colors.white12,width:tableReady?1.4:1)),
                                     onPressed:isHost&&!_busy?(current<required?_leaveForStore:(tableReady?()=>_startMatchFromWaiting(required,current):null)):null,
                                     icon:Icon(current<required?Icons.shopping_bag_rounded:(tableReady?Icons.play_arrow_rounded:Icons.hourglass_bottom_rounded),size:16),
                                     label:FittedBox(child:Text(current<required?'ALTIN AL':tableReady?'OYUNU BAŞLAT':'$emptyCount KOLTUK BOŞ',style:const TextStyle(fontWeight:FontWeight.w900))),
@@ -4853,7 +4982,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                 const SizedBox(height:9),
                                 Row(children:[
                                   Expanded(child:_waitingCompactMetric('GİRİŞ','${_compactMoney(_integer(_state['entry_fee']))}',Icons.monetization_on_rounded,OkeyXColors.gold)),const SizedBox(width:5),
-                                  Expanded(child:_waitingCompactMetric('KOLTUK','$occupiedCount/4',Icons.event_seat_rounded,OkeyXColors.ruby)),const SizedBox(width:5),
+                                  Expanded(child:_waitingCompactMetric('KOLTUK','$occupiedCount/4',Icons.event_seat_rounded,OkeyXColors.gold)),const SizedBox(width:5),
                                   Expanded(child:_waitingCompactMetric('BOT','$botCount',Icons.smart_toy_rounded,OkeyXColors.gold)),
                                 ]),
                                 const SizedBox(height:7),
@@ -4895,11 +5024,11 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                                       : 'BOTLAR YERLEŞİYOR';
                                       return FilledButton.icon(
                                         style: FilledButton.styleFrom(
-                                          backgroundColor: canHostStart ? OkeyXColors.rubyDeep : null,
+                                          backgroundColor: canHostStart ? const Color(0xFF8A5A1C) : null,
                                           foregroundColor: canHostStart ? Colors.white : null,
                                           elevation: canHostStart ? 12 : 2,
-                                          shadowColor: OkeyXColors.ruby.withValues(alpha: .65),
-                                          side: canHostStart ? BorderSide(color: OkeyXColors.ruby, width: 1.4) : null,
+                                          shadowColor: OkeyXColors.gold.withValues(alpha: .65),
+                                          side: canHostStart ? BorderSide(color: OkeyXColors.gold, width: 1.4) : null,
                                         ),
                                         onPressed: insufficient
                                             ? _leaveForStore
@@ -4940,48 +5069,77 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         child: Row(children: [Icon(icon, size: 12, color: color), const SizedBox(width: 4), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 9, color: Colors.white38, fontWeight: FontWeight.w900)), Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))]))]),
       );
 
-  Widget _waitingSeat(Map<String, dynamic> player, {bool mine = false}) {
+  Widget _waitingSeat(Map<String, dynamic> player, {bool mine = false, int rel = 0}) {
     final bot = player['bot'] == true;
     final empty = player['empty'] == true;
     final quickMatch = _state['quick_match'] == true;
     final rawName = '${player['name'] ?? 'Boş Koltuk'}';
-    final name = empty && quickMatch ? 'Oyuncu Bekleniyor' : rawName;
+    final name = empty ? (quickMatch ? 'Bekleniyor' : 'Boş koltuk') : rawName;
     final explicitBot = player['explicit_bot'] == true;
     final seat = _integer(player['seat'], fallback: -1);
     final isHost = _viewerSeat == _integer(_state['owner_seat']);
+    final ownerSeat = _integer(_state['owner_seat']);
     final kickable = isHost && !mine && !bot && seat >= 0;
-    final initial = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
     final botLevel = '${player['bot_level'] ?? 'medium'}';
-    final botColor = botLevel == 'hard' ? OkeyXColors.gold : botLevel == 'easy' ? OkeyXColors.mint : OkeyXColors.cyan;
-    final card = AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      width: 126,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+    final paired = _state['team_mode'] == 'paired';
+    // Eşli oyunda karşıdaki koltuk (rel 2) eşin, yanlar rakip.
+    final partner = paired && rel == 2;
+    final rival = paired && (rel == 1 || rel == 3);
+    final teamColor = partner || (paired && mine) ? OkeyXColors.gold : rival ? const Color(0xFF6FA8FF) : OkeyXColors.gold;
+    final connected = player['connected'] == true || bot || mine;
+    // Hazır durumu: botlar ve masaya bağlı oyuncular hazır sayılır.
+    final (statusText, statusColor) = empty
+        ? (isHost ? ('DAVET ET / BOT', const Color(0x99FFE3A0)) : ('BOŞ', const Color(0x80FFFFFF)))
+        : connected
+            ? ('HAZIR ✓', OkeyXColors.mint)
+            : ('BAĞLANIYOR…', const Color(0xFFFFB86B));
+    final roleText = empty
+        ? ''
+        : mine
+            ? (paired ? 'SEN • TAKIM A' : 'SEN')
+            : partner
+                ? 'EŞİN • TAKIM A'
+                : rival
+                    ? 'RAKİP • TAKIM B'
+                    : explicitBot
+                        ? '${botLevel == 'hard' ? 'ZOR' : botLevel == 'easy' ? 'KOLAY' : 'NORMAL'} BOT'
+                        : seat == ownerSeat
+                            ? 'MASA SAHİBİ'
+                            : 'OYUNCU';
+    final avatar = (!empty && !bot) ? SizedBox(width: 62, height: 62, child: Center(child: OkxAvatar(name: rawName, imageUrl: _avatarUrlOf(player), size: 46, online: connected, highlight: partner))) : Container(
+      width: 54,
+      height: 54,
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: empty ? const [Color(0xB819130E), Color(0xB8271E16)] : const [Color(0xF0241C14), Color(0xF01A140E)]),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: mine ? OkeyXColors.ruby : empty ? OkeyXColors.ruby.withValues(alpha: .42) : explicitBot ? botColor.withValues(alpha: .45) : Colors.white.withValues(alpha: .18), width: mine ? 1.7 : 1),
-        boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 5))],
+        shape: BoxShape.circle,
+        gradient: empty ? null : const RadialGradient(colors: [Color(0xFF3A2A18), Color(0xFF1A120A)]),
+        color: empty ? const Color(0x33000000) : null,
+        border: Border.all(color: empty ? const Color(0x66E8C478) : teamColor, width: empty ? 1.4 : 2.2),
+        boxShadow: empty ? null : [BoxShadow(color: teamColor.withValues(alpha: .35), blurRadius: 12)],
       ),
-      child: Row(children: [
+      child: empty
+          ? const Icon(Icons.add_rounded, size: 26, color: Color(0xCCE8C478))
+          : bot
+              ? Icon(Icons.smart_toy_rounded, size: 24, color: teamColor)
+              : null,
+    );
+    final card = SizedBox(
+      width: 110,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+          avatar,
+          if (seat == ownerSeat && !empty) const Positioned(top: -10, child: Icon(Icons.workspace_premium_rounded, size: 18, color: OkeyXColors.gold)),
+          if (!empty) Positioned(right: -2, bottom: -2, child: Container(width: 14, height: 14, decoration: BoxDecoration(shape: BoxShape.circle, color: connected ? OkeyXColors.mint : const Color(0xFFFFB86B), border: Border.all(color: const Color(0xFF120D08), width: 2)))),
+        ]),
+        const SizedBox(height: 5),
+        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: empty ? const Color(0xCCE8C478) : OkeyXColors.cream)),
+        if (roleText.isNotEmpty)
+          Text(roleText, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .6, color: rival ? const Color(0xFF9CC3FF) : const Color(0xFFE8C478))),
+        const SizedBox(height: 3),
         Container(
-          width: 31,
-          height: 31,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: empty ? OkeyXColors.ruby.withValues(alpha: .09) : mine ? const Color(0xFF6F2030) : bot ? botColor.withValues(alpha: .12) : const Color(0xFF523F2E), border: Border.all(color: empty ? OkeyXColors.ruby.withValues(alpha: .35) : bot ? botColor.withValues(alpha: .35) : Colors.white12)),
-          child: empty ? const Icon(Icons.add_rounded, size: 17, color: OkeyXColors.ruby) : bot ? Icon(Icons.smart_toy_rounded, size: 15, color: explicitBot ? botColor : Colors.white54) : Center(child: Text(initial, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(color: statusColor.withValues(alpha: .14), borderRadius: BorderRadius.circular(99), border: Border.all(color: statusColor.withValues(alpha: .5))),
+          child: Text(statusText, maxLines: 1, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .5, color: statusColor)),
         ),
-        const SizedBox(width: 6),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(empty ? (isHost ? 'KOLTUK SEÇ' : 'BOŞ KOLTUK') : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: empty ? OkeyXColors.ruby : Colors.white)),
-          Text(
-            empty ? (isHost ? 'DAVET • BOT • AÇIK' : 'OYUNCU BEKLENİYOR') : mine ? (isHost ? 'MASA SAHİBİ' : 'SEN') : explicitBot ? '${botLevel == 'hard' ? 'ZOR' : botLevel == 'easy' ? 'KOLAY' : 'NORMAL'} BOT' : kickable ? 'PROFİL • ÇIKAR' : 'MASADA',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 9, color: empty ? const Color(0x75FFFFFF) : mine ? OkeyXColors.mint : explicitBot ? botColor : kickable ? OkeyXColors.gold : const Color(0x75FFFFFF), fontWeight: FontWeight.w900),
-          ),
-        ])),
-        if (empty && isHost) const Icon(Icons.chevron_right_rounded, size: 13, color: Colors.white38),
-        if (kickable) const Icon(Icons.person_remove_rounded, size: 12, color: OkeyXColors.gold),
       ]),
     );
     final bubble = _chatBubbles[seat];
@@ -6331,19 +6489,27 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final won = widget.title.contains('KAZANDIN');
-    final lost = widget.title.contains('KAYBETTİN');
     final mine = widget.rows.firstWhere(
       (r) => _i(r['seat']) == widget.viewerSeat,
       orElse: () => const <String, dynamic>{},
     );
     final viewerDelta = _i(mine['delta']);
+    final myRank = _i(mine['rank']);
+    final top = widget.rows.firstWhere((r) => _i(r['rank']) == 1, orElse: () => const <String, dynamic>{});
+    // Eşli oyunda birinci gelen eşinse yine "Kazandın"; tekli oyunda yalnızca birinci kazanır.
+    final teamWon = mine['team'] != null && top['team'] != null && '${mine['team']}' == '${top['team']}';
+    final firstPlace = myRank <= 1 || teamWon;
+    final won = widget.title.contains('KAZANDIN') && (!widget.matchFinished || firstPlace);
+    final placed = !won && widget.matchFinished && myRank > 1 && viewerDelta > 0;
+    final lost = !won && !placed && (widget.title.contains('KAYBETTİN') || (widget.matchFinished && viewerDelta < 0));
     final heroName = '${(won ? mine['name'] : (widget.rows.isNotEmpty ? widget.rows.first['name'] : mine['name'])) ?? 'Oyuncu'}';
     final balance = widget.viewerBalance;
     final showCoins = widget.matchFinished && viewerDelta > 0 && balance != null;
     final titleText = won
         ? 'Kazandın!'
-        : lost
+        : placed
+            ? '$myRank. oldun'
+            : lost
             ? 'Bu sefer olmadı'
             : _titleCase(widget.title);
     return Dialog.fullscreen(
@@ -6441,7 +6607,10 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
               ),
               if (balance != null && widget.matchFinished)
                 Positioned(
-                  right: 14,
+                  // Yatay ekranda sağ üstte skor tablosunun üstüne biniyordu;
+                  // sol sütunun boş üst köşesine alındı.
+                  right: wide ? null : 14,
+                  left: wide ? 14 : null,
                   top: 10,
                   child: OkxLeather(
                     radius: 999,
@@ -6488,7 +6657,7 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
                     curve: Interval((i * .05).clamp(0.0, .5), 1, curve: Curves.easeInOutCubic),
                     builder: (context, v, child) {
                       final from = Offset(c.maxWidth / 2 - 30 + (i % 3) * 18, compact ? 150 : 200);
-                      final to = Offset(c.maxWidth - 120, 24);
+                      final to = wide ? const Offset(60, 24) : Offset(c.maxWidth - 120, 24);
                       final p = Offset.lerp(from, to, v)!;
                       final lift = math.sin(v * math.pi) * (60 + i * 6);
                       return Positioned(
@@ -6541,11 +6710,11 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
           ],
           const SizedBox(height: 14),
           Row(children: [
-            Expanded(child: OkxButton.ghost(label: 'MENÜ', icon: Icons.home_rounded, height: 44, onTap: () => Navigator.of(context).pop('menu'))),
+            Expanded(flex: 3, child: OkxButton.ghost(label: 'MENÜ', icon: Icons.home_rounded, height: 44, onTap: () => Navigator.of(context).pop('menu'))),
             const SizedBox(width: 7),
-            Expanded(child: OkxButton.ghost(label: 'PAYLAŞ', icon: _sharing ? Icons.hourglass_top_rounded : Icons.ios_share_rounded, height: 44, onTap: _sharing ? null : () => unawaited(_shareResult()))),
+            Expanded(flex: 3, child: OkxButton.ghost(label: 'PAYLAŞ', icon: _sharing ? Icons.hourglass_top_rounded : Icons.ios_share_rounded, height: 44, onTap: _sharing ? null : () => unawaited(_shareResult()))),
             const SizedBox(width: 7),
-            Expanded(flex: 2, child: OkxButton(label: widget.matchFinished ? 'TEKRAR OYNA ($_left)' : 'SONRAKİ EL ($_left)', icon: Icons.replay_rounded, height: 44, style: widget.matchFinished ? OkxButtonStyle.green : OkxButtonStyle.brass, onTap: () => Navigator.of(context).pop(widget.matchFinished ? 'rematch' : 'next'))),
+            Expanded(flex: 4, child: OkxButton(label: widget.matchFinished ? 'TEKRAR OYNA ($_left)' : 'SONRAKİ EL ($_left)', icon: Icons.replay_rounded, height: 44, style: widget.matchFinished ? OkxButtonStyle.green : OkxButtonStyle.brass, onTap: () => Navigator.of(context).pop(widget.matchFinished ? 'rematch' : 'next'))),
           ]),
         ]),
       )),

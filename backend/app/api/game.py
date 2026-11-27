@@ -443,6 +443,7 @@ def _charge_entries(room_id:str)->tuple[bool,str]:
     return True,'stake_checked'
 
 
+ALLOWED_ENTRY_FEES=(500,1000,2000,5000,10000,20000,25000,50000,100000)
 QUICK_BOT_FILL_SECONDS=15
 BOT_NAMES={'easy':'Kolay Bot','medium':'Normal Bot','hard':'Zor Bot'}
 
@@ -508,6 +509,7 @@ def _fill_bots_and_start(room_id:str,level:str='medium')->bool:
         _touch(room_id)
         return False
     m['bot_filled']=True;m['quick_fill_error']=None
+    _canak_round_start(room_id)
     _touch(room_id)
     return True
 
@@ -570,15 +572,25 @@ def _canak_fee(room)->int:
     fee=max(50,int(room.state.entry_fee or 0)//10)
     return fee*(2 if room.state.turbo else 1)
 
-def _table_canak(room_id:str,room,m:dict,flags:dict,winner)->None:
-    """Çanak okey: okeyle ya da çiftten biten oyuncu masadaki çanağı kırar ve alır.
-    Kırılmazsa çanak aynı masada bir sonraki ele devreder."""
-    if m.get('practice') or not m.get('canak_enabled',True):return
+def _canak_round_start(room_id:str)->None:
+    """El başında her gerçek oyuncu çanağa payını koyar (el başına bir kez)."""
+    room=ROOMS.get(room_id);m=ROOM_META.get(room_id)
+    if not room or not m or m.get('practice') or not m.get('canak_enabled',True):return
+    if not room.state.started or room.state.phase=='waiting':return
+    key=f"{m.get('created_at',0)}:{int(m.get('match_seq',0) or 0)}:{int(room.state.round_index)}"
+    if m.get('canak_charged_key')==key:return
+    m['canak_charged_key']=key
     fee=_canak_fee(room)
     for seat,pid in list(m.get('player_ids',{}).items()):
         if room.state.players[seat].bot or not STORE.get(pid):continue
         if STORE.debit(pid,fee,'table_canak',notify=False):
             m['canak_pot']=int(m.get('canak_pot',0) or 0)+fee
+
+def _table_canak(room_id:str,room,m:dict,flags:dict,winner)->None:
+    """Çanak okey: okeyle ya da çiftten biten oyuncu masadaki çanağı kırar ve alır.
+    Kırılmazsa çanak aynı masada bir sonraki ele devreder."""
+    if m.get('practice') or not m.get('canak_enabled',True):return
+    _canak_round_start(room_id)
     if winner is None or not (flags.get('joker_finish') or flags.get('pair_finish')):return
     pot=int(m.get('canak_pot',0) or 0)
     if pot<=0:return
@@ -871,7 +883,7 @@ def create_room(body:CreateRoomIn):
     if body.variant not in ('non_fold','fold','duz'):raise HTTPException(400,'bad_variant')
     if body.team_mode not in ('solo','paired'):raise HTTPException(400,'bad_team_mode')
     if body.rounds not in (1,2,3):raise HTTPException(400,'bad_round_count')
-    if body.entry_fee not in (500,2000,5000,10000,20000,50000):raise HTTPException(400,'bad_entry_fee')
+    if body.entry_fee not in ALLOWED_ENTRY_FEES:raise HTTPException(400,'bad_entry_fee')
     account=_account(body.player_id,body.account_token)
     _preflight_balance(account,body.entry_fee,body.turbo)
     r=new_room(
@@ -896,7 +908,7 @@ async def quick_room(body:JoinRoomIn):
     is also exposed to clients for an accurate countdown.
     """
     account=_account(body.player_id,body.account_token)
-    requested_fee=body.entry_fee if body.entry_fee in (500,2000,5000,10000,20000,50000) else 5000
+    requested_fee=body.entry_fee if body.entry_fee in ALLOWED_ENTRY_FEES else 5000
     requested_turbo=bool(body.turbo) if body.turbo is not None else False
     _preflight_balance(account,requested_fee,requested_turbo)
 
@@ -938,6 +950,7 @@ async def quick_room(body:JoinRoomIn):
             if not ok:raise HTTPException(402,code)
             started=r.start_match(int(m.get('owner_seat',0) or 0))
             if not started.ok:raise HTTPException(409,started.code)
+            _canak_round_start(rid)
             _touch(rid)
         else:
             _schedule_quick_fill(rid)
@@ -951,7 +964,8 @@ async def quick_room(body:JoinRoomIn):
         variant=body.variant if body.variant in ('fold','non_fold','duz') else 'non_fold',
         team_mode=body.team_mode if body.team_mode in ('solo','paired') else 'solo',
         entry_fee=requested_fee,
-        max_rounds=body.rounds if body.rounds in (1,2,3) else 1,
+        # Hızlı maç her zaman tek el (masa kurda 1/2/3 seçimi ayrı kalır).
+        max_rounds=1,
         assisted=True if body.assisted is None else body.assisted,
         random_starter=True,intro_seconds=5,
     )
@@ -1115,12 +1129,14 @@ async def _execute_action(room_id:str,body:ActionIn):
             task.cancel()
     if result.ok and body.kind=='rematch':
         # Same room, fresh match: allow a new settlement/stat cycle.
+        m['match_seq']=int(m.get('match_seq',0) or 0)+1
         m['settled']=False
         m['recorded_rounds']=set()
         m['economy_charged']=False
     if result.ok:m['afk_strikes'][body.seat]=0
     _record_round_if_finished(room_id)
     _settle_if_finished(room_id)
+    _canak_round_start(room_id)
     # Even rejected rule actions can mutate the authoritative penalty/event
     # state, so every processed action advances a monotonic revision.
     _touch(room_id)
@@ -1418,7 +1434,7 @@ async def room_watchdog():
                             room._set_turn_deadline()
                     elif p.bot and room.state.current_seat==seat:
                         changed=room.run_bots_until_human() or changed
-                _record_round_if_finished(rid);_settle_if_finished(rid)
+                _record_round_if_finished(rid);_settle_if_finished(rid);_canak_round_start(rid)
                 if changed:
                     _touch(rid)
                     await _broadcast(rid)
