@@ -984,6 +984,31 @@ class AccountStore:
             a['push_tokens']=a['push_tokens'][-5:];a['device_ids']=a['device_ids'][-5:]
             self._save();return {'ok':True}
 
+    REPEAT_DEVICE_START_CHIPS=50_000
+    def apply_welcome_policy(self,player_id:str,device_id:str|None)->dict|None:
+        """Hoş geldin altını cihaz başına bir kez: aynı telefonda silip yeniden
+        kurarak ya da yeni misafir hesap açarak tekrar tekrar 1.000.000 alınamaz.
+        Yalnızca hiç oynamamış, yeni açılmış hesaba uygulanır."""
+        device_id=(device_id or '').strip()[:128]
+        if not device_id:return None
+        with self._lock:
+            a=self._data['accounts'].get(player_id)
+            if not a or a.get('welcome_policy_done'):return None
+            a['welcome_policy_done']=True
+            granted=self._data.setdefault('welcome_devices',{})
+            fresh=int((a.get('stats') or {}).get('games',0) or 0)==0 and _now()-int(a.get('created_at',0) or 0)<600
+            owner=granted.get(device_id)
+            if owner and owner!=player_id and fresh:
+                welcome=int(self.economy()['welcome_chips'])
+                if int(a.get('chips',0) or 0)>=welcome:
+                    a['chips']=min(int(a['chips']),self.REPEAT_DEVICE_START_CHIPS)
+                    a.setdefault('security',{}).setdefault('risk_flags',[])
+                    self.add_notification(player_id,'Hoş geldin!','Bu cihazda hoş geldin hediyesi daha önce alındı; hesabın başlangıç altınıyla açıldı.','system')
+            elif not owner:
+                granted[device_id]=player_id
+            self._save()
+            return deepcopy(a)
+
     def track_device(self,player_id:str,device_id:str)->dict:
         device_id=(device_id or '').strip()[:128]
         if not device_id:return {'ok':False,'code':'device_id_required'}

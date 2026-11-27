@@ -231,7 +231,9 @@ async def bootstrap_google(body:GoogleBootstrapIn,user=Depends(_google_user)):
     if not STORE.ready:raise HTTPException(503,'storage_unavailable')
     # Supabase JWT is the identity authority; game/account session token remains our app session secret.
     account=STORE.ensure(user['id'],body.name,user.get('email'),body.avatar_url,is_guest=False)
-    if body.device_id:STORE.track_device(user['id'],body.device_id)
+    if body.device_id:
+        STORE.track_device(user['id'],body.device_id)
+        account=STORE.apply_welcome_policy(user['id'],body.device_id) or account
     return account
 
 @router.post('/account/bootstrap-local')
@@ -259,7 +261,9 @@ async def bootstrap_supabase(body:GoogleBootstrapIn,authorization:str|None=Heade
     if not STORE.ready:raise HTTPException(503,'storage_unavailable')
     """Bootstrap both anonymous and permanent Supabase-authenticated players."""
     account=STORE.ensure(user['id'],body.name,user.get('email'),body.avatar_url,is_guest=body.is_guest)
-    if body.device_id:STORE.track_device(user['id'],body.device_id)
+    if body.device_id:
+        STORE.track_device(user['id'],body.device_id)
+        account=STORE.apply_welcome_policy(user['id'],body.device_id) or account
     # Do not hold lobby bootstrap hostage to secondary Supabase sync calls.
     # Identity is already verified; staff/public-id mirrors can finish in background.
     asyncio.create_task(_sync_staff_role(user['id'],authorization))

@@ -16,6 +16,10 @@ class MainActivity : FlutterActivity() {
             // Uygulama içi güncelleme: önbellek klasörü, kurulum izni ve APK kurulumu.
             when (call.method) {
                 "cacheDir" -> { result.success(cacheDir.absolutePath); return@setMethodCallHandler }
+                "androidId" -> {
+                    val id = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+                    result.success(id); return@setMethodCallHandler
+                }
                 "canInstall" -> {
                     val ok = if (android.os.Build.VERSION.SDK_INT >= 26) packageManager.canRequestPackageInstalls() else true
                     result.success(ok); return@setMethodCallHandler

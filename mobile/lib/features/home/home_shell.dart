@@ -56,6 +56,7 @@ class _HomeShellState extends State<HomeShell> {
   late PlayerProfile _profile = widget.bundle.profile;
   late UserPreferences _preferences = widget.bundle.preferences;
   late LobbyApiClient _api;
+  Timer? _updateTimer;
   Timer? _roomTimer;
   Timer? _socialTimer;
   Timer? _alertTimer;
@@ -162,6 +163,9 @@ class _HomeShellState extends State<HomeShell> {
     _alertTimer = Timer.periodic(const Duration(seconds: 6), (_) {
       if (mounted) unawaited(_pollAlerts());
     });
+    _updateTimer = Timer.periodic(const Duration(minutes: 30), (_) {
+      if (mounted) unawaited(AppUpdater.checkAndPrompt(context));
+    });
     _socialTimer = Timer.periodic(const Duration(seconds: 25), (_) {
       if (mounted && !_busy) unawaited(_refreshLiveHub());
       if (mounted) unawaited(_api.presencePing());
@@ -175,6 +179,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     _roomTimer?.cancel();
+    _updateTimer?.cancel();
     _socialTimer?.cancel();
     _alertTimer?.cancel();
     _activityTimer?.cancel();
@@ -213,6 +218,13 @@ class _HomeShellState extends State<HomeShell> {
   /// Yeni oyuncu karşılaması (bir kez). Hoş geldin hediyesi 1.000.000 altın
   /// sunucuda hesap açılırken yüklenir; burada kutlanır.
   Future<void> _maybeOnboard() async {
+    // Karşılama yalnız gerçekten yeni oyuncuya: daha önce oynamış hesapta
+    // (telefon değişse ya da uygulama yeniden kurulsa da) tekrar çıkmaz.
+    final games = _integer(_map(_account['stats'])['games'], fallback: _profile.gamesPlayed);
+    if (games > 0) {
+      await OkxOnboarding.markDone(_profile.userId);
+      return;
+    }
     if (!await OkxOnboarding.shouldShow(_profile.userId) || !mounted) return;
     final next = await OkxOnboarding.show(context, userId: _profile.userId, name: _profile.displayName, sound: _preferences.soundEnabled);
     if (!mounted) return;

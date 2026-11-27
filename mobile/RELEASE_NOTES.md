@@ -1,3 +1,5 @@
+• Güncelleme kontrolü: açılışta, uygulamaya dönünce ve 30 dakikada bir
+• Hoş geldin altını cihaz başına bir kez; karşılama ekranı her girişte tekrar çıkmaz
 • Rakiplerin süre sayacı ve avatarları artık ekrana sığıyor
 • Sesli sohbette oyuncu susturma ve mikrofon kapatma düzeltildi
 • Oyun arka plana atılınca müzik ve radyo durur, dönünce devam eder

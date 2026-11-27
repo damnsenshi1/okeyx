@@ -61,8 +61,14 @@ class AppUpdater {
   }
 
   /// Açılışta bir kez kontrol eder; güncelleme varsa pencere açar.
+  static DateTime? _lastCheck;
+  static int _promptedBuild = 0;
+
   static Future<void> checkAndPrompt(BuildContext context, {bool force = false}) async {
-    if (_checkedThisSession && !force) return;
+    // Açılışta, uygulamaya geri dönünce ve oyun açıkken 30 dakikada bir bakar.
+    final now = DateTime.now();
+    if (!force && _lastCheck != null && now.difference(_lastCheck!) < const Duration(minutes: 30)) return;
+    _lastCheck = now;
     _checkedThisSession = true;
     if (force && context.mounted) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(duration: Duration(seconds: 2), content: Text('Güncellemeler denetleniyor…')));
@@ -75,6 +81,16 @@ class AppUpdater {
       return;
     }
     if (!context.mounted) return;
+    // Aynı sürüm için "Sonra" denmişse yarım saatte bir tekrar sormak yerine üstte kısa bildirim göster.
+    if (!force && !info.mandatory && _promptedBuild == info.build) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        duration: const Duration(seconds: 6),
+        content: Text('Yeni sürüm hazır: OKEYX ${info.version}'),
+        action: SnackBarAction(label: 'GÜNCELLE', onPressed: () => checkAndPrompt(context, force: true)),
+      ));
+      return;
+    }
+    _promptedBuild = info.build;
     await showGeneralDialog<void>(
       context: context,
       barrierDismissible: !info.mandatory,

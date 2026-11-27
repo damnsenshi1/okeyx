@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DeviceIdentity {
@@ -9,6 +10,15 @@ class DeviceIdentity {
   static Future<String> get() async {
     final cached = _cached;
     if (cached != null && cached.isNotEmpty) return cached;
+    // Android kimliği uygulama silinip yeniden kurulsa da aynı kalır; böylece
+    // aynı telefonda tekrar tekrar hoş geldin hediyesi alınamaz.
+    try {
+      final aid = await const MethodChannel('com.senshilabs.okeyx_mobile/share').invokeMethod<String>('androidId');
+      if (aid != null && aid.length >= 8) {
+        _cached = 'aid-$aid';
+        return _cached!;
+      }
+    } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
     final existing = prefs.getString(_key);
     if (existing != null && existing.isNotEmpty) {

@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'core/game_audio.dart';
+import 'core/app_updater.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -67,6 +68,8 @@ void main() {
         unawaited(GameAudio.pauseForBackground());
       } else if (state == AppLifecycleState.resumed) {
         unawaited(GameAudio.resumeFromBackground());
+        final ctx = okxNavigatorKey.currentContext;
+        if (ctx != null) unawaited(AppUpdater.checkAndPrompt(ctx));
       }
     });
     runApp(const OkeyXApp());
@@ -88,11 +91,13 @@ void main() {
 
 // ignore: unused_element
 AppLifecycleListener? _audioLifecycle;
+final okxNavigatorKey = GlobalKey<NavigatorState>();
 
 class OkeyXApp extends StatelessWidget {
   const OkeyXApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
+        navigatorKey: okxNavigatorKey,
         title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: buildOkeyXTheme(),
