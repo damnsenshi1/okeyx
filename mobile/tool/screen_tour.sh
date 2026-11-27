@@ -10,8 +10,12 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$OUT/ekran" "$OUT/ui"
 N=0
 log(){ echo "[$(date +%T)] $*" | tee -a "$OUT/tur_kaydi.txt"; }
-shot(){ N=$((N+1)); local f; f=$(printf '%02d_%s.png' "$N" "$1"); adb exec-out screencap -p > "$OUT/ekran/$f"; log "ekran: $f"; }
-dump(){ adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml "$OUT/ui/son.xml" >/dev/null 2>&1; }
+shot(){ N=$((N+1)); local f; f=$(printf '%02d_%s.png' "$N" "$1")
+  timeout 25 adb shell screencap -p /sdcard/_s.png && timeout 25 adb pull /sdcard/_s.png "$OUT/ekran/$f" >/dev/null 2>&1
+  [ -s "$OUT/ekran/$f" ] || timeout 25 adb exec-out screencap -p > "$OUT/ekran/$f"
+  log "ekran: $f ($(stat -c %s "$OUT/ekran/$f" 2>/dev/null || echo 0) bayt)"
+  { echo "== $f"; timeout 10 adb shell top -b -n 1 -m 8 2>/dev/null | tail -9; } >> "$OUT/cpu.txt"; }
+dump(){ rm -f "$OUT/ui/son.xml"; adb shell rm -f /sdcard/ui.xml; timeout 30 adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; timeout 15 adb pull /sdcard/ui.xml "$OUT/ui/son.xml" >/dev/null 2>&1; [ -s "$OUT/ui/son.xml" ] || { log "UYARI: ekran dökümü alınamadı"; echo '<hierarchy/>' > "$OUT/ui/son.xml"; }; }
 tap(){ # tap "METİN" ["ALTERNATİF" ...] → bulursa dokunur
   for try in 1 2 3; do
     dump
@@ -26,7 +30,7 @@ tap(){ # tap "METİN" ["ALTERNATİF" ...] → bulursa dokunur
 dismiss(){ # açılış pencerelerini kapat (ödül, öğretici, izinler)
   for k in 1 2 3 4; do
     dump
-    if xy=$(python3 "$HERE/ui_find.py" "$OUT/ui/son.xml" "BONUSU AL" "Wait" "Got it" "Anladım" "KAPAT" "ŞİMDİ DEĞİL" "SONRA" "ATLA" "TAMAM" "Allow" "İzin ver" "Don't allow" "İzin verme"); then
+    if xy=$(python3 "$HERE/ui_find.py" "$OUT/ui/son.xml" "BONUSU AL" "Wait" "Got it" "Anladım" "KAPAT" "ŞİMDİ DEĞİL" "ATLA" "TAMAM" "Allow" "İzin ver" "Don't allow" "İzin verme"); then
       log "pencere kapatıldı → $xy"; adb shell input tap $xy; sleep 2
     else
       return 0
@@ -76,6 +80,6 @@ kill "$(cat "$OUT/.rec.pid")" 2>/dev/null; sleep 3
 shot son
 for k in 1 2; do adb pull "/sdcard/tur_$k.mp4" "$OUT/tur_$k.mp4" >/dev/null 2>&1 && log "kayıt alındı: tur_$k.mp4"; done
 kill "$(cat "$OUT/.logcat.pid")" 2>/dev/null
-grep -E "OKEYX_|FlutterError|Exception" "$OUT/logcat.txt" | head -300 > "$OUT/hatalar.txt" || true
+grep -E "OKEYX_|FlutterError|Exception|I/flutter|E/flutter|AndroidRuntime|ANR in" "$OUT/logcat.txt" | head -400 > "$OUT/hatalar.txt" || true
 log "tur bitti"
 exit 0
