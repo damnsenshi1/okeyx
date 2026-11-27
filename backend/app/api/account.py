@@ -186,11 +186,12 @@ def _force_local_relationship(me:str,target:str,relationship:str):
         a['friends']=[x for x in a['friends'] if x!=target]; b['friends']=[x for x in b['friends'] if x!=me]
         a['friend_requests']=[x for x in a['friend_requests'] if x!=target]; b['friend_requests']=[x for x in b['friend_requests'] if x!=me]
         a['sent_friend_requests']=[x for x in a['sent_friend_requests'] if x!=target]; b['sent_friend_requests']=[x for x in b['sent_friend_requests'] if x!=me]
-        if relationship=='friend':
+        blocked=target in a.get('blocked',[]) or me in b.get('blocked',[])
+        if relationship=='friend' and not blocked:
             a['friends'].append(target); b['friends'].append(me)
-        elif relationship=='sent':
+        elif relationship=='sent' and not blocked:
             a['sent_friend_requests'].append(target); b['friend_requests'].append(me)
-        elif relationship=='incoming':
+        elif relationship=='incoming' and not blocked:
             a['friend_requests'].append(target); b['sent_friend_requests'].append(me)
         STORE._save()
 
@@ -519,6 +520,7 @@ def invite(body:InviteIn,x_account_token:str|None=Header(None)):
     _require_social(body.from_id,x_account_token,'invite_locked')
     a=STORE.get(body.from_id);b=STORE.get(body.to_id)
     if not a or not b:return {'ok':False,'code':'user_not_found'}
+    if body.to_id in a.get('blocked',[]) or body.from_id in b.get('blocked',[]):return {'ok':False,'code':'relationship_blocked'}
     room_info={}
     try:
         from app.api.game import ROOM_META,ROOMS
