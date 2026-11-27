@@ -7,6 +7,7 @@ import '../../core/game_audio.dart';
 import '../lobby/lobby_api.dart';
 import 'ad_service.dart';
 import 'commerce_service.dart';
+import 'cosmetic_showcase.dart';
 
 class Phase4Screen extends StatefulWidget {
   final LobbyApiClient api;
@@ -236,7 +237,9 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
     final products = _list(_hub['billing_products']).map(_map).toList();
     final standardProducts = products.where((p) => p['daily_offer'] != true && p['first_purchase'] != true).toList();
     final offers = _list(_hub['offers']).map(_map).toList();
-    final allCosmetics = _list(_hub['cosmetics']).map(_map).where((x) => x['owned'] != true).toList();
+    // Mağaza: alınmamışlar önde, sahip olunanlar (KULLAN / TAKILI) arkada.
+    final allCosmetics = _list(_hub['cosmetics']).map(_map).where((x) => x['default'] != true).toList()
+      ..sort((a, b) => (a['owned'] == true ? 1 : 0).compareTo(b['owned'] == true ? 1 : 0));
     final cosmetics = _cosmeticFilter == 'all' ? allCosmetics : allCosmetics.where((x) => '${x['category']}' == _cosmeticFilter).toList();
     final bySku = {for (final p in products) '${p['sku'] ?? ''}': p};
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -313,7 +316,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
       Row(children:[_titleWidget('KOZMETİK MAĞAZASI'),const Spacer(),_Badge('${allCosmetics.length} ÜRÜN')]),
       const SizedBox(height:6),
       SizedBox(
-        height:34,
+        height:40,
         child:ListView(
           scrollDirection:Axis.horizontal,
           children:[
@@ -323,7 +326,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
                 child:ChoiceChip(
                   selected:_cosmeticFilter==entry.$1,
                   onSelected:(_)=>setState(()=>_cosmeticFilter=entry.$1),
-                  label:Text(entry.$2,style:const TextStyle(fontSize:6.5,fontWeight:FontWeight.w900)),
+                  label:Text(entry.$2,style:const TextStyle(fontSize:10,fontWeight:FontWeight.w900)),
                 ),
               ),
           ],
@@ -355,34 +358,25 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
     );
   }
 
-  Widget _cosmeticCard(Map<String, dynamic> item) {
-    final category='${item['category']}';
-    final rarity='${item['rarity'] ?? 'common'}';
-    final accent=_rarityColor(rarity);
-    return Container(
-      width:widget.compact?186:224,
-      padding:const EdgeInsets.all(10),
-      decoration:BoxDecoration(
-        gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[accent.withValues(alpha:.12),const Color(0xE6140D36),const Color(0xF20E0927)]),
-        borderRadius:BorderRadius.circular(17),
-        border:Border.all(color:accent.withValues(alpha:.34)),
-        boxShadow:[BoxShadow(color:accent.withValues(alpha:.07),blurRadius:14,offset:const Offset(0,5))],
-      ),
-      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        _cosmeticPreview(item),
-        const SizedBox(height:8),
-        Row(children:[Expanded(child:Text('${item['name']}',maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:9.6,fontWeight:FontWeight.w900))),_Badge(rarity.toUpperCase())]),
-        const SizedBox(height:2),
-        Text(_categoryName(category),style:const TextStyle(fontSize:6.8,color:Colors.white54,fontWeight:FontWeight.w700)),
-        const SizedBox(height:8),
-        SizedBox(width:double.infinity,height:30,child:OutlinedButton.icon(
-          onPressed:_busy?null:()=>_buyCosmetic('${item['id']}'),
-          icon:Icon(item['currency']=='diamonds'?Icons.diamond_rounded:Icons.monetization_on_rounded,size:12,color:item['currency']=='diamonds'?const Color(0xFF82E8FF):OkeyXColors.gold),
-          label:Text('${_int(item['price'])} ${item['currency']=='diamonds'?'ELMAS':'ALTIN'}',style:const TextStyle(fontSize:7.2,fontWeight:FontWeight.w900)),
-        )),
-      ]),
-    );
-  }
+  Widget _cosmeticCard(Map<String, dynamic> item) => CosmeticCard3D(
+        item: item,
+        width: widget.compact ? 196 : 232,
+        busy: _busy,
+        onBuy: () => _buyCosmetic('${item['id']}'),
+        onEquip: () => _equip('${item['id']}'),
+        onTry: () => showTryOnTable(
+          context,
+          item: item,
+          loadout: _currentLoadout,
+          onBuy: () => _buyCosmetic('${item['id']}'),
+          onEquip: () => _equip('${item['id']}'),
+        ),
+      );
+
+  /// Şu an takılı kozmetikler (kategori → ürün id).
+  Map<String, String> get _currentLoadout => {
+        for (final x in _list(_hub['cosmetics']).map(_map).where((x) => x['equipped'] == true)) '${x['category']}': '${x['id']}',
+      };
 
   Color _rarityColor(String rarity)=>switch(rarity){
     'legendary'=>const Color(0xFFFFC75A),'epic'=>const Color(0xFFBC86FF),'rare'=>const Color(0xFF68CBFF),_=>OkeyXColors.mint

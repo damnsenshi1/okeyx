@@ -10,6 +10,7 @@ import '../../core/app_theme.dart';
 import '../../core/game_audio.dart';
 import '../../core/app_updater.dart';
 import '../onboarding/onboarding_overlay.dart';
+import 'reward_fx.dart';
 import '../../core/live_features.dart';
 import '../../core/remote_config.dart';
 import '../../core/telemetry.dart';
@@ -3652,7 +3653,8 @@ class _HomeShellState extends State<HomeShell> {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _PrizeWheelDialog(reward: reward, segments: segments, reducedMotion: _preferences.reducedMotionEnabled || _preferences.dataSaverEnabled),
+      barrierColor: const Color(0xE6070420),
+      builder: (_) => PrizeWheelDialog(reward: reward, segments: segments, sound: _preferences.soundEnabled, reducedMotion: _preferences.reducedMotionEnabled || _preferences.dataSaverEnabled),
     );
   }
 
@@ -3662,7 +3664,8 @@ class _HomeShellState extends State<HomeShell> {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _ChestOpenDialog(reward: reward, reducedMotion: _preferences.reducedMotionEnabled || _preferences.dataSaverEnabled),
+      barrierColor: const Color(0xE6070420),
+      builder: (_) => ChestOpenDialog(reward: reward, sound: _preferences.soundEnabled, reducedMotion: _preferences.reducedMotionEnabled || _preferences.dataSaverEnabled),
     );
   }
 
@@ -4243,166 +4246,6 @@ class _SpinRewardIconState extends State<_SpinRewardIcon> with SingleTickerProvi
   Widget build(BuildContext context) => RotationTransition(
         turns: _controller,
         child: const Icon(Icons.casino_rounded, size: 58, color: OkeyXColors.gold),
-      );
-}
-
-
-class _PrizeWheelDialog extends StatefulWidget {
-  final int reward;
-  final bool reducedMotion;
-  /// Sunucudaki gerçek çark dilimleri (yönetici panelinden değiştirilebilir).
-  final List<int> segments;
-
-  const _PrizeWheelDialog({required this.reward, required this.reducedMotion, this.segments = const []});
-
-  @override
-  State<_PrizeWheelDialog> createState() => _PrizeWheelDialogState();
-}
-
-class _PrizeWheelDialogState extends State<_PrizeWheelDialog> with SingleTickerProviderStateMixin {
-  static const _fallback = [500, 1000, 1500, 2500, 5000, 10000, 25000];
-  late final List<int> rewards = widget.segments.where((x) => x >= 0).isNotEmpty ? widget.segments : _fallback;
-  late final AnimationController _controller;
-  late final Animation<double> _turns;
-
-  @override
-  void initState() {
-    super.initState();
-    final index = rewards.indexOf(widget.reward).clamp(0, rewards.length - 1).toInt();
-    final segment = 1 / rewards.length;
-    final targetTurns = 5.0 - ((index + .5) * segment);
-    _controller = AnimationController(vsync: this, duration: widget.reducedMotion ? const Duration(milliseconds: 250) : const Duration(milliseconds: 1150));
-    _turns = CurvedAnimation(parent: _controller, curve: Curves.easeOutQuart).drive(Tween(begin: 0.0, end: targetTurns));
-    _controller.forward().whenComplete(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 280));
-      if (mounted) Navigator.of(context).pop();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Dialog(
-        backgroundColor: const Color(0xFF170E40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26), side: BorderSide(color: OkeyXColors.gold.withValues(alpha: .55))),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('GÜNLÜK ÇARK', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: OkeyXColors.gold)),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: 230,
-              height: 230,
-              child: Stack(alignment: Alignment.center, children: [
-                AnimatedBuilder(
-                  animation: _turns,
-                  builder: (_, child) => Transform.rotate(angle: _turns.value * 2 * math.pi, child: child),
-                  child: CustomPaint(size: const Size.square(220), painter: _PrizeWheelPainter(rewards)),
-                ),
-                const Positioned(top: 0, child: Icon(Icons.arrow_drop_down_rounded, color: Colors.white, size: 38, shadows: [Shadow(color: Colors.black54, blurRadius: 5)])),
-                Container(width: 48, height: 48, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1B124A), boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 7)]), child: const Icon(Icons.casino_rounded, color: OkeyXColors.gold)),
-              ]),
-            ),
-            const SizedBox(height: 6),
-            Text('Hedef ödül: ${_formatReward(widget.reward)} altın', style: const TextStyle(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.w800)),
-          ]),
-        ),
-      );
-
-  static String _formatReward(int value) => value.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
-}
-
-class _PrizeWheelPainter extends CustomPainter {
-  final List<int> rewards;
-  const _PrizeWheelPainter(this.rewards);
-
-  static const colors = [
-    Color(0xFFB83A55), Color(0xFF2A7BB8), Color(0xFFB68A22),
-    Color(0xFF2C9A78), Color(0xFF744DA4), Color(0xFFD0622D), Color(0xFF287092),
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2;
-    final rect = Rect.fromCircle(center: center, radius: radius - 4);
-    final sweep = 2 * math.pi / rewards.length;
-    final border = Paint()..style = PaintingStyle.stroke..strokeWidth = 5..color = OkeyXColors.gold;
-    for (var i = 0; i < rewards.length; i++) {
-      final start = -math.pi / 2 + i * sweep;
-      final paint = Paint()..style = PaintingStyle.fill..color = colors[i % colors.length];
-      canvas.drawArc(rect, start, sweep, true, paint);
-      final angle = start + sweep / 2;
-      canvas.save();
-      canvas.translate(center.dx + math.cos(angle) * radius * .62, center.dy + math.sin(angle) * radius * .62);
-      canvas.rotate(angle + math.pi / 2);
-      final text = rewards[i] >= 1000 ? '${rewards[i] ~/ 1000}K' : '${rewards[i]}';
-      final tp = TextPainter(text: TextSpan(text: text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900, shadows: [Shadow(color: Colors.black54, blurRadius: 3)])), textDirection: TextDirection.ltr)..layout();
-      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
-      canvas.restore();
-    }
-    canvas.drawCircle(center, radius - 4, border);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PrizeWheelPainter oldDelegate) => false;
-}
-
-class _ChestOpenDialog extends StatefulWidget {
-  final int reward;
-  final bool reducedMotion;
-  const _ChestOpenDialog({required this.reward, required this.reducedMotion});
-
-  @override
-  State<_ChestOpenDialog> createState() => _ChestOpenDialogState();
-}
-
-class _ChestOpenDialogState extends State<_ChestOpenDialog> {
-  bool _opened = false;
-
-  @override
-  void initState() {
-    super.initState();
-    Future<void>.delayed(widget.reducedMotion ? const Duration(milliseconds: 80) : const Duration(milliseconds: 360), () {
-      if (mounted) setState(() => _opened = true);
-    });
-    Future<void>.delayed(widget.reducedMotion ? const Duration(milliseconds: 220) : const Duration(milliseconds: 900), () {
-      if (mounted) Navigator.of(context).pop();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => Dialog(
-        backgroundColor: const Color(0xFF170E40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26), side: BorderSide(color: OkeyXColors.gold.withValues(alpha: .48))),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('ŞANS SANDIĞI', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: OkeyXColors.gold)),
-            const SizedBox(height: 12),
-            AnimatedScale(
-              scale: _opened ? 1.12 : 1,
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutBack,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                child: _opened
-                    ? const Icon(Icons.inventory_2_rounded, key: ValueKey('open'), color: OkeyXColors.gold, size: 86, shadows: [Shadow(color: OkeyXColors.gold, blurRadius: 22)])
-                    : const Icon(Icons.all_inbox_rounded, key: ValueKey('closed'), color: Color(0xFFD7A733), size: 82),
-              ),
-            ),
-            const SizedBox(height: 10),
-            AnimatedOpacity(
-              opacity: _opened ? 1 : 0,
-              duration: const Duration(milliseconds: 250),
-              child: Text('+${_PrizeWheelDialogState._formatReward(widget.reward)} ALTIN', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: OkeyXColors.mint)),
-            ),
-          ]),
-        ),
       );
 }
 

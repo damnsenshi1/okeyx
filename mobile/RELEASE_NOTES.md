@@ -1,3 +1,11 @@
+OKEYX 20.5.0
+
+• Yeni mağaza: 3D kartlar (parmağınla sürükle, kart döner), nadirlik ışıkları, SENDE / TAKILI rozetleri, indirim etiketi.
+• MASADA DENE: göz simgesine bas, ıstaka, taş, masa örtüsü ve çerçeveyi almadan önce masada gör.
+• Masa örtüleri artık masada görünüyor (önceden hep yeşil kalıyordu).
+• Yeni şans çarkı: 3D altın çerçeve, yanıp sönen ampuller, tık sesleri, kazanınca parlama.
+• Yeni şans sandığı: sallanır, kapak açılır, ışık ve altınlar fışkırır.
+
 OKEYX 20.4.2
 
 • Tam dağıtım animasyonu: taşlar tur tur 3'lü desteler hâlinde her oyuncuya uçar; senin taşların kendi destene düştüğü anda ıstakada belirir.

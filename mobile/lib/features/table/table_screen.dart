@@ -366,7 +366,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           return Stack(
             clipBehavior: Clip.none,
             children: [
-              Positioned.fill(child: RepaintBoundary(child: OkxFelt(theme: widget.preferences.tableTheme, photo: true))),
+              Positioned.fill(child: RepaintBoundary(child: OkxFelt(theme: _feltTheme, photo: true))),
               // Üst çubuk
               // Üst bilgi şeridi karşıdaki oyuncunun avatarına binmesin: genişlik sınırlı, gerekirse küçülür.
               Positioned(left: f.x(12), top: f.y(10), child: ConstrainedBox(constraints: BoxConstraints(maxWidth: f.x(330)), child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: _stakeHud(f)))),
@@ -3497,6 +3497,11 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         ),
       );
 
+  /// Masada kullanılan örtü: mağazadan alınıp takılan örtü varsa o, yoksa ayarlardaki tema.
+  String get _feltTheme {
+    final cloth = '${_map(_viewer['loadout'])['cloth'] ?? ''}';
+    return cloth.startsWith('cloth_') && cloth != 'cloth_green' ? cloth : widget.preferences.tableTheme;
+  }
   String _tileSkinForSeat(int seat){for(final raw in _list(_state['players'])){final p=_map(raw);if(_integer(p['seat'])==seat){final v='${_map(p['loadout'])['tiles']??'tiles_ivory'}';return v.isEmpty?'tiles_ivory':v;}}return 'tiles_ivory';}
   String get _viewerTileSkin=>_tileSkinForSeat(_viewerSeat);
 
@@ -5185,7 +5190,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                           child: Container(
                             padding: const EdgeInsets.all(10),
                             decoration: walnutDecoration(radius: BorderRadius.circular(110), rack: widget.preferences.rackStyle),
-                            child: OkxFelt(theme: widget.preferences.tableTheme, borderRadius: BorderRadius.circular(100), child: Center(child: Padding(
+                            child: OkxFelt(theme: _feltTheme, borderRadius: BorderRadius.circular(100), child: Center(child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 28),
                               child: Column(mainAxisSize: MainAxisSize.min, children: [
                                 FittedBox(fit: BoxFit.scaleDown, child: Text('${_state['room_name'] ?? 'OkeyX Masası'}', maxLines: 1, style: const TextStyle(fontFamily: OkeyXFonts.serif, fontSize: 21, fontWeight: FontWeight.w700, color: OkeyXColors.cream))),

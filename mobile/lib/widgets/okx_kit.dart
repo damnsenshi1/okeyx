@@ -168,7 +168,39 @@ ColorFilter? okxFeltFilter(String theme) => switch (theme) {
       'bordo' => const ColorFilter.mode(Color(0xFF8A2A2A), BlendMode.color),
       'navy' => const ColorFilter.mode(Color(0xFF2B4F86), BlendMode.color),
       'anthracite' => const ColorFilter.mode(Color(0xFF808080), BlendMode.saturation),
+      // Mağazadan alınan masa örtüleri (cloth_*).
+      'cloth_bosphorus' => const ColorFilter.mode(Color(0xFF14808C), BlendMode.color),
+      'cloth_midnight' => const ColorFilter.mode(Color(0xFF233F7A), BlendMode.color),
+      'cloth_royal' => const ColorFilter.mode(Color(0xFF2B3FB5), BlendMode.color),
+      'cloth_sunset' => const ColorFilter.mode(Color(0xFFC8622A), BlendMode.color),
+      'cloth_sakura' => const ColorFilter.mode(Color(0xFFC4547F), BlendMode.color),
+      'cloth_obsidian' => const ColorFilter.matrix(<double>[
+          .30, .30, .30, 0, -6, //
+          .28, .30, .30, 0, -6, //
+          .32, .32, .36, 0, 0, //
+          0, 0, 0, 1, 0,
+        ]),
+      'cloth_ice' => const ColorFilter.mode(Color(0xFF5FB4D6), BlendMode.color),
+      'cloth_ember' => const ColorFilter.mode(Color(0xFFB8322A), BlendMode.color),
+      'cloth_neon' => const ColorFilter.mode(Color(0xFF8E2FE6), BlendMode.color),
       _ => null,
+    };
+
+/// Örtünün mağaza/önizleme rengi (kart ve masada dene için).
+Color okxClothColor(String id) => switch (id) {
+      'cloth_bosphorus' => const Color(0xFF14808C),
+      'cloth_midnight' => const Color(0xFF233F7A),
+      'cloth_royal' => const Color(0xFF2B3FB5),
+      'cloth_sunset' => const Color(0xFFC8622A),
+      'cloth_sakura' => const Color(0xFFC4547F),
+      'cloth_obsidian' => const Color(0xFF26262C),
+      'cloth_ice' => const Color(0xFF5FB4D6),
+      'cloth_ember' => const Color(0xFFB8322A),
+      'cloth_neon' => const Color(0xFF8E2FE6),
+      'bordo' => const Color(0xFF8A2A2A),
+      'navy' => const Color(0xFF2B4F86),
+      'anthracite' => const Color(0xFF3A3A3A),
+      _ => const Color(0xFF0E7A4E),
     };
 
 /// Istaka ağacı filtresi (ceviz = orijinal doku).
