@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'core/game_audio.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -60,6 +61,14 @@ void main() {
         ),
       );
     }
+    // Arka plana atılınca lobi müziği/radyo durur, geri gelince devam eder.
+    _audioLifecycle = AppLifecycleListener(onStateChange: (state) {
+      if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
+        unawaited(GameAudio.pauseForBackground());
+      } else if (state == AppLifecycleState.resumed) {
+        unawaited(GameAudio.resumeFromBackground());
+      }
+    });
     runApp(const OkeyXApp());
     // Ads/WebView initialization was one of the biggest first-frame stalls on
     // low-end Android in device logs. Let the first UI frame settle first.
@@ -76,6 +85,9 @@ void main() {
     CrashReporter.report(error, stack, fatal: true, context: 'zone');
   });
 }
+
+// ignore: unused_element
+AppLifecycleListener? _audioLifecycle;
 
 class OkeyXApp extends StatelessWidget {
   const OkeyXApp({super.key});

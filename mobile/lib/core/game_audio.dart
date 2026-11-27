@@ -126,6 +126,22 @@ class GameAudio {
   static Future<void> stopRadio({bool resumeLobby=false}) async { try{await _radio.pause();}catch(_){} _radioPlaying=false;if(resumeLobby)await startLobby(); }
   static Future<void> startAmbience({String asset='table_ambience.wav',bool enabled=true}) async { if(!enabled)return;if(_ambiencePlaying&&_ambienceKey==asset)return;try{await _ambience.stop();await _ambience.setAudioContext(_musicCtx);await _ambience.setReleaseMode(ReleaseMode.loop);await _ambience.setSource(AssetSource('sfx/$asset'));await _ambience.setVolume(_ambienceVolume);await _ambience.resume();_ambiencePlaying=true;_ambienceKey=asset;}catch(e){debugPrint('OKEYX_AMBIENCE $e');}}
   static Future<void> stopAmbience() async {if(_ambiencePlaying){try{await _ambience.pause();}catch(_){}}_ambiencePlaying=false;}
+  // Uygulama arka plana atılınca müzik/radyo/ortam sesi durur, dönünce kaldığı yerden devam eder.
+  static bool _bgMusic=false,_bgRadio=false,_bgAmbience=false,_inBackground=false;
+  static Future<void> pauseForBackground() async {
+    if(_inBackground)return; _inBackground=true;
+    _bgMusic=_musicPlaying;_bgRadio=_radioPlaying;_bgAmbience=_ambiencePlaying;
+    try{if(_musicPlaying)await _music.pause();}catch(_){}
+    try{if(_radioPlaying)await _radio.pause();}catch(_){}
+    try{if(_ambiencePlaying)await _ambience.pause();}catch(_){}
+    try{await _victory.stop();await _voicePrompt.stop();}catch(_){}
+  }
+  static Future<void> resumeFromBackground() async {
+    if(!_inBackground)return; _inBackground=false;
+    try{if(_bgMusic&&_musicPlaying)await _music.resume();}catch(_){}
+    try{if(_bgRadio&&_radioPlaying)unawaited(_radio.play());}catch(_){}
+    try{if(_bgAmbience&&_ambiencePlaying)await _ambience.resume();}catch(_){}
+  }
   static Future<void> playMusicKit(String asset,{bool enabled=true,Duration maxDuration=const Duration(seconds:8)}) async {
     if(!enabled||asset.isEmpty)return;final r=_radioPlaying,m=_musicPlaying;try{if(r)await _radio.setVolume(_radioVolume*.12);if(m)await _music.setVolume(_musicVolume*.10);await _victory.stop();await _victory.setAudioContext(_musicCtx);await _victory.setReleaseMode(ReleaseMode.stop);await _victory.setVolume((_musicVolume*1.5).clamp(.25,.9).toDouble());await _victory.play(AssetSource('sfx/$asset'));await Future.any([_victory.onPlayerComplete.first,Future.delayed(maxDuration)]);}catch(e){debugPrint('OKEYX_KIT $e');}finally{final f=_voiceDucked ? .24 : 1.0;if(r&&_radioPlaying)await _radio.setVolume(_radioVolume*f);if(m&&_musicPlaying)await _music.setVolume(_musicVolume*f);}}
 }

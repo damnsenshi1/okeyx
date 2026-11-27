@@ -1,3 +1,4 @@
+• Oyun arka plana atılınca müzik ve radyo durur, dönünce devam eder
 • Seriyle açan oyuncu, masada çift varsa ÇİFT EKLE ile çift işleyebilir
 • SERİ DİZ artık en yüksek puanlı dizilimi buluyor (okey, alt seriler, renk perleri)
 • Masadan atılma sorunu giderildi (sunucu güncellenirken masalar korunur)
