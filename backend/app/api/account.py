@@ -1,7 +1,7 @@
 from __future__ import annotations
 import secrets
 from fastapi import APIRouter, HTTPException, Header, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.services.account_store import STORE,GIFT_CATALOG,_day_key,seen_recently
 from app.core.config import settings
 import httpx
@@ -46,6 +46,7 @@ class GiftIn(BaseModel):
     from_id:str
     to_id:str
     gift_type:str
+    request_id:str|None=Field(default=None,max_length=80)
 
 class CoinTransferIn(BaseModel):
     from_id:str
@@ -495,8 +496,8 @@ def gifts_catalog():
 @router.post('/social/gift')
 async def gift(body:GiftIn,x_account_token:str|None=Header(None)):
     _require_social(body.from_id,x_account_token,'gift_locked')
-    out=STORE.send_gift(body.from_id,body.to_id,body.gift_type)
-    await _refresh_tables(body.from_id,body.to_id)
+    out=STORE.send_gift(body.from_id,body.to_id,body.gift_type,body.request_id)
+    if out.get('ok'):await _refresh_tables(body.from_id,body.to_id)
     return out
 
 async def _refresh_tables(*ids:str)->None:
