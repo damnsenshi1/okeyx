@@ -14,6 +14,12 @@ def healthz():
     runtime = {'boot_id': _g.SERVER_BOOT_ID, 'uptime_s': int(time.time() - _g.SERVER_BOOT_AT), 'rooms': len(_g.ROOMS),
                'active_rooms': sum(1 for r in _g.ROOMS.values() if r.state.started and r.state.phase not in ('waiting', 'finished')),
                'restore': dict(_g.RUNTIME_RESTORE_INFO)}
+    try:
+        from app.api.ops_extra import fcm as _fcm
+        _s = _fcm()
+        runtime['push'] = {'configured': _s is not None, 'project': getattr(_s, 'project', '') if _s else ''}
+    except Exception as exc:  # pragma: no cover
+        runtime['push'] = {'configured': False, 'error': type(exc).__name__}
     return {'ok': True, 'service': 'okeyx-v20', 'runtime': runtime, 'storage': {
         'mode': 'supabase' if status['enabled'] else 'local-file',
         'loaded': status['loaded'],
