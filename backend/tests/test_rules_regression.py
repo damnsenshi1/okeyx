@@ -264,3 +264,17 @@ def test_left_discard_hint_requires_real_opening_not_tiny_meld():
     # therefore the left tile must NOT shout “İŞİNE YARAR”.
     assert state['left_opening_opportunity'] is None
     assert state['left_useful_tile_id'] is None
+
+
+def test_pair_action_cannot_open_a_three_tile_lane():
+    room = Room(seed=19, random_starter=False)
+    player = room.state.player(0)
+    player.hand = [tile('a', Color.BLUE, 7), tile('b', Color.BLUE, 7), tile('c', Color.BLUE, 7), tile('finish', Color.RED, 1)]
+    player.opened = True
+    player.opening_mode = 'pairs'
+
+    result = room.service.open_pairs(0, [['a', 'b', 'c']])
+
+    assert not result.ok and result.code == 'pair_size'
+    assert len(player.hand) == 4
+    assert not room.state.melds
