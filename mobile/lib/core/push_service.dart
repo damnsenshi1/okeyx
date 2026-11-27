@@ -25,6 +25,11 @@ abstract final class PushService {
   /// Bildirime dokunulunca gelen veri (ör. {'kind':'invite','room_id':...}).
   static Stream<Map<String, dynamic>> get taps => _taps.stream;
 
+  static final StreamController<Map<String, dynamic>> _incoming = StreamController<Map<String, dynamic>>.broadcast();
+
+  /// Uygulama açıkken gelen bildirim: davet vb. beklemeden hemen yoklanır.
+  static Stream<Map<String, dynamic>> get incoming => _incoming.stream;
+
   static Future<void> init() async {
     if (!configured || _ready) return;
     try {
@@ -37,6 +42,7 @@ abstract final class PushService {
         ),
       );
       FirebaseMessaging.onMessageOpenedApp.listen((m) => _taps.add(Map<String, dynamic>.from(m.data)));
+      FirebaseMessaging.onMessage.listen((m) => _incoming.add(Map<String, dynamic>.from(m.data)));
       final initial = await FirebaseMessaging.instance.getInitialMessage();
       if (initial != null) _taps.add(Map<String, dynamic>.from(initial.data));
       _ready = true;

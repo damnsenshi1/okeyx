@@ -671,7 +671,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                 opacity: v.clamp(0.0, 1.0).toDouble(),
                 child: Transform.translate(offset: Offset(0, -tw * .9 * (1 - v)), child: child),
               ),
-              child: SizedBox(width: tw, height: tw * 1.42, child: TileWidget(tile: _tile(tiles[i]), skinId: _tileSkinForSeat(owner), bigNumber: _bigNumbers)),
+              child: SizedBox(width: tw, height: tw * 1.42, child: TileWidget(tile: _tile({...tiles[i], 'face_down': tiles[i]['joker'] == true && !_manualOkeyClose}), skinId: _tileSkinForSeat(owner), bigNumber: _bigNumbers)),
             ),
           ),
       ]),
@@ -2788,7 +2788,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       _state['started'] == true;
   bool get _assisted => _state['assisted'] != false;
   // Klasik Okey'de okey elle kapatılır; 101'de okey her zaman ters (kapalı) gelir.
-  bool get _manualOkeyClose => _isDuz;
+  /// Yardımlı masalarda okey her yerde kapalı (ters) görünür: ıstakada ve
+  /// yere açılmış seri/çiftlerde. Yardımsız masada okey açık gelir; oyuncu
+  /// dokunarak kendisi kapatabilir.
+  bool get _manualOkeyClose => !_assisted;
 
   int _rackBreakCount(int rowStart) {
     var count = 0;
@@ -3855,9 +3858,9 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final renderJson = <String, dynamic>{
       ...json,
       'useful': penaltyIds.contains(id),
-      // Okeyi kapatma: Klasik ve yardımsız masada oyuncu basılı tutarak
-      // elle kapatır; diğer masalarda okey ıstakaya kapalı (ters) gelir,
-      // basılı tutunca kısa süre açılıp tekrar kapanır.
+      // Okeyi kapatma: yardımsız masada oyuncu dokunarak elle kapatır;
+      // yardımlı masalarda okey ıstakaya kapalı (ters) gelir, dokununca kısa
+      // süre açılıp tekrar kapanır.
       'face_down': json['joker'] == true && (_manualOkeyClose ? _revealedJokerIds.contains(id) : !_peekJokerIds.contains(id)),
     };
     final groupDelta = _longPressRackGroupIds.contains(id) ? _longPressRackGroupDelta : Offset.zero;

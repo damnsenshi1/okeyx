@@ -159,8 +159,8 @@ class _HomeShellState extends State<HomeShell> {
     _roomTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (mounted && !_busy && _selected == 1) unawaited(_refreshRooms());
     });
-    // Davet / arkadaşlık bildirimleri için hızlı ve hafif yoklama (6 sn).
-    _alertTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+    // Davet / arkadaşlık bildirimleri için hızlı ve hafif yoklama (3 sn).
+    _alertTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) unawaited(_pollAlerts());
     });
     _updateTimer = Timer.periodic(const Duration(minutes: 30), (_) {
@@ -182,6 +182,7 @@ class _HomeShellState extends State<HomeShell> {
     _updateTimer?.cancel();
     _socialTimer?.cancel();
     _alertTimer?.cancel();
+    _pushInSub?.cancel();
     _activityTimer?.cancel();
     _nowPlayingTimer?.cancel();
     _pushTapSub?.cancel();
@@ -3665,6 +3666,7 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   StreamSubscription<Map<String, dynamic>>? _pushTapSub;
+  StreamSubscription<Map<String, dynamic>>? _pushInSub;
 
   /// Push token'ını sunucuya kaydeder; bildirime dokunulunca ilgili sekmeyi açar.
   Future<void> _setupPush() async {
@@ -3678,6 +3680,11 @@ class _HomeShellState extends State<HomeShell> {
     _pushTapSub ??= PushService.taps.listen((data) {
       if (!mounted) return;
       unawaited(_refreshAccountBits());
+      unawaited(_pollAlerts());
+    });
+    // Uygulama açıkken gelen anlık bildirim: daveti 3 sn yoklamayı beklemeden göster.
+    _pushInSub ??= PushService.incoming.listen((_) {
+      if (mounted) unawaited(_pollAlerts());
     });
   }
 

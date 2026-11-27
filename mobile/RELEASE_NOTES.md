@@ -1,4 +1,7 @@
-OKEYX 20.3.6
+OKEYX 20.3.7
+
+• Okey yardımlı masalarda her yerde kapalı: ıstakada ve yere açılmış seri/çiftlerde. Yardımsız masada açık gelir, dokunarak kapatırsın.
+• Davetler daha hızlı: 3 sn yoklama + anlık bildirim gelince hemen gösterilir.
 
 • Masa sahibi, HAZIRIM demeyen oyuncu varsa onay vererek "YİNE DE BAŞLAT" ile oyunu başlatabilir.
 • HAZIRIM gönderilemezse nedeni ekranda yazar.
