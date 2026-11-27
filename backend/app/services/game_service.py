@@ -191,6 +191,7 @@ class GameService:
         byid={t.id:t for t in p.hand}
         try: resolved=[[byid[x] for x in g] for g in pairs]
         except KeyError:return ActionResult(False,'tile_not_in_hand')
+        if any(len(pair)!=2 for pair in resolved):return ActionResult(False,'pair_size')
         used={x for g in pairs for x in g}
         if not self._must_keep_finish_tile(len(p.hand),len(used)):return ActionResult(False,'must_keep_finish_tile')
 
