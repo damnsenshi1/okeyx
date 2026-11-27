@@ -1,0 +1,10 @@
+voice_hadi|Hadi kardeşim, ağaç olduk!|0.9|1.0
+voice_okey|Okey bende!|0.85|1.15
+voice_fast|Taşını at da oynayalım!|0.8|1.0
+voice_luck|Bol şans!|0.9|1.1
+voice_son|Son taş!|0.9|0.92
+voice_wow|Vay be!|1.1|1.0
+voice_cift|Çift gidiyorum!|0.9|1.08
+voice_eline|Eline sağlık!|0.95|1.0
+voice_tree|Ağaç olduk be!|1.0|0.9
+voice_single|Tek taş kaldı!|0.9|1.05
