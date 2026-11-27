@@ -84,7 +84,6 @@ class TileWidget extends StatelessWidget {
           errorBuilder: (_, __, ___) => _fallbackBody(w, h, tile.faceDown),
         );
         final markSize = (w * .30).clamp(8.0, 16.0).toDouble();
-        final dotSize = (w * .17).clamp(5.0, 9.0).toDouble();
         return Stack(
           clipBehavior: Clip.none,
           children: [
@@ -143,7 +142,7 @@ class TileWidget extends StatelessWidget {
                         ),
                         Positioned(
                           top: faceH * (bigNumber ? .70 : .66),
-                          child: _EngravedDot(size: (faceW * .20).clamp(3.5, 11.0).toDouble(), color: color),
+                          child: _EngravedDot(size: (faceW * (tile.useful ? .26 : .20)).clamp(3.5, 13.0).toDouble(), color: tile.useful ? const Color(0xFFFF2436) : color, glow: tile.useful),
                         ),
                       ]),
               ),
@@ -152,21 +151,6 @@ class TileWidget extends StatelessWidget {
             // Turbo yıldızı sol alt köşede: rakamı ve noktayı asla örtmez.
             if (!tile.faceDown && tile.turboStar)
               Positioned(left: fl + faceW * .02, bottom: fb + faceH * .03, child: _TurboStar(size: markSize)),
-            // İşlenebilir taş: yalnızca küçük kırmızı nokta (dolgu yok, yanıp sönmez).
-            if (!tile.faceDown && tile.useful)
-              Positioned(
-                left: fl + faceW * .06,
-                top: ft + faceH * .05,
-                child: Container(
-                  width: dotSize,
-                  height: dotSize,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFFD42A3A),
-                    boxShadow: [BoxShadow(color: Color(0x66000000), blurRadius: 1.5, offset: Offset(0, .6))],
-                  ),
-                ),
-              ),
           ],
         );
       },
@@ -234,7 +218,9 @@ class TileWidget extends StatelessWidget {
 class _EngravedDot extends StatelessWidget {
   final double size;
   final Color color;
-  const _EngravedDot({required this.size, required this.color});
+  /// İşlenebilir taş: oyuk parlak kırmızı yanar (yanıp sönmez).
+  final bool glow;
+  const _EngravedDot({required this.size, required this.color, this.glow = false});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -246,7 +232,10 @@ class _EngravedDot extends StatelessWidget {
             center: const Alignment(0, .35),
             colors: [color, Color.lerp(color, Colors.black, .45) ?? color],
           ),
-          boxShadow: const [BoxShadow(color: Color(0xE6FFFFFF), offset: Offset(0, .9))],
+          boxShadow: [
+            const BoxShadow(color: Color(0xE6FFFFFF), offset: Offset(0, .9)),
+            if (glow) const BoxShadow(color: Color(0xCCFF2436), blurRadius: 6, spreadRadius: .5),
+          ],
         ),
       );
 }

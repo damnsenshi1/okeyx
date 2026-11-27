@@ -1240,7 +1240,9 @@ class Room:
         # penalised if discarded (unless it is the actual finishing discard).
         active_turn=bool(s.started and s.current_seat==viewer)
         active_assist=bool(s.assisted and active_turn)
-        penalty_tiles=[t.id for t in viewer_p.hand if (self.service.rules._is_joker(t) or self.service.is_useful_table_tile(viewer_p,t))] if active_turn and s.phase=='discard' else []
+        # İşlenebilir taşlar (masadaki perlere eklenebilen + okey) sıra kimde
+        # olursa olsun gösterilir; istemci taşın oyuğunu kırmızı yakar.
+        penalty_tiles=[t.id for t in viewer_p.hand if (self.service.rules._is_joker(t) or self.service.is_useful_table_tile(viewer_p,t))] if (s.started and s.phase not in ('waiting','finished')) else []
         useful=list(penalty_tiles) if active_assist else []
         # Sayaçlar (AÇILIŞ x/101, ÇİFT x/5) sıra kimde olursa olsun yardımlı
         # modda her zaman hesaplanır; yalnız ipucu/parlama sıra sendeyken verilir.

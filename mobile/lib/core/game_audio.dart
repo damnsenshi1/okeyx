@@ -21,14 +21,7 @@ class GameAudio {
 
   static String _assetFor(String name) {
     const swappable={'tile_pick','tile_drop','discard','take_left','rack_slide','turn'};
-    if(swappable.contains(name)&&_soundPack=='sound_classic'){
-      if(name=='rack_slide'&&_rackMaterial.contains('marble'))return 'material_stone.wav';
-      if(name=='rack_slide'&&(_rackMaterial.contains('neon')||_rackMaterial.contains('ice')))return 'material_glass.wav';
-      if(name=='rack_slide'&&(_rackMaterial.contains('ember')||_rackMaterial.contains('obsidian')))return 'material_heavy.wav';
-      if(_tileMaterial.contains('marble'))return 'material_stone.wav';
-      if(_tileMaterial.contains('neon')||_tileMaterial.contains('ice')||_tileMaterial.contains('glass'))return 'material_glass.wav';
-      if(_tileMaterial.contains('ember')||_tileMaterial.contains('obsidian'))return 'material_heavy.wav';
-    }
+    // Klasik pakette her zaman gerçek melamin taş sesleri çalar (kaplamadan bağımsız).
     if(!swappable.contains(name)||_soundPack=='sound_classic')return '$name.wav';
     final suffix=switch(_soundPack){'sound_wood'=>'wood','sound_retro'=>'retro','sound_soft'=>'soft',_=>''};
     return suffix.isEmpty?'$name.wav':'${name}_$suffix.wav';

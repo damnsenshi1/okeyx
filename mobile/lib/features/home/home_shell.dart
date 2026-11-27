@@ -10,6 +10,7 @@ import '../../core/game_audio.dart';
 import '../../core/live_features.dart';
 import '../../core/remote_config.dart';
 import '../../core/telemetry.dart';
+import '../../widgets/game_mode_picker.dart';
 import '../../widgets/okx_kit.dart';
 import '../../widgets/tile_widget.dart';
 import '../../widgets/premium_radio_panel.dart';
@@ -89,6 +90,7 @@ class _HomeShellState extends State<HomeShell> {
 
   bool _turbo = false;
   String _variant = 'non_fold';
+  String _lastRuleVariant = 'non_fold';
   String _teamMode = 'solo';
   bool _assisted = true;
   int _rounds = 3;
@@ -1014,18 +1016,38 @@ class _HomeShellState extends State<HomeShell> {
                       ],
                     ),
                     const Spacer(),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
+                    SizedBox(
+                      height: compact ? 36 : 40,
                       child: Row(children: [
-                        OkxChip(label: 'KLASİK', onFelt: true, selected: _variant == 'non_fold', onTap: () => setState(() => _variant = 'non_fold')),
-                        const SizedBox(width: 6),
-                        OkxChip(label: 'KATLAMALI', onFelt: true, selected: _variant == 'fold', onTap: () => setState(() => _variant = 'fold')),
-                        const SizedBox(width: 6),
-                        OkxChip(label: 'KLASİK OKEY', onFelt: true, selected: _variant == 'duz', onTap: () => setState(() => _variant = 'duz')),
-                        const SizedBox(width: 6),
-                        OkxChip(label: 'TURBO', icon: Icons.bolt_rounded, onFelt: true, selected: _turbo, onTap: () => setState(() => _turbo = !_turbo)),
-                        const SizedBox(width: 6),
-                        OkxChip(label: 'YARDIMLI', icon: Icons.auto_fix_high_rounded, onFelt: true, selected: _assisted, onTap: () => setState(() => _assisted = !_assisted)),
+                        Expanded(
+                          flex: 5,
+                          child: OkxModeTabs(
+                            height: compact ? 36 : 40,
+                            classic: _variant == 'duz',
+                            onChanged: (classic) => setState(() {
+                              if (classic) {
+                                if (_variant != 'duz') _lastRuleVariant = _variant;
+                                _variant = 'duz';
+                                _turbo = false;
+                              } else if (_variant == 'duz') {
+                                _variant = _lastRuleVariant;
+                              }
+                            }),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 11,
+                          child: OkxRuleSwitches(
+                            height: compact ? 36 : 40,
+                            variant: _variant,
+                            turbo: _turbo,
+                            assisted: _assisted,
+                            onVariant: (v) => setState(() => _variant = v),
+                            onTurbo: (v) => setState(() => _turbo = v),
+                            onAssisted: (v) => setState(() => _assisted = v),
+                          ),
+                        ),
                       ]),
                     ),
                     const SizedBox(height: 10),
@@ -3057,25 +3079,27 @@ class _HomeShellState extends State<HomeShell> {
             final canAfford = _chips >= requiredBalance;
             final pool = (turbo ? entryFee * 10 : entryFee) * 4;
             final tableName = name.text.trim().isEmpty ? '${_profile.displayName} Masası' : name.text.trim();
-            final modeText = '${variant == 'duz' ? 'KLASİK OKEY' : variant == 'fold' ? '101 KATLAMALI' : '101 KLASİK'} • ${okxShort(entryFee)} • $rounds EL';
-            Widget seat(String title, String sub, {bool me = false}) => Container(
-                  width: 150,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: me ? const Color(0xF21A140F) : const Color(0x59000000),
-                    border: Border.all(color: me ? const Color(0x997CF2B8) : const Color(0x73E8C478), width: 1.4),
-                  ),
-                  child: Row(children: [
-                    if (me)
-                      OkxAvatar(name: _profile.displayName, imageUrl: _profile.avatarUrl, size: 34)
-                    else
-                      Container(width: 34, height: 34, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0x80E8C478), width: 1.4)), child: const Icon(Icons.add_rounded, color: Color(0xFFFFD98A), size: 18)),
-                    const SizedBox(width: 9),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: OkeyXColors.cream)),
-                      Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: .5, color: me ? OkeyXColors.mint : OkeyXColors.muted)),
-                    ])),
+            final modeText = '${okxRuleSummary(variant: variant, turbo: turbo, assisted: assisted).toUpperCase()} • ${okxShort(entryFee)} • $rounds EL';
+            Widget seat(String title, String sub, {bool me = false}) => SizedBox(
+                  width: 96,
+                  height: 74,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: me ? null : const Color(0x8C0E0A06),
+                        border: Border.all(color: me ? const Color(0xFF7CF2B8) : const Color(0xB3E8C478), width: 2),
+                        boxShadow: const [BoxShadow(color: Color(0x80000000), blurRadius: 8, offset: Offset(0, 3))],
+                      ),
+                      child: me
+                          ? ClipOval(child: OkxAvatar(name: _profile.displayName, imageUrl: _profile.avatarUrl, size: 40))
+                          : const Icon(Icons.add_rounded, color: Color(0xFFFFD98A), size: 20),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: OkeyXColors.cream)),
+                    Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, letterSpacing: .5, color: me ? OkeyXColors.mint : OkeyXColors.muted)),
                   ]),
                 );
             return Dialog.fullscreen(
@@ -3103,28 +3127,40 @@ class _HomeShellState extends State<HomeShell> {
                           const SizedBox(height: 10),
                           Expanded(
                             child: LayoutBuilder(builder: (context, c) {
-                              final w = math.min(c.maxWidth - 40, 440.0);
-                              final h = math.min(c.maxHeight - 70, w * .62);
-                              return Stack(alignment: Alignment.center, children: [
-                                Container(
+                              // Koltuklar masanın DIŞINDA durur; masa adı ve kurallar hiçbir şeyle çakışmaz.
+                              const seatW = 96.0, seatH = 74.0, gap = 6.0;
+                              final w = math.max(120.0, math.min(math.min(c.maxWidth - 2 * (seatW + gap), 380.0), (c.maxHeight - 2 * (seatH + gap)) / .58));
+                              final h = w * .58;
+                              final cx = c.maxWidth / 2, cy = c.maxHeight / 2;
+                              return Stack(children: [
+                                Positioned(
+                                  left: cx - w / 2,
+                                  top: cy - h / 2,
                                   width: w,
                                   height: h,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: walnutDecoration(radius: BorderRadius.circular(h / 2)),
-                                  child: OkxFelt(
-                                    borderRadius: BorderRadius.circular(h / 2),
-                                    child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                                      Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: FittedBox(fit: BoxFit.scaleDown, child: OkxTitle(tableName, size: 20))),
-                                      const SizedBox(height: 4),
-                                      Text(modeText, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .8, color: Color(0xFFCFE8D8))),
-                                      if (turbo) const Padding(padding: EdgeInsets.only(top: 6), child: OkxChip(label: 'TURBO x10', icon: Icons.bolt_rounded, selected: true)),
-                                    ])),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: walnutDecoration(radius: BorderRadius.circular(h / 2)),
+                                    child: OkxFelt(
+                                      borderRadius: BorderRadius.circular(h / 2),
+                                      child: Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: w * .14),
+                                          child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                            FittedBox(fit: BoxFit.scaleDown, child: OkxTitle(tableName, size: 18)),
+                                            const SizedBox(height: 4),
+                                            FittedBox(fit: BoxFit.scaleDown, child: Text(modeText, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .6, color: Color(0xFFCFE8D8)))),
+                                            if (turbo) const Padding(padding: EdgeInsets.only(top: 6), child: OkxChip(label: 'TURBO ×10', icon: Icons.bolt_rounded, selected: true)),
+                                          ]),
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                Positioned(top: (c.maxHeight - h) / 2 - 22, child: seat('Boş koltuk', 'DAVET / BOT')),
-                                Positioned(left: math.max(0, (c.maxWidth - w) / 2 - 40), child: seat('Boş koltuk', 'DAVET / BOT')),
-                                Positioned(right: math.max(0, (c.maxWidth - w) / 2 - 40), child: seat('Boş koltuk', 'DAVET / BOT')),
-                                Positioned(bottom: (c.maxHeight - h) / 2 - 22, child: seat(_profile.displayName, 'MASA SAHİBİ', me: true)),
+                                Positioned(left: cx - seatW / 2, top: cy - h / 2 - seatH - gap, child: seat('Boş koltuk', 'DAVET / BOT')),
+                                Positioned(left: cx - w / 2 - seatW - gap, top: cy - seatH / 2, child: seat('Boş koltuk', 'DAVET / BOT')),
+                                Positioned(left: cx + w / 2 + gap, top: cy - seatH / 2, child: seat('Boş koltuk', 'DAVET / BOT')),
+                                Positioned(left: cx - seatW / 2, top: cy + h / 2 + gap, child: seat(_profile.displayName, 'MASA SAHİBİ', me: true)),
                               ]);
                             }),
                           ),
@@ -3144,14 +3180,14 @@ class _HomeShellState extends State<HomeShell> {
                                   if (setupStep == 0) ...[
                                   label('OYUN TÜRÜ'),
                                   Row(children: [
-                                    for (final option in [('non_fold', '101 OKEY', 'Seri ve çift açmalı'), ('duz', 'KLASİK OKEY', 'Klasik taş dizilimi')])
+                                    for (final option in [('non_fold', '101 OKEY', 'Seri ve çift açmalı'), ('duz', 'KLASİK OKEY', '14 taşı diz, son taşla bitir')])
                                       Expanded(child: Padding(padding: const EdgeInsets.only(right: 6), child: GestureDetector(
-                                        onTap: () => localSet(() { variant = option.$1; if (variant == 'duz') turbo = false; }),
+                                        onTap: () => localSet(() { if (option.$1 == 'duz') { variant = 'duz'; turbo = false; } else if (variant == 'duz') { variant = 'non_fold'; } }),
                                         child: AnimatedContainer(duration: const Duration(milliseconds: 180), padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10), decoration: BoxDecoration(
                                           borderRadius: BorderRadius.circular(14),
-                                          gradient: (variant == option.$1 || (option.$1 == 'non_fold' && variant == 'fold')) ? const LinearGradient(colors: [Color(0xFF285D49), Color(0xFF123B2D)]) : null,
-                                          color: (variant == option.$1 || (option.$1 == 'non_fold' && variant == 'fold')) ? null : const Color(0x44000000),
-                                          border: Border.all(color: (variant == option.$1 || (option.$1 == 'non_fold' && variant == 'fold')) ? OkeyXColors.mint : OkeyXColors.line),
+                                          gradient: (option.$1 == 'duz' ? variant == 'duz' : variant != 'duz') ? const LinearGradient(colors: [Color(0xFF285D49), Color(0xFF123B2D)]) : null,
+                                          color: (option.$1 == 'duz' ? variant == 'duz' : variant != 'duz') ? null : const Color(0x44000000),
+                                          border: Border.all(color: (option.$1 == 'duz' ? variant == 'duz' : variant != 'duz') ? OkeyXColors.mint : OkeyXColors.line),
                                         ), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(option.$2, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: OkeyXColors.cream)), const SizedBox(height: 3), Text(option.$3, style: const TextStyle(fontSize: 9, color: OkeyXColors.muted))])),
                                       ))),
                                   ]),
@@ -3159,19 +3195,30 @@ class _HomeShellState extends State<HomeShell> {
                                   const Text('Oyun türünü seçtikten sonra masa kurallarını ve giriş ayarlarını belirleyeceksin.', style: TextStyle(fontSize: 10, color: OkeyXColors.muted, fontWeight: FontWeight.w600)),
                                   ] else ...[
                                   label('MASA AYARLARI'),
-                                  if (variant != 'duz') ...[
-                                    label('101 KURAL SETİ'),
-                                    seg<String>(const [('non_fold', 'KATLAMASIZ'), ('fold', 'KATLAMALI')], variant, (v) => variant = v),
-                                    const SizedBox(height: 8),
-                                  ],
+                                  label(variant == 'duz' ? 'KLASİK OKEY KURALLARI' : '101 OKEY KURALLARI'),
+                                  OkxRuleSwitches(
+                                    height: 38,
+                                    variant: variant,
+                                    turbo: turbo,
+                                    assisted: assisted,
+                                    onVariant: (v) => localSet(() => variant = v),
+                                    onTurbo: (v) => localSet(() => turbo = v),
+                                    onAssisted: (v) => localSet(() => assisted = v),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  label('OYUNCULAR'),
                                   Row(children: [
-                                    if (variant != 'duz') ...[
-                                      Expanded(child: toggle('Turbo', Icons.bolt_rounded, turbo, (v) => turbo = v)),
-                                      const SizedBox(width: 8),
-                                    ],
-                                    Expanded(child: toggle('Yardımlı', Icons.auto_fix_high_rounded, assisted, (v) => assisted = v)),
-                                    const SizedBox(width: 8),
-                                    Expanded(child: toggle('Eşli', Icons.groups_2_rounded, teamMode == 'paired', (v) => teamMode = v ? 'paired' : 'solo')),
+                                    Expanded(
+                                      child: OkxPairSwitch(
+                                        left: 'Tekli',
+                                        right: 'Eşli',
+                                        rightIcon: Icons.groups_2_rounded,
+                                        height: 38,
+                                        rightSelected: teamMode == 'paired',
+                                        onChanged: (r) => localSet(() => teamMode = r ? 'paired' : 'solo'),
+                                      ),
+                                    ),
+                                    const Expanded(flex: 2, child: SizedBox()),
                                   ]),
                                   const SizedBox(height: 10),
                                   Row(children: [

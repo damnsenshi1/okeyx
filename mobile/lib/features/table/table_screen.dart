@@ -91,6 +91,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   int? _giftToSeat;
   String? _giftEventId;
   int? _impactSeat;
+  final Map<int, GlobalKey> _avatarKeys = {};
   String _impactKind = '';
   String? _impactEventId;
   int? _rageSeat;
@@ -816,6 +817,12 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
 
   Widget _seatAvatar(Map<String, dynamic> player, double size) {
     final seat = _integer(player['seat'], fallback: -9);
+    if (seat < 0 || seat > 3) return _seatAvatarInner(player, size);
+    return KeyedSubtree(key: _avatarKeys.putIfAbsent(seat, () => GlobalKey()), child: _seatAvatarInner(player, size));
+  }
+
+  Widget _seatAvatarInner(Map<String, dynamic> player, double size) {
+    final seat = _integer(player['seat'], fallback: -9);
     final phase = '${_state['phase']}';
     final active = _state['started'] == true && seat == _integer(_state['current_seat']) && !const {'waiting', 'finished'}.contains(phase) && !_introActive;
     final pid = '${player['player_id'] ?? ''}'.trim();
@@ -1138,11 +1145,11 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         child: OkxButton(
           label: label,
           icon: icon,
-          height: 28,
-          fontSize: 9.5,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          radius: 9,
-          style: primary ? OkxButtonStyle.red : OkxButtonStyle.ghost,
+          height: 30,
+          fontSize: 10.5,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          radius: 10,
+          style: primary ? OkxButtonStyle.brass : OkxButtonStyle.ghost,
           onTap: enabled && !_busy ? action : null,
         ),
       );
@@ -1152,7 +1159,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.fromLTRB(9, 4, 9, 4),
         shadows: const [BoxShadow(color: Color(0x59000000), blurRadius: 7, offset: Offset(0, 2))],
         child: Row(children: [
-          Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: ready ? OkeyXColors.ruby : const Color(0xFFFFD98A))),
+          Text(title, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: ready ? const Color(0xFF3CCF8E) : const Color(0xFFFFD98A))),
           const SizedBox(width: 7),
           Expanded(child: Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: OkeyXColors.muted))),
         ]),
@@ -1262,7 +1269,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         // do not offer a misleading series-opening action.
         if (!pairOpened) {
           final canOpenSeries = _actions['open_series'] == true;
-          final seriesLabel = canOpenSeries ? 'SERİ AÇ' : score < threshold ? 'SERİ AÇ • ${threshold - score} EKSİK' : 'SERİ AÇ • DÜZENLE';
+          final seriesLabel = canOpenSeries ? 'SERİ AÇ' : score < threshold ? 'SERİ AÇ −${threshold - score}' : 'DİZİMİ DÜZENLE';
           buttons.add(_barButton(seriesLabel, Icons.layers_rounded, canOpenSeries, () => unawaited(_openSeriesRespectingRack()), primary: true));
         }
         buttons.add(_barButton(
@@ -1285,11 +1292,11 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       // Keep the action rail in a predictable place even while another seat
       // is drawing or discarding. Disabled controls explain the next action.
       if (pairOpened) {
-        buttons.add(_barButton('ÇİFT MODU • SIRA BEKLENİYOR', Icons.copy_all_rounded, false, () {}, primary: true));
+        buttons.add(_barButton('ÇİFT MODU', Icons.copy_all_rounded, false, () {}, primary: true));
       } else {
-        final seriesLabel = score < threshold ? 'SERİ AÇ • ${threshold - score} EKSİK' : 'SIRA BEKLENİYOR';
+        final seriesLabel = score < threshold ? 'SERİ AÇ −${threshold - score}' : 'SIRA BEKLENİYOR';
         buttons.add(_barButton(seriesLabel, Icons.layers_rounded, false, () {}, primary: true));
-        buttons.add(_barButton('ÇİFT AÇ • $pairs/$pairThreshold', Icons.copy_all_rounded, false, () {}));
+        buttons.add(_barButton('ÇİFT $pairs/$pairThreshold', Icons.copy_all_rounded, false, () {}));
       }
     }
 
@@ -1319,11 +1326,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           Expanded(
             child: buttons.isEmpty
                 ? const SizedBox.shrink()
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const ClampingScrollPhysics(),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
-                  ),
+                // Kaydırma yok: butonlar satıra sığar, gerekirse yazıları küçülür.
+                : Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    for (final b in buttons) Flexible(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerRight, child: b)),
+                  ]),
           ),
         ]),
       );
@@ -1468,79 +1474,67 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     return Offset(p.dx / 1000 * size.width, p.dy / 450 * size.height);
   }
 
+  /// Hediyenin uçacağı/çarpacağı noktayı, oyuncunun gerçek avatar
+  /// konumundan bulur (ekran boyutundan bağımsız). Bulunamazsa koltuk
+  /// haritasındaki yaklaşık konuma düşer.
+  Offset _giftAnchor(int? seat, Size size, BuildContext overlayContext) {
+    if (seat != null && seat >= 0) {
+      try {
+        final avatar = _avatarKeys[seat]?.currentContext?.findRenderObject();
+        final overlay = overlayContext.findRenderObject();
+        if (avatar is RenderBox && overlay is RenderBox && avatar.hasSize && overlay.hasSize && avatar.attached && overlay.attached) {
+          final global = avatar.localToGlobal(avatar.size.center(Offset.zero));
+          return overlay.globalToLocal(global);
+        }
+      } catch (_) {}
+    }
+    return _reactionAnchor(seat, size);
+  }
+
   Widget _giftOverlay() => LayoutBuilder(
         builder: (context, constraints) {
           final size = Size(constraints.maxWidth, constraints.maxHeight);
           final def = _giftByIdOrName(_giftId, _giftKind);
           if (def?.style == 'big') return const SizedBox.shrink();
-          final from = _reactionAnchor(_giftFromSeat, size);
           final tableGift = _giftToSeat == -1;
-          final to = tableGift ? Offset(size.width * .5, size.height * .40) : _reactionAnchor(_giftToSeat, size);
-          final stick = def?.style == 'stick';
+          final emoji = def?.emoji ?? '🎁';
+          final fxId = def?.id ?? _giftKind.toLowerCase();
+          final thrown = def?.style == 'stick';
           return TweenAnimationBuilder<double>(
             key: ValueKey('${_giftEventId ?? ''}-$_giftKind'),
             tween: Tween(begin: 0.0, end: 1.0),
-            duration: _reducedFx ? Duration.zero : const Duration(milliseconds: 1600),
+            duration: _reducedFx ? Duration.zero : const Duration(milliseconds: 2600),
             builder: (context, value, _) {
-              final travel = Curves.easeInOutCubic.transform((value / .36).clamp(0.0, 1.0));
+              final from = _giftAnchor(_giftFromSeat, size, context);
+              final to = tableGift ? Offset(size.width * .5, size.height * .40) : _giftAnchor(_giftToSeat, size, context);
+              const flight = .30;
+              final travel = Curves.easeInCubic.transform((value / flight).clamp(0.0, 1.0));
               final point = Offset.lerp(from, to, travel) ?? to;
-              final arc = math.sin(math.pi * travel) * math.min(70.0, (to - from).distance * .22);
-              final settled = value >= .36;
-              final fade = value < .78 ? 1.0 : (1 - ((value - .78) / .22)).clamp(0.0, 1.0);
-              final spin = stick ? travel * math.pi * 3 : 0.0;
-              final artSize = math.max(34.0, size.shortestSide * .10);
-              return Stack(children: [
-                if (!settled)
+              final arc = math.sin(math.pi * travel) * math.min(110.0, (to - from).distance * .30);
+              final artSize = math.max(40.0, size.shortestSide * .12);
+              final impact = ((value - flight) / (1 - flight)).clamp(0.0, 1.0);
+              final targets = tableGift ? [_viewerSeat, _relativeSeat(1), _relativeSeat(2), _relativeSeat(3)].map((s) => _giftAnchor(s, size, context)).toList() : [to];
+              return Stack(clipBehavior: Clip.none, children: [
+                if (value < flight)
                   Positioned(
                     left: point.dx - artSize / 2,
                     top: point.dy - artSize / 2 - arc,
-                    child: Transform.rotate(angle: spin, child: _GiftArt(kind: _giftKind, size: artSize, glow: !stick)),
-                  ),
-                if (settled && stick && !tableGift)
-                  Builder(builder: (context) {
-                    final relativeTarget = ((_giftToSeat ?? _viewerSeat) - _viewerSeat + 4) % 4;
-                    final labelWidth = math.min(80.0, math.max(58.0, size.width * .16)).toDouble();
-                    // Keep the impact label beside the recipient avatar, never on
-                    // the discard/deck columns. Coordinates follow the table seat map.
-                    final rawLeft = switch (relativeTarget) {
-                      0 => to.dx + artSize * .55,
-                      1 => to.dx - artSize * 2.20,
-                      2 => to.dx - labelWidth / 2,
-                      _ => to.dx - labelWidth / 2,
-                    };
-                    final rawTop = switch (relativeTarget) {
-                      0 => to.dy - artSize * 1.30,
-                      1 => to.dy + artSize * .30,
-                      2 => to.dy + artSize * .72,
-                      _ => to.dy + artSize * .34,
-                    };
-                    return Positioned(
-                    left: rawLeft.clamp(4.0, math.max(4.0, size.width - labelWidth - 4)).toDouble(),
-                    top: rawTop.clamp(4.0, math.max(4.0, size.height - 34)).toDouble(),
-                    width: labelWidth,
-                    child: Opacity(
-                      opacity: fade,
+                    child: Transform.rotate(
+                      angle: thrown ? travel * math.pi * 4 : math.sin(travel * math.pi) * .3,
                       child: Transform.scale(
-                        scale: Curves.elasticOut.transform(((value - .36) / .3).clamp(0.0, 1.0)),
-                        child: const Center(
-                          child: Text('TAK!', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: 20, color: Color(0xFFFFE3A0), shadows: [Shadow(color: Color(0xFF4A2F0C), offset: Offset(0, 2)), Shadow(color: Colors.black54, blurRadius: 8)])),
-                        ),
+                        scale: .7 + .5 * math.sin(travel * math.pi),
+                        child: Text(emoji, style: TextStyle(fontSize: artSize * .9, shadows: const [Shadow(color: Color(0x99000000), blurRadius: 10, offset: Offset(0, 6))])),
                       ),
                     ),
-                  );
-                  }),
-                if (settled && !tableGift)
-                  Positioned(
-                    left: to.dx - artSize / 2,
-                    top: to.dy - artSize * 1.25 - 10 * math.sin((value - .36) * math.pi * 2),
-                    child: Opacity(opacity: fade, child: _GiftImpactArt(kind: _giftKind, size: artSize)),
                   ),
-                if (settled && tableGift)
-                  for (final s in [_viewerSeat, _relativeSeat(1), _relativeSeat(2), _relativeSeat(3)])
+                if (value >= flight)
+                  for (final t in targets)
                     Positioned(
-                      left: _reactionAnchor(s, size).dx - artSize * .4,
-                      top: _reactionAnchor(s, size).dy - artSize * 1.1,
-                      child: Opacity(opacity: fade, child: _GiftArt(kind: _giftKind, size: artSize * .8, glow: true)),
+                      left: t.dx - artSize * 2,
+                      top: t.dy - artSize * 2,
+                      width: artSize * 4,
+                      height: artSize * 4,
+                      child: CustomPaint(painter: _GiftFxPainter(kind: fxId, emoji: emoji, t: impact, unit: artSize)),
                     ),
               ]);
             },
@@ -2310,12 +2304,14 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         'crown' || 'altın taç' || 'sports_car' || 'spor araba' => 'reward',
         _ => 'gift_fun',
       };
-      unawaited(GameAudio.sfx(sound, enabled: _soundEnabled, volume: sound == 'slap' ? .92 : .78));
+      // Ses, hediye hedefe çarptığı anda (uçuşun sonunda) çalar.
+      unawaited(GameAudio.sfx('gift_whoosh', enabled: _soundEnabled, volume: .55));
+      unawaited(Future<void>.delayed(Duration(milliseconds: giftDef?.style == 'big' ? 0 : 760), () => GameAudio.sfx(sound, enabled: _soundEnabled, volume: sound == 'slap' ? .95 : .8)));
       if (_vibrationEnabled) {
         final heavy = sound == 'slap' || giftDef?.style == 'big';
         unawaited(heavy ? HapticFeedback.heavyImpact() : HapticFeedback.mediumImpact());
       }
-      Future<void>.delayed(const Duration(milliseconds: 1750), () {
+      Future<void>.delayed(const Duration(milliseconds: 2700), () {
         if (!mounted || _giftEventId != chatId) return;
         setState(() {
           _giftText = '';
@@ -7237,28 +7233,243 @@ class _PlayerCardBodyState extends State<_PlayerCardBody> {
 }
 
 
-class _GiftImpactArt extends StatelessWidget {
+
+
+
+/// Hediye çarpma efekti. [t] 0→1 çarpma anından itibaren ilerler.
+/// Domates/yumurta profilde patlar ve akar, terlik vurup sekerek düşer,
+/// çay/kahve bardağından buhar tüter, gül yaprakları dökülür, nazar halkası yayılır.
+class _GiftFxPainter extends CustomPainter {
+  _GiftFxPainter({required this.kind, required this.emoji, required this.t, required this.unit});
+
   final String kind;
-  final double size;
-  const _GiftImpactArt({required this.kind, required this.size});
+  final String emoji;
+  final double t;
+  final double unit;
+
+  static final _rand = math.Random(7);
+  static final List<double> _lobes = List.generate(14, (_) => .72 + _rand.nextDouble() * .5);
+  static final List<Offset> _bits = List.generate(16, (_) => Offset(_rand.nextDouble() * 2 - 1, _rand.nextDouble() * 2 - 1));
+
+  double get _fade => t < .78 ? 1.0 : (1 - (t - .78) / .22).clamp(0.0, 1.0);
+
+  void _emoji(Canvas canvas, Offset c, double size, {double angle = 0, double opacity = 1}) {
+    final tp = TextPainter(
+      text: TextSpan(text: emoji, style: TextStyle(fontSize: size, color: Colors.white.withValues(alpha: opacity))),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(angle);
+    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+    canvas.restore();
+  }
+
+  Path _blob(Offset c, double r) {
+    final path = Path();
+    final n = _lobes.length;
+    for (var i = 0; i <= n; i++) {
+      final a = i / n * math.pi * 2;
+      final rr = r * _lobes[i % n];
+      final p = c + Offset(math.cos(a) * rr, math.sin(a) * rr * .86);
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        final pa = (i - .5) / n * math.pi * 2;
+        final ctrl = c + Offset(math.cos(pa) * r * 1.18, math.sin(pa) * r * 1.0);
+        path.quadraticBezierTo(ctrl.dx, ctrl.dy, p.dx, p.dy);
+      }
+    }
+    return path..close();
+  }
+
+  void _splat(Canvas canvas, Offset c, {required Color main, required Color dark, Color? yolk}) {
+    final pop = Curves.easeOutBack.transform((t / .16).clamp(0.0, 1.0));
+    final r = unit * .62 * pop;
+    final a = _fade;
+    // Fırlayan parçalar
+    if (t < .45) {
+      final q = t / .45;
+      final paint = Paint()..color = main.withValues(alpha: (1 - q) * a);
+      for (final b in _bits) {
+        final p = c + Offset(b.dx * unit * 1.5 * q, b.dy * unit * 1.2 * q + q * q * unit * .6);
+        canvas.drawCircle(p, unit * .07 * (1 - q * .5), paint);
+      }
+    }
+    // Akan damlalar
+    final drip = Paint()..color = main.withValues(alpha: a);
+    for (var i = 0; i < 4; i++) {
+      final x = c.dx + (i - 1.5) * r * .42;
+      final len = unit * (.35 + i % 2 * .25) * Curves.easeIn.transform(((t - .12) / .7).clamp(0.0, 1.0));
+      final w = unit * (.10 - i % 2 * .03);
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x - w / 2, c.dy, w, r * .5 + len), Radius.circular(w / 2)), drip);
+      canvas.drawCircle(Offset(x, c.dy + r * .5 + len), w * .62, drip);
+    }
+    canvas.drawPath(_blob(c + Offset(0, unit * .04), r * 1.04), Paint()..color = dark.withValues(alpha: .55 * a));
+    canvas.drawPath(_blob(c, r), Paint()..color = main.withValues(alpha: a));
+    if (yolk != null) {
+      canvas.drawCircle(c + Offset(r * .08, r * .04), r * .42, Paint()..color = yolk.withValues(alpha: a));
+      canvas.drawCircle(c + Offset(-r * .06, -r * .1), r * .12, Paint()..color = Colors.white.withValues(alpha: .7 * a));
+    } else {
+      // domates çekirdekleri
+      final seed = Paint()..color = const Color(0xFFFFE08A).withValues(alpha: .9 * a);
+      for (var i = 0; i < 7; i++) {
+        final b = _bits[i];
+        canvas.drawOval(Rect.fromCenter(center: c + Offset(b.dx * r * .55, b.dy * r * .45), width: unit * .07, height: unit * .045), seed);
+      }
+    }
+    canvas.drawCircle(c + Offset(-r * .35, -r * .35), r * .16, Paint()..color = Colors.white.withValues(alpha: .35 * a));
+  }
+
+  void _steam(Canvas canvas, Offset base) {
+    final a = _fade;
+    for (var k = 0; k < 3; k++) {
+      final phase = (t * 1.6 + k / 3) % 1.0;
+      final path = Path();
+      for (var j = 0; j <= 18; j++) {
+        final y = -j / 18 * unit * 1.25;
+        final x = math.sin(j / 18 * math.pi * 2 + t * 8 + k) * unit * .10 + (k - 1) * unit * .16;
+        final p = base + Offset(x, y - phase * unit * .35);
+        j == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = unit * .07
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, unit * .05)
+          ..color = Colors.white.withValues(alpha: .55 * (1 - phase) * a),
+      );
+    }
+  }
+
+  void _teaGlass(Canvas canvas, Offset c) {
+    final a = _fade;
+    final w = unit * .46, h = unit * .62;
+    final glass = Path()
+      ..moveTo(c.dx - w * .5, c.dy - h * .5)
+      ..quadraticBezierTo(c.dx - w * .22, c.dy, c.dx - w * .42, c.dy + h * .5)
+      ..lineTo(c.dx + w * .42, c.dy + h * .5)
+      ..quadraticBezierTo(c.dx + w * .22, c.dy, c.dx + w * .5, c.dy - h * .5)
+      ..close();
+    canvas.drawPath(glass, Paint()..color = const Color(0xFFB5390F).withValues(alpha: .92 * a));
+    canvas.drawPath(glass, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = unit * .03
+      ..color = Colors.white.withValues(alpha: .75 * a));
+    canvas.drawOval(Rect.fromCenter(center: c + Offset(0, h * .56), width: w * 1.5, height: unit * .12), Paint()..color = const Color(0xFFE8C478).withValues(alpha: a));
+    canvas.drawLine(c + Offset(-w * .3, -h * .35), c + Offset(-w * .2, h * .3), Paint()
+      ..strokeWidth = unit * .04
+      ..color = Colors.white.withValues(alpha: .4 * a));
+  }
 
   @override
-  Widget build(BuildContext context) {
-    final coffee = kind == 'Çay' || kind == 'Türk Kahvesi';
-    final slipper = kind == 'Terlik';
-    final tomato = kind == 'Domates';
-    final egg = kind == 'Yumurta';
-    final rose = kind == 'Gül';
-    final nazar = kind.toLowerCase().contains('nazar');
-    return SizedBox(width: size * 1.55, height: size * 1.55, child: Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
-      if (nazar) Container(width: size * 1.45, height: size * 1.45, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFF59D6E8), width: 3), boxShadow: const [BoxShadow(color: Color(0x9959D6E8), blurRadius: 22)])),
-      if (slipper) for (var i = 0; i < 8; i++) Positioned(left: size * (.50 + math.cos(i * math.pi / 4) * .58), top: size * (.50 + math.sin(i * math.pi / 4) * .58), child: Icon(Icons.bolt_rounded, size: size * .17, color: const Color(0xFFFFD36E))),
-      if (tomato) for (var i = 0; i < 7; i++) Positioned(left: size * (.35 + (i % 3) * .20), top: size * (.35 + (i % 2) * .32), child: Icon(Icons.circle, size: size * (.08 + (i % 3) * .025), color: const Color(0xFFE84D3D).withValues(alpha: .82))),
-      if (egg) for (var i = 0; i < 5; i++) Positioned(left: size * (.35 + (i % 3) * .19), top: size * (.48 + (i % 2) * .25), child: Icon(Icons.water_drop_rounded, size: size * (.12 + (i % 2) * .05), color: const Color(0xFFFFD34D))),
-      if (rose) for (var i = 0; i < 6; i++) Positioned(left: size * (.15 + (i % 3) * .36), top: size * (.15 + (i % 2) * .72), child: Icon(Icons.local_florist_rounded, size: size * .14, color: const Color(0xFFE85A79))),
-      if (coffee) for (var i = 0; i < 3; i++) Positioned(top: size * (.03 - (i % 2) * .05), left: size * (.55 + i * .16), child: Text('〰', style: TextStyle(fontSize: size * .24, color: Colors.white.withValues(alpha: .9), fontWeight: FontWeight.w900))),
-      _GiftArt(kind: kind, size: size, glow: true),
-    ]));
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final a = _fade;
+    switch (kind) {
+      case 'tomato':
+      case 'domates':
+        _splat(canvas, c, main: const Color(0xFFD7261C), dark: const Color(0xFF7A0E08));
+      case 'egg':
+      case 'yumurta':
+        // kabuk parçaları
+        if (t < .3) {
+          final q = t / .3;
+          final shell = Paint()..color = const Color(0xFFF4EBDD).withValues(alpha: 1 - q);
+          for (var i = 0; i < 6; i++) {
+            final b = _bits[i];
+            final p = c + Offset(b.dx * unit * 1.1 * q, b.dy * unit * .9 * q - unit * .3 * q);
+            canvas.drawPath(Path()..addPolygon([p, p + Offset(unit * .12, unit * .02), p + Offset(unit * .04, unit * .11)], true), shell);
+          }
+        }
+        _splat(canvas, c, main: const Color(0xFFFBF6EA), dark: const Color(0xFF9C9180), yolk: const Color(0xFFFFB81F));
+      case 'slipper':
+      case 'terlik':
+      case 'fish':
+      case 'rubber_chicken':
+        // PAT! yıldızı + terlik geri seker
+        if (t < .4) {
+          final q = Curves.easeOut.transform(t / .4);
+          final star = Path();
+          for (var i = 0; i < 16; i++) {
+            final ang = i / 16 * math.pi * 2;
+            final rr = (i.isEven ? 1.0 : .55) * unit * (.5 + .55 * q);
+            final p = c + Offset(math.cos(ang) * rr, math.sin(ang) * rr);
+            i == 0 ? star.moveTo(p.dx, p.dy) : star.lineTo(p.dx, p.dy);
+          }
+          star.close();
+          canvas.drawPath(star, Paint()..color = const Color(0xFFFFD34D).withValues(alpha: 1 - q));
+          final tp = TextPainter(
+            text: TextSpan(text: 'PAT!', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: unit * .42 * (.8 + .4 * q), color: const Color(0xFF7A1408).withValues(alpha: 1 - q * .6))),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+        }
+        final bounce = Curves.easeOut.transform(t);
+        final pos = c + Offset(unit * 1.0 * bounce, -unit * 1.1 * math.sin(bounce * math.pi * .9) + unit * .9 * bounce * bounce);
+        _emoji(canvas, pos, unit * .8, angle: -bounce * math.pi * 1.6, opacity: a);
+        // baş dönmesi yıldızları
+        for (var i = 0; i < 3; i++) {
+          final ang = t * math.pi * 4 + i * math.pi * 2 / 3;
+          _drawSpark(canvas, c + Offset(math.cos(ang) * unit * .55, -unit * .55 + math.sin(ang) * unit * .16), unit * .1, a);
+        }
+      case 'tea':
+      case 'coffee':
+      case 'çay':
+      case 'türk kahvesi':
+        final land = Curves.easeOutBack.transform((t / .2).clamp(0.0, 1.0));
+        final cup = c + Offset(unit * .7, unit * .15 + (1 - land) * -unit * .4);
+        if (kind == 'tea' || kind == 'çay') {
+          _teaGlass(canvas, cup);
+        } else {
+          _emoji(canvas, cup, unit * .75, opacity: a);
+        }
+        _steam(canvas, cup - Offset(0, unit * .38));
+      case 'rose':
+      case 'gül':
+        _emoji(canvas, c + Offset(unit * .75, unit * .1), unit * .7 * Curves.easeOutBack.transform((t / .2).clamp(0.0, 1.0)), opacity: a);
+        for (var i = 0; i < 12; i++) {
+          final b = _bits[i];
+          final fall = (t * 1.2 + i / 12) % 1.0;
+          final p = c + Offset(b.dx * unit * 1.2 + math.sin(fall * 6 + i) * unit * .15, -unit * 1.3 + fall * unit * 2.4);
+          canvas.save();
+          canvas.translate(p.dx, p.dy);
+          canvas.rotate(fall * 6 + i);
+          canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: unit * .16, height: unit * .1), Paint()..color = const Color(0xFFE23B5C).withValues(alpha: .85 * a * (1 - fall * .4)));
+          canvas.restore();
+        }
+      case 'nazar':
+      case 'nazar boncuğu':
+        for (var k = 0; k < 3; k++) {
+          final q = ((t * 1.4) - k * .18).clamp(0.0, 1.0);
+          canvas.drawCircle(c, unit * (.4 + q * 1.3), Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = unit * .07 * (1 - q)
+            ..color = const Color(0xFF3FA9F5).withValues(alpha: (1 - q) * a));
+        }
+        _emoji(canvas, c + Offset(unit * .7, -unit * .3), unit * .6, opacity: a);
+      default:
+        _emoji(canvas, c + Offset(0, -unit * .7 - t * unit * .4), unit * .75 * Curves.easeOutBack.transform((t / .25).clamp(0.0, 1.0)), opacity: a);
+        for (var i = 0; i < 10; i++) {
+          final b = _bits[i];
+          _drawSpark(canvas, c + Offset(b.dx, b.dy) * unit * (0.4 + t * 1.1), unit * .09 * (1 - t), a);
+        }
+    }
   }
-}
 
+  void _drawSpark(Canvas canvas, Offset p, double r, double a) {
+    final path = Path();
+    for (var i = 0; i < 8; i++) {
+      final ang = i / 8 * math.pi * 2;
+      final rr = i.isEven ? r : r * .38;
+      final q = p + Offset(math.cos(ang) * rr, math.sin(ang) * rr);
+      i == 0 ? path.moveTo(q.dx, q.dy) : path.lineTo(q.dx, q.dy);
+    }
+    canvas.drawPath(path..close(), Paint()..color = const Color(0xFFFFE08A).withValues(alpha: a));
+  }
+
+  @override
+  bool shouldRepaint(_GiftFxPainter old) => old.t != t || old.kind != kind || old.unit != unit;
+}
