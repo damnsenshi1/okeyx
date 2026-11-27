@@ -56,6 +56,7 @@ class ChatIn(BaseModel):
     kind:str='quick'  # quick | emoji | text | voice | gift
     value:str
     to_seat:int|None=None
+    request_id:str|None=Field(default=None,max_length=80)
 
 class LeaveIn(BaseModel):
     seat:int
@@ -249,7 +250,7 @@ def _ensure_meta(room_id:str,legacy:bool=False)->dict:
     if m:return m
     m={
         'owner_seat':0,'seat_tokens':{},'player_ids':{},'connected':{},'disconnect_at':{},
-        'afk_strikes':{0:0,1:0,2:0,3:0},'action_times':{},'chat_times':{},'dedupe':{},
+        'afk_strikes':{0:0,1:0,2:0,3:0},'action_times':{},'chat_times':{},'dedupe':{},'gift_dedupe':{},
         'economy_charged':False,'settled':False,'recorded_rounds':set(),'chat':[],'reactions':[],'legacy':legacy,'created_at':_now(),
         'password_hash':None,'invited_player_ids':set(),'chat_enabled':True,'gifts_enabled':True,'auto_rematch':False,
         'state_version':1,'quick_match':False,'bot_seats':set(),'spectators':{},'spectator_events':[]
@@ -1422,6 +1423,9 @@ async def table_chat(room_id:str,body:ChatIn):
     r=ROOMS.get(room_id)
     if not r:raise HTTPException(404,'room_not_found')
     m=_auth(room_id,body.seat,body.reconnect_token)
+    gift_request_key=f'{body.seat}:{body.request_id}' if body.kind=='gift' and body.request_id else None
+    if gift_request_key and gift_request_key in m.setdefault('gift_dedupe',{}):
+        return m['gift_dedupe'][gift_request_key]
     sender_id=m.get('player_ids',{}).get(body.seat)
     if sender_id:
         from app.services.phase4_service import Phase4Service
@@ -1476,7 +1480,7 @@ async def table_chat(room_id:str,body:ChatIn):
                 return {'ok':False,'code':'insufficient_coins','required':cost}
             value=str(gift['name'])
         elif from_id and to_id:
-            g=STORE.send_gift(from_id,to_id,value)
+            g=STORE.send_gift(from_id,to_id,value,body.request_id)
             if not g.get('ok'):return g
             value=str(g.get('gift',{}).get('name') or gift['name'])
         else:
@@ -1491,8 +1495,13 @@ async def table_chat(room_id:str,body:ChatIn):
         event['gift_id']=gift_id
         event['style']=str(GIFT_CATALOG[gift_id].get('style','float'))
     _touch(room_id)
+    result={'ok':True,'event':event}
+    if gift_request_key:
+        cache=m['gift_dedupe'];cache[gift_request_key]=result
+        if len(cache)>80:
+            for key in list(cache)[:-60]:cache.pop(key,None)
     await _broadcast(room_id)
-    return {'ok':True,'event':event}
+    return result
 
 @router.websocket('/game/{room_id}/ws')
 async def game_ws(ws:WebSocket,room_id:str,seat:int=0,reconnect_token:str|None=None):
