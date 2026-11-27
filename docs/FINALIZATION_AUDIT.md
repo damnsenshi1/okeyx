@@ -101,3 +101,8 @@ The root has no project-level README or `AGENTS.md`. `mobile/README.md` is still
 
 The source review of auth/session validation, account and economy routes, game action authorization, payment verification, room matchmaking/recovery, social actions, database policies, Android permissions, and screen layouts is incomplete. Production environment values, Render service state, Supabase policies/data, and device-rendered UI were not accessible in this audit pass. Do not treat this document as a release approval.
 
+
+
+## Follow-up finding: action deduplication crossed seats
+
+The room action cache was keyed only by the client-supplied request ID, while cached responses included the acting seat's private state. A different authenticated seat reusing the same ID could receive the first seat's cached response. The cache key is now scoped to seat and request ID, with an 80-character request ID limit. Regression coverage checks both private-state isolation across seats and same-seat retry idempotency. GitHub Actions validation for this follow-up is pending; this audit remains incomplete and is not release sign-off.
