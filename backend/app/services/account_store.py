@@ -57,15 +57,49 @@ SEASON_MILESTONES=[
 
 def _now()->int:return int(time.time())
 
+# Oyun günü Türkiye saatine göre döner (Render sunucusu UTC çalışır).
+# Eskiden gece 00:00-03:00 arası istemci "ödül hazır" derken sunucu hâlâ
+# önceki günü sayıyor ve "Bu işlem şu anda tamamlanamadı" hatası çıkıyordu.
+GAME_UTC_OFFSET_SECONDS=int(os.environ.get('OKEYX_GAME_UTC_OFFSET_SECONDS','10800'))
+
+# player_id -> son nabız (yalnız bellekte; sunucu yeniden başlarsa herkes çevrimdışı başlar)
+PRESENCE:dict[str,float]={}
+PRESENCE_WINDOW_SECONDS=60.0
+
+def seen_recently(player_id:str,window:float=PRESENCE_WINDOW_SECONDS)->bool:
+    ts=PRESENCE.get(player_id)
+    return bool(ts and _now()-ts<window)
+
+# Masada yalnızca sahip olunan kozmetikler gösterilir. Varsayılanlar
+# (rack_classic, tiles_classic, cloth_green, frame_none) herkese açıktır.
+_DEFAULT_COSMETICS={'rack':'rack_classic','tiles':'tiles_classic','cloth':'cloth_green','frame':'frame_none'}
+
+
+def _owned_equipped(a:dict)->dict:
+    inv=set(a.get('inventory') or [])
+    out={}
+    for cat,item in dict(a.get('equipped') or {}).items():
+        item=str(item or '')
+        if not item:continue
+        if item in inv or item==_DEFAULT_COSMETICS.get(cat):
+            out[cat]=item
+        elif cat in _DEFAULT_COSMETICS:
+            out[cat]=_DEFAULT_COSMETICS[cat]
+    return out
+
+
+def _game_time(ts:int|float|None=None):
+    return time.gmtime((ts or _now())+GAME_UTC_OFFSET_SECONDS)
+
 def _day_key(ts:int|None=None)->str:
-    return time.strftime('%Y-%m-%d',time.localtime(ts or _now()))
+    return time.strftime('%Y-%m-%d',_game_time(ts))
 
 def _month_key(ts:int|None=None)->str:
-    return time.strftime('%Y-%m',time.localtime(ts or _now()))
+    return time.strftime('%Y-%m',_game_time(ts))
 
 
 def _week_key(ts:int|None=None)->str:
-    return time.strftime('%Y-W%W',time.localtime(ts or _now()))
+    return time.strftime('%Y-W%W',_game_time(ts))
 
 
 def _sanitize_social_text(value:str,max_len:int=160)->str:
@@ -422,7 +456,7 @@ class AccountStore:
             return {
                 'avatar_url':a.get('avatar_url'),'level':a.get('level',1),'chips':a.get('chips',0),
                 'vip':{'level':vip.get('level',0),'badge':vip.get('badge'),'name_color':vip.get('name_color')},
-                'equipped':dict(a.get('equipped') or {}),
+                'equipped':_owned_equipped(a),
                 'stats':{k:stats.get(k,0) for k in ('games','wins','losses','best_streak','current_streak')},
                 'league':{'city':league.get('city','Denizli'),'tier':league.get('tier','Bronz')},
                 'gifts_received':list((a.get('gifts_received') or [])[:8]),
@@ -439,6 +473,10 @@ class AccountStore:
         }
 
     def touch_presence(self,player_id:str)->None:
+        # Gerçek çevrimiçi bilgisi yalnızca oyuncunun kendi istemcisinden gelen
+        # nabızla güncellenir. `ensure()` arkadaş aramasında gölge hesap
+        # açarken de last_seen yazdığı için eskiden herkes "aktif" görünüyordu.
+        PRESENCE[player_id]=_now()
         with self._lock:
             a=self._data['accounts'].get(player_id)
             if not a:return

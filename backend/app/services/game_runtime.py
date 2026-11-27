@@ -366,7 +366,9 @@ class Room:
                 if self._is_turbo_star(tile): committed.add(tile.id)
         self.state.turbo_committed_star_ids=sorted(committed)
         self.state.turbo_stars_on_table=len(committed)
-        self.state.multiplier=min(64, 2 ** len(committed)) if committed else 1
+        # Additive multiplier: x1 base plus one step for each unique star tile.
+        # This avoids the exponential x2/x4/x8/... growth that produced x64.
+        self.state.multiplier=1 + len(committed)
 
     def turbo_star_distribution(self)->dict[int,int]:
         """Debug/UI: şu an her oyuncunun elinde kaç yıldız var. Rakip eli gizli kalır,
@@ -523,7 +525,7 @@ class Room:
         self.state.round_scores=scores;self.state.round_breakdown=breakdown;self.state.round_end_reason='finish'
         self.state.round_finish_flags={'stock_empty':False,'cancelled':False,'joker_finish':joker_finish,'pair_finish':pair_finish,'single_turn_finish':False,'finish_multiplier':mult,'duz':True}
         self._emit_table_event('duz_finish',seat,f'{p.name} ELİ BİTİRDİ' + (' • OKEY İLE' if joker_finish else '') + (' • ÇİFTE' if pair_finish else ''),{'kind':kind,'tile_id':tile_id})
-        self.state.log.append(f'{p.name} Düz Okey elini bitirdi.')
+        self.state.log.append(f'{p.name} Klasik Okey elini bitirdi.')
         self._commit_round()
         return ActionResult(True,'duz_finished',{'kind':kind,'multiplier':mult})
 
@@ -630,7 +632,7 @@ class Room:
             self.state.round_breakdown={seat:{'rack':0,'remaining_points':0,'remaining_tile_count':len(p.hand),'penalty':0,'base':0,'total':0,'note':'Deste bitti: kimse puan almadı'} for seat,p in self.state.players.items()}
             self.state.round_end_reason='stock_empty'
             self.state.round_finish_flags={'stock_empty':True,'cancelled':False,'duz':True}
-            self.state.log.append('Deste bitti. Düz Okey eli berabere.')
+            self.state.log.append('Deste bitti. Klasik Okey eli berabere.')
             self._commit_round();return
         scores={};breakdown={}
         for seat,p in self.state.players.items():
@@ -919,6 +921,35 @@ class Room:
         return self.discard(seat,pick.id)
 
     def bot_turn(self,seat:int):
+        """Bot hamlesi de insan hamlesi gibi atomiktir.
+
+        Bot servis katmanını doğrudan çağırdığı için eskiden geçersiz bir masa
+        durumu (ör. jokerli çifte taş işleme) bırakabiliyordu; sonra insan
+        oyuncunun her hamlesi `state_invariant_error` ile reddedilip oyun
+        kilitleniyordu. Artık hata/bozulma olursa durum geri alınır ve bot
+        yalnızca güvenli çek-at yapar.
+        """
+        if self.state.current_seat!=seat or not self.state.player(seat).bot:return
+        snapshot=copy.deepcopy(self.state)
+        try:
+            self._bot_turn_impl(seat)
+            issues=self.audit_state()
+        except Exception as e:  # pragma: no cover - savunma
+            issues=[f'bot_exception:{e}']
+        if not issues:
+            if self.state.phase!='finished':self._set_turn_deadline()
+            self.recalculate_turbo()
+            return
+        self.state=snapshot
+        self.service=GameService(self.state)
+        self._assist_cache_key=None
+        self.state.log.append(f'Bot hamlesi güvenli moda alındı: {issues[0]}')
+        p=self.state.player(seat)
+        if self.state.phase=='draw' and not self.draw(seat,'stock').ok:return
+        if self.state.phase=='discard' and p.hand:self._bot_discard(seat)
+        self._set_turn_deadline()
+
+    def _bot_turn_impl(self,seat:int):
         if self.state.current_seat!=seat or not self.state.player(seat).bot:return
         if self.state.variant=='duz':
             self._duz_bot_turn(seat);self._check_one_tile_notice(seat);return

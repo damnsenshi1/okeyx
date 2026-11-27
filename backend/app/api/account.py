@@ -2,7 +2,7 @@ from __future__ import annotations
 import secrets
 from fastapi import APIRouter, HTTPException, Header, Depends
 from pydantic import BaseModel
-from app.services.account_store import STORE,GIFT_CATALOG,_day_key
+from app.services.account_store import STORE,GIFT_CATALOG,_day_key,seen_recently
 from app.core.config import settings
 import httpx
 import asyncio
@@ -279,10 +279,18 @@ def live_activity(limit:int=18):
 @router.get('/account/{player_id}')
 def account(player_id:str,x_account_token:str|None=Header(None)):
     _require(player_id,x_account_token)
+    STORE.touch_presence(player_id)
     out=STORE.get(player_id)
     if out is None:return out
     out=dict(out);out['reward_day_key']=_day_key()
     return out
+
+@router.post('/account/{player_id}/presence')
+def presence_ping(player_id:str,x_account_token:str|None=Header(None)):
+    """Hafif çevrimiçi nabzı (ana ekran ~30 sn'de bir çağırır)."""
+    _require(player_id,x_account_token)
+    STORE.touch_presence(player_id)
+    return {'ok':True}
 
 @router.patch('/account/{player_id}')
 def update_account(player_id:str,body:ProfileUpdateIn,x_account_token:str|None=Header(None)):
@@ -331,7 +339,11 @@ def _presence_map():
         for room_id,m in ROOM_META.items():
             room=ROOMS.get(room_id);humans=sum(1 for pid in m.get('player_ids',{}).values() if pid);locked=bool(m.get('password_hash'))
             for seat,pid in m.get('player_ids',{}).items():
-                if pid:out[pid]={'online':bool(m.get('connected',{}).get(seat,False)),'in_game':True,'room_id':room_id,'room_name':getattr(getattr(room,'state',None),'room_name','OkeyX Masası'),'locked':locked,'joinable':bool(room and humans<4 and not locked)}
+                if not pid:continue
+                connected=bool(m.get('connected',{}).get(seat,False))
+                if not connected:continue  # bağlantısı kopan oyuncu "oyunda" görünmez
+                if room is not None and getattr(room.state,'match_finished',False):continue
+                if pid:out[pid]={'online':True,'status':'in_game','in_game':True,'room_id':room_id,'room_name':getattr(getattr(room,'state',None),'room_name','OkeyX Masası'),'locked':locked,'joinable':bool(room and humans<4 and not locked)}
     except Exception:pass
     return out
 
@@ -382,8 +394,8 @@ def _presence(row,pres):
     out=dict(row)
     state=pres.get(out.get('id'))
     if state is None:
-        recent=(time.time()-float(out.get('last_seen',0) or 0))<8.0
-        state={'online':recent,'in_game':False,'joinable':False}
+        recent=seen_recently(str(out.get('id') or ''))
+        state={'online':recent,'status':'lobby' if recent else 'offline','in_game':False,'joinable':False}
     out.update(state);return out
 
 @router.get('/social/{player_id}')

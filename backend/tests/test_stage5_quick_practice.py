@@ -34,7 +34,8 @@ def test_quick_room_fills_with_bots_after_timeout_and_starts():
     assert G._fill_bots_and_start(rid) is True
     assert room.state.started
     bots = [p for p in room.state.players.values() if p.bot]
-    assert len(bots) == 3 and all(p.name == 'Normal Bot' for p in bots)
+    assert len(bots) == 3 and len({p.name for p in bots}) == 3
+    assert {p.name for p in bots}.issubset({'Mert', 'Ayşe', 'Kemal', 'Eylül', 'Deniz', 'Zeynep', 'Emre', 'Elif'})
     assert sum(1 for p in room.state.players.values() if not p.bot) == 1
 
 

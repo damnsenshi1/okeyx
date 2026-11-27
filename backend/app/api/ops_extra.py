@@ -373,3 +373,31 @@ async def background_ops_loop():
                 pass
         tick += 1
         await asyncio.sleep(3600)
+
+
+# ---------------------------------------------------------------- performance diagnostics
+@router.get('/ops/performance')
+def ops_performance(x_admin_key: str | None = Header(None)):
+    """Admin-only live diagnostics for slow API requests and game runtime load."""
+    _admin(x_admin_key)
+    from app.core.observability import snapshot as observability_snapshot
+    from app.api import game as game_api
+    room_count = len(game_api.ROOMS)
+    waiting_count = sum(1 for room in game_api.ROOMS.values() if room.state.phase == 'waiting')
+    active_count = sum(1 for room in game_api.ROOMS.values() if room.state.started and room.state.phase != 'finished')
+    socket_count = sum(len(sockets) for seats in game_api.SOCKETS.values() for sockets in seats.values())
+    remote = STORE.remote_status()
+    return {
+        'ok': True,
+        'process': observability_snapshot(),
+        'game': {
+            'rooms': room_count,
+            'waiting_rooms': waiting_count,
+            'active_rooms': active_count,
+            'websocket_connections': socket_count,
+            'quick_fill_tasks': sum(1 for task in game_api.QUICK_FILL_TASKS.values() if not task.done()),
+            'runtime_dirty': bool(game_api._RUNTIME_DIRTY),
+            'last_runtime_persist_age_seconds': round(max(0.0, time.monotonic() - game_api._LAST_PERSIST_AT), 2) if game_api._LAST_PERSIST_AT else None,
+        },
+        'storage': remote,
+    }

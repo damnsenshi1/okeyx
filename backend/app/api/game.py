@@ -1,10 +1,10 @@
 from __future__ import annotations
-import asyncio, secrets, time, uuid, hashlib, re, json
+import asyncio, os, secrets, time, uuid, hashlib, re, json
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from app.services.game_runtime import ROOMS,new_room
 from app.services.account_store import STORE,GIFT_CATALOG,GIFT_COOLDOWN_S
-from app.services.runtime_persistence import save_runtime, load_runtime, RemoteMirror, restore_from_remote
+from app.services.runtime_persistence import save_runtime, load_runtime, RemoteMirror, restore_from_remote, build_runtime_blob, write_runtime_blob
 from app.core.config import settings
 
 router=APIRouter(tags=['game'])
@@ -88,6 +88,7 @@ class ManageRoomIn(BaseModel):
 SOCKETS:dict[str,dict[int,list[WebSocket]]]={}
 ROOM_META:dict[str,dict]={}
 WATCHDOG_TASK:asyncio.Task|None=None
+QUICK_FILL_TASKS:dict[str,asyncio.Task]={}
 _RUNTIME_LOADED=False
 _LAST_PERSIST_AT=0.0
 _RUNTIME_DIRTY=False
@@ -109,6 +110,8 @@ def _token()->str:return secrets.token_urlsafe(24)
 # Yük testi: 100+ masada her 0.35 sn'de tüm odaları paketlemek ana döngüyü
 # kilitliyordu. 2 sn aralık kurtarma için yeterli, isteklere nefes aldırır.
 PERSIST_MIN_INTERVAL=2.0
+# Testler kaydın hemen diske düşmesini bekleyebilir.
+PERSIST_SYNC=os.environ.get('OKEYX_PERSIST_SYNC','')=='1'
 
 def _persist_runtime(force:bool=False)->None:
     global _LAST_PERSIST_AT,_RUNTIME_DIRTY
@@ -117,10 +120,26 @@ def _persist_runtime(force:bool=False)->None:
         _RUNTIME_DIRTY=True
         return
     try:
-        save_runtime(settings.runtime_snapshot_path,settings.effective_runtime_secret,ROOMS,ROOM_META)
+        raw=build_runtime_blob(ROOMS,ROOM_META)
         _LAST_PERSIST_AT=now;_RUNTIME_DIRTY=False
-        m=_mirror()
-        if m:m.maybe_push(settings.runtime_snapshot_path,force=force)
+        path=settings.runtime_snapshot_path;secret=settings.effective_runtime_secret
+        def _write():
+            try:
+                write_runtime_blob(path,secret,raw)
+                m=_mirror()
+                if m:m.maybe_push(path,force=force)
+            except Exception:
+                global _RUNTIME_DIRTY
+                _RUNTIME_DIRTY=True
+        try:
+            loop=asyncio.get_running_loop()
+        except RuntimeError:
+            loop=None
+        if loop is not None and not PERSIST_SYNC:
+            # Sıkıştırma + fsync olay döngüsünü bekletmez.
+            loop.run_in_executor(None,_write)
+        else:
+            _write()
     except Exception:
         # Persistence must never take a live table down. The watchdog will try
         # again; active in-memory multiplayer remains authoritative meanwhile.
@@ -151,6 +170,26 @@ def _human_count(room_id:str)->int:
     meta=ROOM_META.get(room_id) or {}
     if not room:return 0
     return sum(1 for seat,pid in (meta.get('player_ids') or {}).items() if pid and not room.state.players[int(seat)].bot)
+
+
+def _bot_count(room_id:str)->int:
+    room=ROOMS.get(room_id)
+    meta=ROOM_META.get(room_id) or {}
+    if not room:return 0
+    explicit=set(meta.get('bot_seats') or set())
+    return sum(1 for seat in range(4) if seat in explicit and room.state.players[seat].bot and seat not in (meta.get('player_ids') or {}))
+
+
+def _occupied_count(room_id:str)->int:
+    # A seat remains occupied when its human temporarily hands control to an AFK bot.
+    # Explicit bots are counted separately; union the seat indexes to avoid double counts.
+    room=ROOMS.get(room_id)
+    meta=ROOM_META.get(room_id) or {}
+    if not room:return 0
+    human_seats={int(seat) for seat,pid in (meta.get('player_ids') or {}).items() if pid}
+    explicit=set(meta.get('bot_seats') or set())
+    bot_seats={seat for seat in range(4) if seat in explicit and room.state.players[seat].bot and seat not in human_seats}
+    return min(4,len(human_seats|bot_seats))
 
 def _free_human_seat(room_id:str)->int|None:
     room=ROOMS.get(room_id)
@@ -296,8 +335,14 @@ def _state(room_id:str,viewer:int)->dict:
     state['viewer_chips']=int(viewer_player.get('chips',0) or 0)
     state['required_balance']=_required_balance(int(state.get('entry_fee',0) or 0),bool(state.get('turbo')))
     state['state_version']=int(m.get('state_version',1) or 1)
+    state['quick_fill_at_ms']=int(float(m.get('quick_fill_at',0) or 0)*1000) if m.get('quick_match') and not room.state.started else 0
+    state['quick_fill_seconds']=max(0,int(float(m.get('quick_fill_at',0) or 0)-_now()+.999)) if m.get('quick_match') and not room.state.started and m.get('quick_fill_at') else 0
+    state['quick_fill_error']=m.get('quick_fill_error')
     state['server_time_ms']=int(time.time()*1000)
     state['human_count']=_human_count(room_id)
+    state['bot_count']=_bot_count(room_id)
+    state['occupied_count']=_occupied_count(room_id)
+    state['empty_count']=max(0,4-state['occupied_count'])
     state['quick_match']=bool(m.get('quick_match',False))
     state['spectator_count']=len(m.setdefault('spectators',{}))
     return state
@@ -404,23 +449,88 @@ def _level_compatible(room_id:str,my_level:int)->bool:
 
 
 def _fill_bots_and_start(room_id:str,level:str='medium')->bool:
-    """Bekleme odasındaki boş koltukları botla doldurup maçı başlatır (sunucu karar verir)."""
+    """Bekleme odasındaki boş koltukları botla doldurup maçı atomik biçimde başlatır."""
     room=ROOMS.get(room_id);m=_ensure_meta(room_id)
     if not room or room.state.phase!='waiting' or room.state.started:return False
     if _human_count(room_id)<1:return False
-    level=level if level in BOT_NAMES else 'medium'
-    for seat in range(4):
-        if seat in m.get('player_ids',{}):continue
-        p=room.state.player(seat)
-        m.setdefault('bot_seats',set()).add(seat)
-        p.bot=True;p.bot_level=level;p.user_id=f'bot-seat-{seat}';p.name=BOT_NAMES[level]
+    # Önce tüm gerçek oyuncuların bakiyesini doğrula. Başarısız kontrolde
+    # koltuklara bot yazıp arayüzü dolu gösterme; bu eski sessiz takılma hatasıydı.
     ok,_code=_charge_entries(room_id)
-    if not ok:return False
-    started=room.start_match(int(m.get('owner_seat',0) or 0))
-    if not started.ok:return False
-    m['bot_filled']=True
+    if not ok:
+        m['quick_fill_error']=_code
+        _touch(room_id)
+        return False
+    level=level if level in BOT_NAMES else 'medium'
+    names=['Mert','Ayşe','Kemal','Eylül','Deniz','Zeynep','Emre','Elif']
+    # Kullanıcının bekleme ekranında bilinçli olarak seçtiği botları koru.
+    # Yalnızca gerçekten boş placeholder koltuklarına otomatik bot ekle.
+    explicit=set(m.setdefault('bot_seats',set()))
+    auto_added=[]
+    for seat in range(4):
+        if seat in m.get('player_ids',{}):
+            continue
+        p=room.state.player(seat)
+        if seat in explicit and p.bot:
+            continue
+        m['bot_seats'].add(seat)
+        p.bot=True;p.bot_level=level;p.user_id=f'bot-seat-{seat}';p.name=names[(seat + int(room.state.round_index or 0)) % len(names)]
+        auto_added.append(seat)
+    # Bot doluluğu ayrı bir ölçüdür; hızlı eşleşmede bir insan + üç bot
+    # gerçek dört koltuklu bir masadır ve otomatik başlatılabilir.
+    if _occupied_count(room_id) < 4:
+        for seat in auto_added:
+            m['bot_seats'].discard(seat)
+            p=room.state.player(seat);p.bot=True;p.user_id=f'bot-seat-{seat}';p.name='Boş Koltuk'
+        m['quick_fill_error']='empty_seats'
+        _touch(room_id)
+        return False
+    started=room.start_match(0)
+    if not started.ok:
+        # Yalnızca bu çağrıda oluşturduğumuz botları geri al; kullanıcının
+        # önceden seçtiği zorluk ve bot koltukları aynen korunur.
+        for seat in auto_added:
+            m['bot_seats'].discard(seat)
+            p=room.state.player(seat);p.bot=True;p.user_id=f'bot-seat-{seat}';p.name='Boş Koltuk'
+        m['economy_charged']=False
+        m['quick_fill_error']=started.code
+        _touch(room_id)
+        return False
+    m['bot_filled']=True;m['quick_fill_error']=None
     _touch(room_id)
     return True
+
+async def _quick_fill_after_delay(room_id:str)->None:
+    # If entry preflight fails, keep the queue alive and retry after ten seconds.
+    # This avoids a permanently expired countdown after a player tops up their balance.
+    try:
+        while True:
+            m=ROOM_META.get(room_id) or {}
+            deadline=float(m.get('quick_fill_at',_now()+QUICK_BOT_FILL_SECONDS) or _now())
+            await asyncio.sleep(max(0.0, deadline-_now()))
+            room=ROOMS.get(room_id);m=ROOM_META.get(room_id) or {}
+            if not room or room.state.phase!='waiting' or room.state.started:return
+            if not m.get('quick_match') or _human_count(room_id)<1:return
+            if _fill_bots_and_start(room_id,'medium'):
+                await _broadcast(room_id)
+                return
+            if room.state.phase!='waiting' or room.state.started or _human_count(room_id)<1:return
+            m['quick_fill_at']=_now()+10
+            m['quick_fill_retry_count']=int(m.get('quick_fill_retry_count',0) or 0)+1
+            _touch(room_id)
+            await _broadcast(room_id)
+    finally:
+        # A cancelled timer may be replaced immediately (for example after a
+        # room is re-queued). Never let the old task remove the new task handle.
+        current=asyncio.current_task()
+        if QUICK_FILL_TASKS.get(room_id) is current:
+            QUICK_FILL_TASKS.pop(room_id,None)
+
+def _schedule_quick_fill(room_id:str)->None:
+    task=QUICK_FILL_TASKS.get(room_id)
+    if task and not task.done():return
+    m=_ensure_meta(room_id)
+    m.setdefault('quick_fill_at',_now()+QUICK_BOT_FILL_SECONDS)
+    QUICK_FILL_TASKS[room_id]=asyncio.create_task(_quick_fill_after_delay(room_id))
 
 
 def _record_round_if_finished(room_id:str):
@@ -628,8 +738,8 @@ def list_rooms():
     for rid,r in ROOMS.items():
         st=r.state;m=_ensure_meta(rid,legacy=True)
         human=_human_count(rid)
-        bot_count=len(set(m.get('bot_seats') or set()))
-        occupied=min(4,human+bot_count)
+        bot_count=_bot_count(rid)
+        occupied=_occupied_count(rid)
         if st.phase!='waiting':continue
         out.append({
             'room_id':rid,'name':st.room_name,'variant':st.variant,'entry_fee':st.entry_fee,
@@ -737,12 +847,10 @@ def create_room(body:CreateRoomIn):
 
 @router.post('/lobby/quick')
 async def quick_room(body:JoinRoomIn):
-    """Real-player quick matchmaking.
-
-    V8 no longer launches a brand new quick table with three bots immediately.
-    Matching requests first share a waiting room. The fourth human starts the
-    match automatically. Quick play never silently fills missing seats with
-    bots: players always know when they are matched with real people.
+    """Quick matchmaking: share a real-player queue for up to 15 seconds,
+    then fill any remaining seats with server-controlled bots and start.
+    Four real players start immediately. The deadline is authoritative and
+    is also exposed to clients for an accurate countdown.
     """
     account=_account(body.player_id,body.account_token)
     requested_fee=body.entry_fee if body.entry_fee in (500,2000,5000,10000,20000,50000) else 5000
@@ -755,6 +863,7 @@ async def quick_room(body:JoinRoomIn):
         meta=_ensure_meta(rid,legacy=True)
         seat=next((s for s,pid in meta.get('player_ids',{}).items() if pid==body.player_id),None)
         if seat is not None and r.state.phase=='waiting' and meta.get('quick_match'):
+            _schedule_quick_fill(rid)
             token=meta['seat_tokens'].get(seat) or _token();meta['seat_tokens'][seat]=token
             return {'room_id':rid,'seat':seat,'reconnect_token':token,'state':_state(rid,seat)}
 
@@ -780,11 +889,15 @@ async def quick_room(body:JoinRoomIn):
         # Four real players -> authoritative server starts the table. No client
         # has to win a race to press START.
         if _human_count(rid)>=4:
+            task=QUICK_FILL_TASKS.pop(rid,None)
+            if task:task.cancel()
             ok,code=_charge_entries(rid)
             if not ok:raise HTTPException(402,code)
             started=r.start_match(int(m.get('owner_seat',0) or 0))
             if not started.ok:raise HTTPException(409,started.code)
             _touch(rid)
+        else:
+            _schedule_quick_fill(rid)
         await _broadcast(rid)
         return {'room_id':rid,'seat':seat,'reconnect_token':token,'state':_state(rid,seat)}
 
@@ -801,6 +914,8 @@ async def quick_room(body:JoinRoomIn):
     )
     m=_ensure_meta(r.state.room_id);m['legacy']=False;m['quick_match']=True
     token=_bind_human(r.state.room_id,0,body.player_id,account['name'])
+    m['quick_fill_at']=_now()+QUICK_BOT_FILL_SECONDS
+    _schedule_quick_fill(r.state.room_id)
     STORE.record_activity('quick_play',body.player_id,f'{account["name"]} hızlı eşleşme kuyruğuna katıldı',{'room_id':r.state.room_id,'entry_fee':r.state.entry_fee,'turbo':r.state.turbo})
     return {'room_id':r.state.room_id,'seat':0,'reconnect_token':token,'state':_state(r.state.room_id,0)}
 
@@ -851,6 +966,8 @@ async def join_room(room_id:str,body:JoinRoomIn):
     token=_bind_human(room_id,seat,body.player_id,account['name'])
     STORE.record_activity('room_join',body.player_id,f'{account["name"]} bir masaya katıldı',{'room_id':room_id,'entry_fee':r.state.entry_fee,'turbo':r.state.turbo})
     if m.get('quick_match') and _human_count(room_id)>=4:
+        task=QUICK_FILL_TASKS.pop(room_id,None)
+        if task:task.cancel()
         ok,code=_charge_entries(room_id)
         if not ok:raise HTTPException(402,code)
         started=r.start_match(int(m.get('owner_seat',0) or 0))
@@ -917,27 +1034,42 @@ async def _execute_action(room_id:str,body:ActionIn):
         if not m.get('quick_match'):
             # Özel masada Hazır sistemi yok. Dört koltuk gerçek oyuncu veya
             # hostun bilinçli eklediği botla dolduğunda başlatma tamamen hostta.
-            open_seats=[seat for seat in range(4) if seat not in m.get('player_ids',{}) and seat not in m.setdefault('bot_seats',set())]
+            open_seats=[seat for seat in range(4) if seat not in m.get('player_ids',{}) and not (seat in m.setdefault('bot_seats',set()) and r.state.player(seat).bot)]
             if open_seats:
                 response={'ok':False,'code':'empty_seats','payload':{'seats':open_seats},'request_id':body.request_id,'state':_state(room_id,body.seat)}
                 if body.request_id:m['dedupe'][body.request_id]=response
                 return response
-        # Quick Match is a real-player queue. Do not let the first player turn
-        # the three remaining bot placeholders into a fake human match.
-        if m.get('quick_match') and _human_count(room_id) < 4:
-            response={
-                'ok':False,'code':'quick_match_waiting_for_players','payload':{
-                    'humans':_human_count(room_id),'required':4,
-                },'request_id':body.request_id,'state':_state(room_id,body.seat),
-            }
-            if body.request_id:m['dedupe'][body.request_id]=response
-            return response
+        # Hızlı eşleşmede varsayılan akış 15 sn gerçek oyuncu arar. Ancak
+        # masa sahibi boş koltuklara BOT EKLE ile bot koyduysa bu botlar da
+        # koltuk doldurur; 1 insan + 3 bot gibi masalar başlatılabilmelidir.
+        if m.get('quick_match'):
+            humans=_human_count(room_id)
+            bots=_bot_count(room_id)
+            occupied=_occupied_count(room_id)
+            if occupied < 4:
+                response={
+                    'ok':False,'code':'quick_match_waiting_for_players','payload':{
+                        'humans':humans,'bots':bots,'occupied':occupied,'empty':4-occupied,'required':4,
+                    },'request_id':body.request_id,'state':_state(room_id,body.seat),
+                }
+                if body.request_id:m['dedupe'][body.request_id]=response
+                return response
+            if body.seat != int(m.get('owner_seat',0) or 0):
+                response={'ok':False,'code':'host_only','payload':{},'request_id':body.request_id,'state':_state(room_id,body.seat)}
+                if body.request_id:m['dedupe'][body.request_id]=response
+                return response
         ok,code=_charge_entries(room_id)
         if not ok:
             response={'ok':False,'code':code,'payload':{},'request_id':body.request_id,'state':_state(room_id,body.seat)}
             return response
 
-    result=r.action(body.seat,body.kind,body.payload)
+    # API katmanında host kimliği doğrulandıktan sonra motorun legacy seat-0
+    # kilidini atla. Böylece oda sahibi ilk koltukta olmak zorunda kalmaz.
+    result=r.start_match(0) if body.kind=='start_match' else r.action(body.seat,body.kind,body.payload)
+    if result.ok and body.kind=='start_match':
+        task=QUICK_FILL_TASKS.pop(room_id,None)
+        if task and task is not asyncio.current_task():
+            task.cancel()
     if result.ok and body.kind=='rematch':
         # Same room, fresh match: allow a new settlement/stat cycle.
         m['settled']=False
@@ -994,7 +1126,7 @@ async def manage_room(room_id:str,body:ManageRoomIn):
         else:
             level=(body.bot_level or 'medium').strip().lower()
             if level not in {'easy','medium','hard'}:level='medium'
-            m.setdefault('bot_seats',set()).add(target);p.bot=True;p.bot_level=level;p.user_id=f'bot-seat-{target}';p.name={'easy':'Kolay Bot','medium':'Normal Bot','hard':'Zor Bot'}[level]
+            m.setdefault('bot_seats',set()).add(target);p.bot=True;p.bot_level=level;p.user_id=f'bot-seat-{target}';p.name=['Mert','Ayşe','Kemal','Eylül'][target]
         _touch(room_id);await _broadcast(room_id)
         return {'ok':True,'code':action,'state':_state(room_id,body.seat)}
     if action=='settings':
@@ -1222,7 +1354,7 @@ async def room_watchdog():
             try:
                 m=_ensure_meta(rid,legacy=True);changed=False
                 if (room.state.phase=='waiting' and m.get('quick_match') and not room.state.started
-                        and now-float(m.get('created_at',now))>=QUICK_BOT_FILL_SECONDS):
+                        and now-float(m.get('quick_fill_at',float(m.get('created_at',now))+QUICK_BOT_FILL_SECONDS))>=0):
                     try:changed=_fill_bots_and_start(rid) or changed
                     except HTTPException:pass
                 if room.state.started and room.intro_until_ms:

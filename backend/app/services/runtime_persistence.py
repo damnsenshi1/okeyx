@@ -8,12 +8,78 @@ import pickle
 import tempfile
 from pathlib import Path
 from typing import Any
+import threading
 
 MAGIC = b'OKEYX8\x00'
 
 
 def _mac(secret: str, payload: bytes) -> bytes:
     return hmac.new(secret.encode('utf-8'), payload, hashlib.sha256).digest()
+
+
+MAGIC_V2 = b'OKEYX9\x00'
+
+# Oda başına önbellek: yalnız durumu değişen (state_version artan) odalar
+# yeniden pickle edilir. Eskiden her kayıtta bütün odalar olay döngüsünde
+# serileştiriliyordu; 100 masada ~20 ms, Render free CPU'da bunun katları
+# kadar bütün oyuncuların hamlesi bekliyordu.
+_ROOM_BYTES: dict[str, tuple[Any, bytes]] = {}
+_WRITE_LOCK = threading.Lock()
+
+
+def _safe_meta_row(row: dict) -> dict:
+    copied = dict(row)
+    # Rate-limit/dedupe history is ephemeral and can grow; rebuilding it is
+    # safe while seat/reconnect/economy ownership must survive.
+    copied['action_times'] = {}
+    copied['chat_times'] = {}
+    copied['dedupe'] = {}
+    copied['connected'] = {int(k): False for k in copied.get('connected', {})}
+    copied['disconnect_at'] = {}
+    return copied
+
+
+def build_runtime_blob(rooms: dict[str, Any], meta: dict[str, dict]) -> bytes:
+    """Olay döngüsünde çalışan ucuz kısım: değişen odaları pickle eder."""
+    packed: dict[str, bytes] = {}
+    for room_id, room in list(rooms.items()):
+        row = meta.get(room_id, {})
+        try:
+            st = room.state
+            version = (int(row.get('state_version', 0) or 0), st.turn_no, len(st.stock), st.phase,
+                       st.event_seq, len(st.log), len(st.melds), st.round_index, len(row.get('chat', []) or []))
+        except Exception:
+            version = 0
+        cached = _ROOM_BYTES.get(room_id)
+        if cached and version and cached[0] == version:
+            packed[room_id] = cached[1]
+            continue
+        data = pickle.dumps((room, _safe_meta_row(row)), protocol=pickle.HIGHEST_PROTOCOL)
+        if version:
+            _ROOM_BYTES[room_id] = (version, data)
+        packed[room_id] = data
+    for gone in set(_ROOM_BYTES) - set(rooms):
+        _ROOM_BYTES.pop(gone, None)
+    return pickle.dumps({'v': 2, 'rooms': packed}, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def write_runtime_blob(path: str, secret: str, raw: bytes) -> None:
+    """Thread'de çalışabilen kısım: sıkıştır, imzala, atomik yaz."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    compressed = gzip.compress(raw, compresslevel=1)
+    blob = MAGIC_V2 + _mac(secret, compressed) + compressed
+    with _WRITE_LOCK:
+        fd, tmp_name = tempfile.mkstemp(prefix='okeyx-runtime-', dir=str(target.parent))
+        try:
+            with os.fdopen(fd, 'wb') as handle:
+                handle.write(blob)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, target)
+        finally:
+            if os.path.exists(tmp_name):
+                os.unlink(tmp_name)
 
 
 def save_runtime(path: str, secret: str, rooms: dict[str, Any], meta: dict[str, dict]) -> None:
@@ -24,32 +90,7 @@ def save_runtime(path: str, secret: str, rooms: dict[str, Any], meta: dict[str, 
     WebSocket objects are intentionally not persisted; clients reconnect with
     their existing reconnect token and receive a fresh authoritative state.
     """
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    safe_meta: dict[str, dict] = {}
-    for room_id, row in meta.items():
-        copied = dict(row)
-        # Rate-limit/dedupe history is ephemeral and can grow; rebuilding it is
-        # safe while seat/reconnect/economy ownership must survive.
-        copied['action_times'] = {}
-        copied['chat_times'] = {}
-        copied['dedupe'] = {}
-        copied['connected'] = {int(k): False for k in copied.get('connected', {})}
-        copied['disconnect_at'] = {}
-        safe_meta[room_id] = copied
-    raw = pickle.dumps({'rooms': rooms, 'meta': safe_meta}, protocol=pickle.HIGHEST_PROTOCOL)
-    compressed = gzip.compress(raw, compresslevel=1)
-    blob = MAGIC + _mac(secret, compressed) + compressed
-    fd, tmp_name = tempfile.mkstemp(prefix='okeyx-runtime-', dir=str(target.parent))
-    try:
-        with os.fdopen(fd, 'wb') as handle:
-            handle.write(blob)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp_name, target)
-    finally:
-        if os.path.exists(tmp_name):
-            os.unlink(tmp_name)
+    write_runtime_blob(path, secret, build_runtime_blob(rooms, meta))
 
 
 def load_runtime(path: str, secret: str) -> tuple[dict[str, Any], dict[str, dict]]:
@@ -57,10 +98,11 @@ def load_runtime(path: str, secret: str) -> tuple[dict[str, Any], dict[str, dict
     if not target.exists():
         return {}, {}
     blob = target.read_bytes()
-    if len(blob) < len(MAGIC) + 32 or not blob.startswith(MAGIC):
+    magic = MAGIC_V2 if blob.startswith(MAGIC_V2) else MAGIC
+    if len(blob) < len(magic) + 32 or not blob.startswith(magic):
         return {}, {}
-    signature = blob[len(MAGIC):len(MAGIC) + 32]
-    compressed = blob[len(MAGIC) + 32:]
+    signature = blob[len(magic):len(magic) + 32]
+    compressed = blob[len(magic) + 32:]
     if not hmac.compare_digest(signature, _mac(secret, compressed)):
         return {}, {}
     try:
@@ -69,8 +111,18 @@ def load_runtime(path: str, secret: str) -> tuple[dict[str, Any], dict[str, dict
         return {}, {}
     if not isinstance(payload, dict):
         return {}, {}
-    rooms = payload.get('rooms') if isinstance(payload.get('rooms'), dict) else {}
-    meta = payload.get('meta') if isinstance(payload.get('meta'), dict) else {}
+    if payload.get('v') == 2 and isinstance(payload.get('rooms'), dict):
+        rooms, meta = {}, {}
+        for room_id, data in payload['rooms'].items():
+            try:
+                room, row = pickle.loads(data)
+            except Exception:
+                continue
+            rooms[room_id] = room
+            meta[room_id] = row
+    else:
+        rooms = payload.get('rooms') if isinstance(payload.get('rooms'), dict) else {}
+        meta = payload.get('meta') if isinstance(payload.get('meta'), dict) else {}
     # Old/finished rooms do not need to occupy memory forever.
     clean_rooms = {}
     clean_meta = {}

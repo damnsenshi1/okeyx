@@ -28,7 +28,9 @@ EXEMPT_PATHS = ('/healthz', '/docs', '/openapi.json')
 def _client_ip(request: Request) -> str:
     fwd = request.headers.get('x-forwarded-for')
     if fwd:
-        return fwd.split(',')[0].strip()
+        # Render'ın proxy'si gerçek istemci IP'sini zincirin SONUNA ekler.
+        # İlk eleman istemci tarafından sahte gönderilebileceği için kullanılmaz.
+        return fwd.split(',')[-1].strip()
     return request.client.host if request.client else 'unknown'
 
 

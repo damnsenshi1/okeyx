@@ -14,7 +14,7 @@ from app.api.legal import router as legal_router
 from app.core.ratelimit import rate_limit_middleware
 from app.core.observability import observability_middleware
 
-app=FastAPI(title=settings.app_name,version='12.1.0')
+app=FastAPI(title=settings.app_name,version='16.0.0')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins,

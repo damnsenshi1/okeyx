@@ -273,12 +273,18 @@ class GameService:
         intentionally separate from opening a brand-new pair from two rack
         tiles.
         """
+        # Gerçek okey açık çift şeridini büyütemez (jokerli çift yalnız iki
+        # taştır). Sonuç şeridin kurallara uygun kalacağı da önceden doğrulanır;
+        # aksi hâlde masa geçersiz duruma düşüp sonraki her hamle reddediliyordu.
+        if self.rules._is_joker(tile):return None
         nt=self.rules._norm(tile)
         if nt.color is None or nt.number is None:return None
         for meld in self.state.melds:
             if meld.meld_type!=MeldType.PAIR or not meld.tiles:continue
+            if any(self.rules._is_joker(t) for t in meld.tiles):continue
             base=self.rules._norm(meld.tiles[0])
-            if base.color==nt.color and base.number==nt.number:return meld
+            if base.color==nt.color and base.number==nt.number:
+                if self.rules.validate_pair(list(meld.tiles)+[tile]).valid:return meld
         return None
 
     def is_useful_table_tile(self,p:PlayerState,tile:Tile)->bool:
@@ -465,7 +471,21 @@ class GameService:
         return ActionResult(True,payload={'penalty':penalty,'useful_discard':useful_discard,'okey_discard':okey_discard})
 
     def _apply_turbo(self,tile):
-        if not (self.state.turbo and self.state.multiplier_tile_number and tile.number==self.state.multiplier_tile_number):
+        """Count a physical turbo-star tile once when it is committed to a meld.
+
+        Turbo is additive: x1 base + one multiplier step per unique star tile.
+        A star is any colour of the indicator+1 number, the real okey, or the
+        fake okey. The authoritative full-table recalculation in Room uses the
+        same rule after each accepted action.
+        """
+        if not self.state.turbo:
+            return
+        is_star = (
+            self.rules._is_joker(tile)
+            or self.rules.is_fake_okey(tile)
+            or int(self.rules._norm(tile).number or 0) == int(self.state.multiplier_tile_number or 0)
+        )
+        if not is_star:
             return
         committed=set(self.state.turbo_committed_star_ids or [])
         if tile.id in committed:
@@ -473,4 +493,4 @@ class GameService:
         committed.add(tile.id)
         self.state.turbo_committed_star_ids=sorted(committed)
         self.state.turbo_stars_on_table=len(committed)
-        self.state.multiplier=min(64, 2 ** len(committed))
+        self.state.multiplier=1 + len(committed)

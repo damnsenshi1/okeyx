@@ -19,6 +19,9 @@ import uuid
 import httpx
 
 
+SIMULATE_DEVICES = False
+
+
 class Stats:
     def __init__(self):
         self.lat: list[float] = []
@@ -53,7 +56,10 @@ async def call(client: httpx.AsyncClient, stats: Stats, method: str, path: str, 
 
 async def player(base: str, stats: Stats, deadline: float, idx: int, mode: str = 'practice'):
     pid = f'load-{uuid.uuid4().hex[:10]}'
-    async with httpx.AsyncClient(base_url=base, timeout=15.0) as c:
+    # Yerel testte her sanal oyuncu ayrı bir cihaz gibi görünsün (IP bazlı
+    # hesap açma sınırı tek makineden gelen tüm oyuncuları kesmesin).
+    hdr = {'X-Forwarded-For': f'10.{idx // 65536 % 256}.{idx // 256 % 256}.{idx % 256}'} if SIMULATE_DEVICES else {}
+    async with httpx.AsyncClient(base_url=base, timeout=15.0, headers=hdr) as c:
         acc = await call(c, stats, 'POST', '/api/account/bootstrap', json={'player_id': pid, 'name': f'Yuk{idx}'})
         if not acc:
             return
@@ -94,8 +100,11 @@ async def main():
     ap.add_argument('--players', type=int, default=100)
     ap.add_argument('--seconds', type=int, default=60)
     ap.add_argument('--ramp', type=float, default=10.0, help='oyuncuların kaç saniyede katılacağı')
+    ap.add_argument('--simulate-devices', action='store_true', help='yalnızca yerel test: her oyuncuya ayrı X-Forwarded-For')
     ap.add_argument('--mode', choices=['practice', 'quick'], default='quick', help='quick: 4 gerçek oyunculu masalar; practice: herkese 3 botlu masa (en ağır senaryo)')
     a = ap.parse_args()
+    global SIMULATE_DEVICES
+    SIMULATE_DEVICES = bool(a.simulate_devices)
     stats = Stats()
     deadline = time.time() + a.seconds
     tasks = []
