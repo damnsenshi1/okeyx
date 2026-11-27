@@ -172,7 +172,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       child: Material(
         color: Colors.transparent,
         child: Container(
-          width: 460,
+          width: 560,
           constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .9, maxWidth: MediaQuery.sizeOf(context).width * .9),
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
           decoration: BoxDecoration(
@@ -181,8 +181,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             border: Border.all(color: const Color(0x66FFFFFF)),
             boxShadow: const [BoxShadow(color: Color(0x997C4DFF), blurRadius: 40, spreadRadius: -6), BoxShadow(color: Color(0xAA000000), blurRadius: 30, offset: Offset(0, 14))],
           ),
-          child: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Butonlar her zaman görünür: yalnızca sürüm notları kayar.
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Container(
                   width: 52,
@@ -199,19 +199,21 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 ),
               ]),
               if (info.notes.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0x33000000), borderRadius: BorderRadius.circular(14)),
-                  child: Text(info.notes, style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFFEAF2FF))),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: const Color(0x33000000), borderRadius: BorderRadius.circular(14)),
+                    child: SingleChildScrollView(child: Text(info.notes, style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFFEAF2FF)))),
+                  ),
                 ),
               ],
               if (info.mandatory) ...[
                 const SizedBox(height: 10),
                 const Text('Bu güncelleme zorunlu: oynamaya devam etmek için güncellemelisin.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFFFC46B))),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               if (busy) ...[
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
@@ -251,7 +253,6 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                 ),
               ]),
             ]),
-          ),
         ),
       ),
     );
