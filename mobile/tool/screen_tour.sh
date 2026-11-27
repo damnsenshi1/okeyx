@@ -26,7 +26,7 @@ tap(){ # tap "METİN" ["ALTERNATİF" ...] → bulursa dokunur
 dismiss(){ # açılış pencerelerini kapat (ödül, öğretici, izinler)
   for k in 1 2 3 4; do
     dump
-    if xy=$(python3 "$HERE/ui_find.py" "$OUT/ui/son.xml" "Wait" "Got it" "Anladım" "KAPAT" "ŞİMDİ DEĞİL" "SONRA" "ATLA" "TAMAM" "Allow" "İzin ver" "Don't allow" "İzin verme"); then
+    if xy=$(python3 "$HERE/ui_find.py" "$OUT/ui/son.xml" "BONUSU AL" "Wait" "Got it" "Anladım" "KAPAT" "ŞİMDİ DEĞİL" "SONRA" "ATLA" "TAMAM" "Allow" "İzin ver" "Don't allow" "İzin verme"); then
       log "pencere kapatıldı → $xy"; adb shell input tap $xy; sleep 2
     else
       return 0
@@ -49,7 +49,7 @@ sleep 12; shot acilis
 sleep 10; dismiss; shot giris
 
 tap "MİSAFİR OYNA" "MISAFIR" && sleep 25
-dismiss; shot ana_sayfa
+dismiss; sleep 3; dismiss; shot ana_sayfa
 sleep 4; dismiss; shot ana_sayfa_2
 
 tap "Masalar" && sleep 6; shot masalar
@@ -64,7 +64,7 @@ fi
 # İlk kayıt 175 sn ile sınırlı; oyun kısmı için yenisini başlat.
 kill "$(cat "$OUT/.rec.pid")" 2>/dev/null; sleep 3
 rec 2
-tap "HIZLI OYNA" && sleep 6; shot bekleme_odasi
+tap "HIZLI OYNA" "OYNA" && sleep 6; dismiss; shot bekleme_odasi
 for i in 1 2 3 4; do sleep 5; dismiss >/dev/null; shot "masa_$i"; done
 # Sıra bize gelince desteye dokun (sağ orta bölge) ve bir taş at: gerçek etkileşim.
 for i in 5 6 7 8 9 10 11 12; do sleep 8; shot "masa_$i"; done
