@@ -1,12 +1,12 @@
-name: OKEYX mobil kur + APK + gerçek ekran turu
+name: OKEYX mobil kur + APK + gerÃ§ek ekran turu
 
-# Kullanım: depo ana dizinine okeyx_mobil_yukle*.zip yükle (Add file → Upload files).
-# Bu iş akışı:
-#   1) zip'i mobile/ klasörüne açar ve depoya kaydeder,
-#   2) flutter analyze çalıştırır, APK derler,
-#   3) APK'yı Android emülatöründe açıp gerçek ekran turu çeker (misafir giriş →
-#      ana sayfa → Masalar → Masa kur → Hızlı oyna → oyun masası).
-# Sonuçlar: Actions → bu çalıştırma → Artifacts:
+# KullanÄ±m: depo ana dizinine okeyx_mobil_yukle*.zip yÃ¼kle (Add file â†’ Upload files).
+# Bu iÅŸ akÄ±ÅŸÄ±:
+#   1) zip'i mobile/ klasÃ¶rÃ¼ne aÃ§ar ve depoya kaydeder,
+#   2) flutter analyze Ã§alÄ±ÅŸtÄ±rÄ±r, APK derler,
+#   3) APK'yÄ± Android emÃ¼latÃ¶rÃ¼nde aÃ§Ä±p gerÃ§ek ekran turu Ã§eker (misafir giriÅŸ â†’
+#      ana sayfa â†’ Masalar â†’ Masa kur â†’ HÄ±zlÄ± oyna â†’ oyun masasÄ±).
+# SonuÃ§lar: Actions â†’ bu Ã§alÄ±ÅŸtÄ±rma â†’ Artifacts:
 #   okeyx-apk         : telefona kurulabilir APK
 #   okeyx-ekran-turu  : okeyx_gercek_tur.mp4, okeyx_ekranlar.mp4, ekran/*.png, hatalar.txt
 on:
@@ -28,26 +28,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Zip'i mobile/ klasörüne aç
+      - name: Zip'i mobile/ klasÃ¶rÃ¼ne aÃ§
         run: |
           ZIP=$(ls -1 okeyx_mobil_yukle*.zip 2>/dev/null | tail -n 1 || true)
           if [ -z "$ZIP" ]; then
-            echo "Zip yok; depodaki mobile/ kullanılacak."
+            echo "Zip yok; depodaki mobile/ kullanÄ±lacak."
             test -f mobile/pubspec.yaml || { echo "HATA: ne zip ne mobile/ var"; exit 1; }
             exit 0
           fi
-          echo "Kullanılan zip: $ZIP"
+          echo "KullanÄ±lan zip: $ZIP"
           rm -rf /tmp/mb && mkdir -p /tmp/mb && unzip -q "$ZIP" -d /tmp/mb
           SRC=/tmp/mb; [ -f /tmp/mb/pubspec.yaml ] || SRC=$(dirname "$(find /tmp/mb -maxdepth 3 -name pubspec.yaml | head -n 1)")
-          test -f "$SRC/pubspec.yaml" || { echo "HATA: zip içinde pubspec.yaml yok"; exit 1; }
+          test -f "$SRC/pubspec.yaml" || { echo "HATA: zip iÃ§inde pubspec.yaml yok"; exit 1; }
           git rm -r -q --cached mobile 2>/dev/null || true
           rm -rf mobile && mkdir mobile && cp -a "$SRC/." mobile/
           git rm -q -f --ignore-unmatch okeyx_mobil_yukle*.zip; rm -f okeyx_mobil_yukle*.zip
           git config user.name "OkeyX Deploy Bot"
           git config user.email "actions@users.noreply.github.com"
           git add -A mobile
-          git commit -q -m "Mobil V18 kuruldu" || echo "Değişiklik yok"
-          for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done || echo "UYARI: push yapılamadı, derleme yine de devam ediyor"
+          git commit -q -m "Mobil V18 kuruldu" || echo "DeÄŸiÅŸiklik yok"
+          for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done || echo "UYARI: push yapÄ±lamadÄ±, derleme yine de devam ediyor"
 
       - uses: actions/setup-java@v4
         with:
@@ -63,8 +63,8 @@ jobs:
       - name: Paketler ve analiz
         working-directory: mobile
         shell: bash
-        continue-on-error: true
         run: |
+          set -o pipefail
           mkdir -p ../tour_out
           flutter pub get
           flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee ../tour_out/analiz.txt
@@ -72,14 +72,14 @@ jobs:
       - name: Testler
         working-directory: mobile
         shell: bash
-        continue-on-error: true
         run: |
+          set -o pipefail
           flutter test --reporter expanded 2>&1 | tee ../tour_out/testler.txt
-          # Görsel kontrol: ıstaka kaplamalarının ekran görüntüsü
+          # GÃ¶rsel kontrol: Ä±staka kaplamalarÄ±nÄ±n ekran gÃ¶rÃ¼ntÃ¼sÃ¼
           OKEYX_GOLDENS=1 flutter test test/rack_golden_test.dart --update-goldens 2>&1 | tail -20 | tee -a ../tour_out/testler.txt || true
           mkdir -p ../tour_out/gorsel && cp -f test/goldens/*.png ../tour_out/gorsel/ 2>/dev/null || true
 
-      - name: Yayın imza anahtarını hazırla
+      - name: YayÄ±n imza anahtarÄ±nÄ± hazÄ±rla
         working-directory: mobile
         shell: bash
         env:
@@ -87,7 +87,7 @@ jobs:
           KS_PW: ${{ secrets.OKEYX_KEYSTORE_PASSWORD }}
         run: |
           if [ -z "$KS_B64" ] || [ -z "$KS_PW" ]; then
-            echo "UYARI: imza anahtarı secret'ları yok; APK debug anahtarla imzalanır ve GitHub sürümü yayınlanmaz."
+            echo "UYARI: imza anahtarÄ± secret'larÄ± yok; APK debug anahtarla imzalanÄ±r ve GitHub sÃ¼rÃ¼mÃ¼ yayÄ±nlanmaz."
             echo "SIGNED=0" >> "$GITHUB_ENV"; exit 0
           fi
           echo "$KS_B64" | base64 -d > android/okeyx_release.p12
@@ -100,16 +100,16 @@ jobs:
         run: |
           mkdir -p ../tour_out
           flutter pub get >/dev/null
-          # Maven Central ara sıra 429 (çok istek) dönebiliyor: bekleyip yeniden dene.
+          # Maven Central ara sÄ±ra 429 (Ã§ok istek) dÃ¶nebiliyor: bekleyip yeniden dene.
           set -o pipefail
           for i in 1 2 3 4; do
             BUILD=$(grep '^version:' pubspec.yaml | sed 's/.*+//'); VNAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | sed 's/+.*//')
             flutter build apk --release --dart-define-from-file=app_config.json --dart-define=OKEYX_BUILD=$BUILD --dart-define=OKEYX_VERSION=$VNAME 2>&1 | tee ../tour_out/derleme.txt && exit 0
-            echo "Derleme denemesi $i başarısız, $((i*60)) sn sonra tekrar"; sleep $((i*60))
+            echo "Derleme denemesi $i baÅŸarÄ±sÄ±z, $((i*60)) sn sonra tekrar"; sleep $((i*60))
           done
           exit 1 2>&1 | tee ../tour_out/derleme.txt
 
-      - name: Derleme kayıtlarını sakla (hata olursa da)
+      - name: Derleme kayÄ±tlarÄ±nÄ± sakla (hata olursa da)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -122,13 +122,13 @@ jobs:
           path: mobile/build/app/outputs/flutter-apk/*.apk
           retention-days: 14
 
-      - name: KVM aç (emülatör hızı için)
+      - name: KVM aÃ§ (emÃ¼latÃ¶r hÄ±zÄ± iÃ§in)
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Emülatörde gerçek ekran turu
+      - name: EmÃ¼latÃ¶rde gerÃ§ek ekran turu
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -140,7 +140,7 @@ jobs:
           emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim
           script: adb install -r mobile/build/app/outputs/flutter-apk/app-release.apk && OUT=$GITHUB_WORKSPACE/tour_out bash mobile/tool/screen_tour.sh
 
-      - name: Videoları hazırla
+      - name: VideolarÄ± hazÄ±rla
         if: always()
         continue-on-error: true
         run: |
@@ -164,11 +164,11 @@ jobs:
           path: tour_out/
           retention-days: 14
 
-      - name: Sonuçları tur-sonuclari dalına gönder (indirmesi kolay olsun)
+      - name: SonuÃ§larÄ± tur-sonuclari dalÄ±na gÃ¶nder (indirmesi kolay olsun)
         if: always()
         run: |
           mkdir -p /tmp/sonuc && cp -a tour_out/. /tmp/sonuc/ 2>/dev/null || true
-          # GitHub 100 MB dosya sınırı: APK'yı 45 MB parçalara böl (cat ile birleşir).
+          # GitHub 100 MB dosya sÄ±nÄ±rÄ±: APK'yÄ± 45 MB parÃ§alara bÃ¶l (cat ile birleÅŸir).
           if [ -f mobile/build/app/outputs/flutter-apk/app-release.apk ]; then
             mkdir -p /tmp/sonuc/apk
             split -b 45m -d mobile/build/app/outputs/flutter-apk/app-release.apk /tmp/sonuc/apk/okeyx_v18_telefon.apk.part
@@ -180,11 +180,11 @@ jobs:
           git init -q -b tur-sonuclari
           git config user.name "OkeyX Deploy Bot"
           git config user.email "actions@users.noreply.github.com"
-          echo "Çalıştırma: ${{ github.run_id }} • commit ${{ github.sha }}" > README.md
+          echo "Ã‡alÄ±ÅŸtÄ±rma: ${{ github.run_id }} â€¢ commit ${{ github.sha }}" > README.md
           git add -A && git commit -q -m "Ekran turu ${{ github.run_id }}"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref == 'refs/heads/main' && 'tur-sonuclari' || 'onizleme-sonuclari' }}
 
-      - name: GitHub sürümü yayınla (uygulama içi güncelleme bunu okur)
+      - name: GitHub sÃ¼rÃ¼mÃ¼ yayÄ±nla (uygulama iÃ§i gÃ¼ncelleme bunu okur)
         if: success() && env.SIGNED == '1' && github.ref == 'refs/heads/main'
         shell: bash
         env:
@@ -193,14 +193,15 @@ jobs:
           VER=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}')
           NAME=${VER%%+*}; BUILD=${VER##*+}
           TAG="v${NAME}-b${BUILD}"
-          # Aynı anda biten eski bir derleme yeni sürümün önüne geçmesin.
+          # AynÄ± anda biten eski bir derleme yeni sÃ¼rÃ¼mÃ¼n Ã¶nÃ¼ne geÃ§mesin.
           LATEST=$(gh release view -R "${{ github.repository }}" --json tagName -q .tagName 2>/dev/null | sed -n 's/.*-b\([0-9]*\)$/\1/p')
-          if [ -n "$LATEST" ] && [ "$BUILD" -lt "$LATEST" ]; then echo "Daha yeni sürüm (b$LATEST) zaten yayında; atlanıyor."; exit 0; fi
+          if [ -n "$LATEST" ] && [ "$BUILD" -lt "$LATEST" ]; then echo "Daha yeni sÃ¼rÃ¼m (b$LATEST) zaten yayÄ±nda; atlanÄ±yor."; exit 0; fi
           cp mobile/build/app/outputs/flutter-apk/app-release.apk okeyx.apk
-          NOTES=mobile/RELEASE_NOTES.md; [ -f "$NOTES" ] || { echo "Yeni sürüm" > /tmp/notes.md; NOTES=/tmp/notes.md; }
+          NOTES=mobile/RELEASE_NOTES.md; [ -f "$NOTES" ] || { echo "Yeni sÃ¼rÃ¼m" > /tmp/notes.md; NOTES=/tmp/notes.md; }
           if gh release view "$TAG" -R "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$TAG" okeyx.apk --clobber -R "${{ github.repository }}"
             gh release edit "$TAG" --notes-file "$NOTES" --latest -R "${{ github.repository }}"
           else
             gh release create "$TAG" okeyx.apk --title "OKEYX $NAME (build $BUILD)" --notes-file "$NOTES" --latest --target "${{ github.sha }}" -R "${{ github.repository }}"
           fi
+
