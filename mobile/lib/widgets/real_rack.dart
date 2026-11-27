@@ -16,6 +16,21 @@ class RealRackGeometry {
   static const double ledgeH = .085;
 }
 
+/// Scales a complete physical rack row into its safe width, including gaps.
+double rackContentScale({
+  required double availableWidth,
+  required double slotContentWidth,
+  required double leadingInset,
+}) {
+  if (!availableWidth.isFinite || !slotContentWidth.isFinite ||
+      !leadingInset.isFinite || slotContentWidth <= 0) {
+    return 0;
+  }
+  return ((availableWidth - leadingInset) / slotContentWidth)
+      .clamp(0.0, 1.0)
+      .toDouble();
+}
+
 /// Istaka kaplaması: tahta dokusu rengi ve raf renkleri.
 class _RackSkin {
   const _RackSkin(this.filter, this.ledgeTop, this.ledgeBottom, this.edge, {this.texture = true, this.flat});
