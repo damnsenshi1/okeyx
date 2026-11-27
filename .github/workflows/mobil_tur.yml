@@ -52,6 +52,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
 
       - uses: subosito/flutter-action@v2
         with:
@@ -79,7 +80,12 @@ jobs:
         run: |
           mkdir -p ../tour_out
           flutter pub get >/dev/null
-          flutter build apk --release 2>&1 | tee ../tour_out/derleme.txt
+          # Maven Central ara sıra 429 (çok istek) dönebiliyor: bekleyip yeniden dene.
+          for i in 1 2 3 4; do
+            flutter build apk --release && exit 0
+            echo "Derleme denemesi $i başarısız, $((i*60)) sn sonra tekrar"; sleep $((i*60))
+          done
+          exit 1 2>&1 | tee ../tour_out/derleme.txt
 
       - name: Derleme kayıtlarını sakla (hata olursa da)
         if: failure()
