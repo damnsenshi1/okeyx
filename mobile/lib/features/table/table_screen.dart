@@ -97,6 +97,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   int _canakSeenAt = -1;
   Map<String, dynamic>? _canakBreak;
   final Set<String> _peekJokerIds = <String>{};
+  List<List<Map<String, dynamic>>> _lastLocalSeriesGroups = const [];
   String _impactKind = '';
   String? _impactEventId;
   int? _rageSeat;
@@ -4435,6 +4436,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       if (group.length >= 3) groups.add(group);
     }
     if (groups.isEmpty) return _seriesArrangement(hand);
+    // Sunucu önerisi açılış için bir taşı elde tutar; yerel çözücü eli tamamen
+    // değerlendirir. Daha yüksek puanlı dizilimi göster.
+    final local = _seriesArrangement(hand);
+    if (_arrangementScore(_lastLocalSeriesGroups) > _arrangementScore(groups)) return local;
 
     final used = groups.expand((g) => g).map((t) => '${t['id']}').toSet();
     final rest = hand.where((t) => !used.contains('${t['id']}')).toList()
@@ -4460,61 +4465,133 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     return (order, starts, rowBreak);
   }
 
+  /// SERİ DİZ çözücüsü: eldeki taşlardan toplam puanı en yüksek geçerli per
+  /// kombinasyonunu bulur. Tüm alt seriler (ör. 3-4-5-6-7 içinden 3-4-5 + 6-7-8),
+  /// 3'lü/4'lü renk perleri ve okeyle tamamlanan boşluklar denenir. Okey,
+  /// yerine geçtiği taşın puanını alır. Eşitlikte daha çok taş kullanan,
+  /// sonra daha az okey harcayan plan seçilir. 12-13-1 geçersizdir.
   (List<String>, Set<String>, int) _seriesArrangement(List<Map<String, dynamic>> hand) {
+    final jokers = hand.where((t) => t['joker'] == true).toList();
     final natural = hand.where((t) => t['joker'] != true).toList();
-    final candidates = <List<Map<String, dynamic>>>[];
-
-    for (var n = 1; n <= 13; n++) {
-      final byColor = <String, Map<String, dynamic>>{};
-      for (final t in natural.where((x) => _integer(x['n']) == n)) {
-        byColor.putIfAbsent('${t['c']}', () => t);
-      }
-      final arr = byColor.values.toList();
-      if (arr.length >= 3) candidates.add(arr.take(arr.length.clamp(3, 4).toInt()).toList());
+    // aday: (taşlar, puan, kullanılan okey sayısı)
+    final candidates = <(List<Map<String, dynamic>>, int, int)>[];
+    final seen = <String>{};
+    void add(List<Map<String, dynamic>> tiles, int score, int jk) {
+      final key = (tiles.map((t) => '${t['id']}').toList()..sort()).join(',') + '|$jk';
+      if (seen.add(key)) candidates.add((tiles, score, jk));
     }
-
+    final jCount = jokers.length.clamp(0, 2).toInt();
+    // Seriler: her renk için 1..13 arası her pencere; eksikleri okey doldurur.
     for (final color in ['red', 'yellow', 'black', 'blue']) {
-      final byN = <int, Map<String, dynamic>>{};
+      final byN = <int, List<Map<String, dynamic>>>{};
       for (final t in natural.where((x) => '${x['c']}' == color)) {
-        byN.putIfAbsent(_integer(t['n']), () => t);
+        byN.putIfAbsent(_integer(t['n']), () => []).add(t);
       }
-      final nums = byN.keys.toList()..sort();
-      var chain = <int>[];
-      void flush() {
-        if (chain.length >= 3) candidates.add(chain.map((n) => byN[n]!).toList());
-        chain = <int>[];
+      for (var start = 1; start <= 11; start++) {
+        for (var end = start + 2; end <= 13; end++) {
+          final tiles = <Map<String, dynamic>>[];
+          var missing = 0;
+          var score = 0;
+          for (var n = start; n <= end; n++) {
+            score += n;
+            final arr = byN[n];
+            if (arr == null || arr.isEmpty) {
+              missing++;
+              tiles.add(const {'__joker_slot': true});
+            } else {
+              tiles.add(arr.first);
+            }
+          }
+          if (missing > jCount || missing >= tiles.length - 1) continue;
+          add(tiles, score, missing);
+          // Aynı taştan ikincisi varsa ikinci kopyayla da aday üret (iki ayrı seri için).
+          final dup = <Map<String, dynamic>>[];
+          var ok = false;
+          for (var n = start; n <= end; n++) {
+            final arr = byN[n];
+            if (arr == null || arr.isEmpty) {
+              dup.add(const {'__joker_slot': true});
+            } else if (arr.length > 1) {
+              dup.add(arr[1]);
+              ok = true;
+            } else {
+              dup.add(arr.first);
+            }
+          }
+          if (ok) add(dup, score, missing);
+        }
       }
-      for (final n in nums) {
-        if (chain.isNotEmpty && n != chain.last + 1) flush();
-        chain.add(n);
+    }
+    // Renk perleri: aynı sayı, farklı renkler (3 ya da 4), eksik renk okeyle.
+    for (var n = 1; n <= 13; n++) {
+      final byColor = <String, List<Map<String, dynamic>>>{};
+      for (final t in natural.where((x) => _integer(x['n']) == n)) {
+        byColor.putIfAbsent('${t['c']}', () => []).add(t);
       }
-      flush();
+      final colors = byColor.keys.toList();
+      for (var mask = 1; mask < (1 << colors.length); mask++) {
+        final pick = <Map<String, dynamic>>[];
+        final pick2 = <Map<String, dynamic>>[];
+        var hasDup = false;
+        for (var i = 0; i < colors.length; i++) {
+          if (mask & (1 << i) == 0) continue;
+          final arr = byColor[colors[i]]!;
+          pick.add(arr.first);
+          if (arr.length > 1) {
+            pick2.add(arr[1]);
+            hasDup = true;
+          } else {
+            pick2.add(arr.first);
+          }
+        }
+        for (var size = 3; size <= 4; size++) {
+          final need = size - pick.length;
+          if (need < 0 || need > jCount || pick.length < 2) continue;
+          final slots = List<Map<String, dynamic>>.filled(need, const {'__joker_slot': true});
+          add([...pick, ...slots], n * size, need);
+          if (hasDup) add([...pick2, ...slots], n * size, need);
+        }
+      }
     }
 
-    List<List<Map<String, dynamic>>> best = [];
-    var bestUsed = 0;
-    var bestScore = 0;
-    void dfs(int index, Set<String> used, List<List<Map<String, dynamic>>> groups, int score) {
-      if (score > bestScore || (score == bestScore && used.length > bestUsed)) {
-        best = groups.map((g) => List<Map<String, dynamic>>.from(g)).toList();
-        bestUsed = used.length;
-        bestScore = score;
+    var best = <(List<Map<String, dynamic>>, int, int)>[];
+    var bestKey = (-1, -1, 0);
+    var budget = 250000;
+    void dfs(int index, Set<String> used, int jokersUsed, List<(List<Map<String, dynamic>>, int, int)> groups, int score, int tiles) {
+      if (--budget < 0) return;
+      final key = (score, tiles, -jokersUsed);
+      if (key.$1 > bestKey.$1 || (key.$1 == bestKey.$1 && (key.$2 > bestKey.$2 || (key.$2 == bestKey.$2 && key.$3 > bestKey.$3)))) {
+        bestKey = key;
+        best = List.of(groups);
       }
       for (var j = index; j < candidates.length; j++) {
-        final g = candidates[j];
-        if (g.any((t) => used.contains('${t['id']}'))) continue;
-        final next = Set<String>.from(used);
-        var sc = 0;
-        for (final t in g) {
-          next.add('${t['id']}');
-          sc += _integer(t['n']);
+        final c = candidates[j];
+        if (jokersUsed + c.$3 > jokers.length) continue;
+        var clash = false;
+        for (final t in c.$1) {
+          if (t['__joker_slot'] == true) continue;
+          if (used.contains('${t['id']}')) {
+            clash = true;
+            break;
+          }
         }
-        dfs(j + 1, next, [...groups, g], score + sc);
+        if (clash) continue;
+        final next = {...used, for (final t in c.$1) if (t['__joker_slot'] != true) '${t['id']}'};
+        dfs(j + 1, next, jokersUsed + c.$3, [...groups, c], score + c.$2, tiles + c.$1.length);
       }
     }
-    dfs(0, <String>{}, <List<Map<String, dynamic>>>[], 0);
+    dfs(0, <String>{}, 0, const [], 0, 0);
 
-    final used = best.expand((g) => g).map((t) => '${t['id']}').toSet();
+    // Okey yuvalarına gerçek okeyleri yerleştir.
+    final jokerQueue = List.of(jokers);
+    final groupsOut = <List<Map<String, dynamic>>>[];
+    for (final g in best) {
+      groupsOut.add([for (final t in g.$1) t['__joker_slot'] == true ? jokerQueue.removeAt(0) : t]);
+    }
+    // Uzun per başa.
+    groupsOut.sort((a, b) => b.length.compareTo(a.length));
+    _lastLocalSeriesGroups = groupsOut;
+    final used = groupsOut.expand((g) => g).map((t) => '${t['id']}').toSet();
     final rest = hand.where((t) => !used.contains('${t['id']}')).toList()
       ..sort((a, b) {
         final c = _colorRank(a).compareTo(_colorRank(b));
@@ -4522,8 +4599,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       });
     final order = <String>[];
     final starts = <String>{};
-    for (var i = 0; i < best.length; i++) {
-      final g = best[i];
+    for (var i = 0; i < groupsOut.length; i++) {
+      final g = groupsOut[i];
       if (i > 0) starts.add('${g.first['id']}');
       order.addAll(g.map((e) => '${e['id']}'));
     }
@@ -4531,11 +4608,28 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       if (order.isNotEmpty) starts.add('${rest.first['id']}');
       order.addAll(rest.map((e) => '${e['id']}'));
     }
-    final rowBreak = _packedFirstRowCount(
-      best.map((g) => g.length).toList(),
-      rest.length,
-    );
+    final rowBreak = _packedFirstRowCount(groupsOut.map((g) => g.length).toList(), rest.length);
     return (order, starts, rowBreak);
+  }
+
+  /// Bir dizilimin per puanı (sunucu önerisiyle karşılaştırmak için).
+  int _arrangementScore(List<List<Map<String, dynamic>>> groups) {
+    var total = 0;
+    for (final g in groups) {
+      final naturals = g.where((t) => t['joker'] != true).toList();
+      if (naturals.isEmpty) continue;
+      final sameNumber = naturals.every((t) => _integer(t['n']) == _integer(naturals.first['n']));
+      if (sameNumber && naturals.map((t) => '${t['c']}').toSet().length == naturals.length) {
+        total += _integer(naturals.first['n']) * g.length;
+      } else {
+        final ns = naturals.map((t) => _integer(t['n'])).toList()..sort();
+        final start = (ns.first - g.indexWhere((t) => t['joker'] != true)).clamp(1, 13);
+        for (var i = 0; i < g.length; i++) {
+          total += start + i;
+        }
+      }
+    }
+    return total;
   }
 
   int _packedFirstRowCount(List<int> groupLengths, int singles) {
