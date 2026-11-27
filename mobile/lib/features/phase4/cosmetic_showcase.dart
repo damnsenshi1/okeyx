@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/app_theme.dart';
 import '../../widgets/okx_kit.dart';
+import '../../widgets/real_rack.dart';
 import '../../widgets/tile_widget.dart';
 
 /// Mağaza vitrini: 3D görünümlü kozmetik kartları ve "masada dene" önizlemesi.
@@ -14,8 +15,6 @@ import '../../widgets/tile_widget.dart';
 /// vardır. Efsanevi/epik ürünlerin arkasında nefes alan bir ışık halkası olur.
 /// Önizlemeler gerçek oyun görselleriyle çizilir (ıstaka, taş, çuha).
 
-/// Mağaza kimliği → ıstaka görseli (varsayılan ıstaka gri kadifedir).
-String _rackAsset(String id) => id == 'rack_classic' || id.isEmpty ? 'rack_velvet' : id;
 
 Color rarityColor(String rarity) => switch (rarity) {
       'legendary' => const Color(0xFFFFC75A),
@@ -190,20 +189,20 @@ class CosmeticPreview extends StatelessWidget {
     final accent = cosmeticAccent(id);
     Widget content;
     switch (category) {
-      case 'rack':
+      case 'rack': {
         content = Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, .002)
-              ..rotateX(-.42),
-            child: Stack(alignment: Alignment.center, children: [
-              Image.asset('assets/rack/${_rackAsset(id)}_back.webp', fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox()),
-              Image.asset('assets/rack/${_rackAsset(id)}_front.webp', fit: BoxFit.contain, errorBuilder: (_, __, ___) => _fallbackBar(accent)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: RealRack(
+            style: realRackStyle(equipped: id),
+            row0: const SizedBox(),
+            row1: Row(children: [
+              for (final t in const [(5, 0), (6, 0), (7, 0)])
+                Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 1), child: TileWidget(tile: GameTile(id: 'pr${t.$1}', number: t.$1, colorIndex: t.$2)))),
+              const Spacer(flex: 4),
             ]),
           ),
         );
+      }
       case 'tiles':
         content = Center(
           child: SizedBox(
@@ -525,26 +524,23 @@ Future<void> showTryOnTable(
                   right: w * .08,
                   bottom: 8,
                   height: h * .34,
-                  child: Stack(alignment: Alignment.bottomCenter, children: [
-                    Positioned.fill(child: Image.asset('assets/rack/${_rackAsset(rack)}_back.webp', fit: BoxFit.fill, errorBuilder: (_, __, ___) => const SizedBox())),
-                    Positioned(
-                      left: 18,
-                      right: 18,
-                      top: h * .03,
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        for (var i = 0; i < 9; i++)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 1),
-                            child: SizedBox(
-                              width: 30,
-                              height: 43,
-                              child: TileWidget(tile: GameTile(id: 'r$i', number: const [1, 2, 3, 5, 5, 5, 8, 12, 13][i], colorIndex: const [1, 1, 1, 0, 2, 3, 3, 0, 0][i]), skinId: tiles),
-                            ),
-                          ),
-                      ]),
-                    ),
-                    Positioned.fill(child: Image.asset('assets/rack/${_rackAsset(rack)}_front.webp', fit: BoxFit.fill, errorBuilder: (_, __, ___) => const SizedBox())),
-                  ]),
+                  child: RealRack(
+                    style: realRackStyle(equipped: rack),
+                    row0: Row(children: [
+                      for (var i = 0; i < 6; i++)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 1),
+                          child: AspectRatio(aspectRatio: .7, child: TileWidget(tile: GameTile(id: 'u$i', number: const [9, 10, 11, 12, 4, 4][i], colorIndex: const [1, 1, 1, 1, 0, 2][i]), skinId: tiles)),
+                        ),
+                    ]),
+                    row1: Row(children: [
+                      for (var i = 0; i < 9; i++)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 1),
+                          child: AspectRatio(aspectRatio: .7, child: TileWidget(tile: GameTile(id: 'r$i', number: const [1, 2, 3, 5, 5, 5, 8, 12, 13][i], colorIndex: const [1, 1, 1, 0, 2, 3, 3, 0, 0][i]), skinId: tiles)),
+                        ),
+                    ]),
+                  ),
                 ),
                 Positioned(
                   top: 8,

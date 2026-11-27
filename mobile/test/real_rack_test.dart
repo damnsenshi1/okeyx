@@ -8,7 +8,7 @@ void main() {
     expect(realRackStyle(equipped: 'rack_neon'), 'neon');
     expect(realRackStyle(equipped: 'rack_classic', local: 'oak'), 'classic');
     expect(realRackStyle(equipped: '', local: 'ebony'), 'obsidian');
-    expect(realRackStyle(equipped: 'rack_bilinmeyen'), 'walnut');
+    expect(realRackStyle(equipped: 'rack_bilinmeyen'), 'honey');
   });
 
   test('taş gövdesi varlık yolu bilinen kaplamalara eşlenir', () {

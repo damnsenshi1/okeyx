@@ -396,6 +396,14 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                 right: f.x(12),
                 top: f.y(10),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  _roundIcon(Icons.card_giftcard_rounded, _state['gifts_enabled'] == false ? null : () => unawaited(_openGiftPicker()), f, color: const Color(0xFFFFC75A)),
+                  SizedBox(width: gap),
+                  Stack(clipBehavior: Clip.none, children: [
+                    _roundIcon(Icons.chat_bubble_rounded, _state['chat_enabled'] == false ? null : () => unawaited(_showChatPanel()), f),
+                    if (_list(_state['chat']).map(_map).any((e) => '${e['kind']}' != 'gift'))
+                      const Positioned(right: 1, top: 1, child: CircleAvatar(radius: 4, backgroundColor: OkeyXColors.cyan)),
+                  ]),
+                  SizedBox(width: gap * 2),
                   _pingIcon(f),
                   SizedBox(width: gap),
                   _roundIcon(Icons.settings_rounded, () => unawaited(_showTableMenu()), f),
@@ -415,7 +423,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               _positionedDiscard(_relativeSeat(2), f, cx: 127, cy: 104),
               _positionedDiscard(_relativeSeat(1), f, cx: 923, cy: 104),
               _positionedDiscard(_relativeSeat(3), f, cx: 188, cy: 270, canTake: canTakeLeft),
-              _positionedDiscard(_viewerSeat, f, cx: 866, cy: 290),
+              _positionedDiscard(_viewerSeat, f, cx: 815, cy: 262),
               // Açılış çubuğu / soldan alma ipucu
               if (started)
                 Positioned(
@@ -431,37 +439,33 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-              // Istaka
-              Positioned(left: f.x(214), top: f.y(296), width: f.x(572), bottom: f.y(6), child: RepaintBoundary(child: Align(alignment: Alignment.bottomCenter, child: AspectRatio(aspectRatio: RealRackGeometry.aspect, child: _rack(f.k < .8))))),
-              // Ben
-              Positioned(left: f.x(12), top: f.y(330), width: f.x(116), child: _meBlock(f)),
-              if (started && _assisted && !_isDuz)
-                Positioned(
-                  left: f.x(140),
-                  top: f.y(322),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    _squareButton(Icons.view_week_rounded, 'SERİ DİZ', () => _sortRackLocal(true), f),
-                    SizedBox(height: gap),
-                    _squareButton(Icons.copy_all_rounded, 'ÇİFT DİZ', () => _sortRackLocal(false), f),
-                  ]),
-                ),
+              // Istaka: 101 Plus düzeni — neredeyse tam genişlik, düz önden.
+              Positioned(left: f.x(96), right: f.x(96), bottom: f.y(5), child: RepaintBoundary(child: AspectRatio(aspectRatio: RealRackGeometry.aspect, child: _rack(f.k < .8)))),
+              // Sol sütun: ben (avatar + altın) ve ÇİFT DİZ
+              Positioned(left: f.x(6), top: f.y(292), width: f.x(86), child: _meCompact(f)),
               Positioned(
-                right: f.x(140),
-                top: f.y(322),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  _squareButton(Icons.card_giftcard_rounded, 'HEDİYE', _state['gifts_enabled'] == false ? null : () => unawaited(_openGiftPicker()), f),
-                  SizedBox(height: gap),
-                  _squareButton(Icons.chat_bubble_rounded, 'SOHBET', _state['chat_enabled'] == false ? null : () => unawaited(_showChatPanel()), f, dot: _list(_state['chat']).map(_map).any((e) => '${e['kind']}' != 'gift')),
+                left: f.x(6),
+                bottom: f.y(6),
+                width: f.x(86),
+                height: f.y(76),
+                child: _tallButton('ÇİFT', 'DİZ', Icons.copy_all_rounded, (started && _assisted && !_isDuz) ? () => _sortRackLocal(false) : null, f),
+              ),
+              // Sağ sütun: mikrofon + emoji ve SERİ DİZ
+              Positioned(
+                right: f.x(6),
+                top: f.y(296),
+                width: f.x(86),
+                child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                  _voiceButton(f),
+                  _roundIcon(Icons.emoji_emotions_rounded, _state['chat_enabled'] == false ? null : () => unawaited(_showChatPanel()), f),
                 ]),
               ),
               Positioned(
-                right: f.x(14),
-                top: f.y(326),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  _voiceButton(f),
-                  SizedBox(height: gap),
-                  _squareButton(Icons.emoji_emotions_rounded, '', _state['chat_enabled'] == false ? null : () => unawaited(_showChatPanel()), f, small: true),
-                ]),
+                right: f.x(6),
+                bottom: f.y(6),
+                width: f.x(86),
+                height: f.y(76),
+                child: _tallButton('SERİ', 'DİZ', Icons.view_week_rounded, (started && _assisted && !_isDuz) ? () => _sortRackLocal(true) : null, f),
               ),
               ..._chatBubbleWidgets(f),
             ],
@@ -595,6 +599,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
+          // İnce ızgara (perlerin dizildiği düzenli alan hissi)
+          const Positioned.fill(child: IgnorePointer(child: ClipRRect(borderRadius: BorderRadius.all(Radius.circular(14)), child: CustomPaint(painter: _ZoneGridPainter())))),
           Positioned.fill(child: Padding(padding: const EdgeInsets.fromLTRB(8, 12, 8, 6), child: child)),
           Positioned(
             left: 12,
@@ -1106,6 +1112,61 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           ),
       ]),
     );
+  }
+
+  /// Istakanın iki yanındaki uzun düğme (101 Plus tarzı ÇİFT DİZ / SERİ DİZ).
+  Widget _tallButton(String l1, String l2, IconData icon, VoidCallback? onTap, _Frame f) => GestureDetector(
+        onTap: onTap == null
+            ? null
+            : () {
+                if (_vibrationEnabled) unawaited(HapticFeedback.selectionClick());
+                onTap();
+              },
+        child: Opacity(
+          opacity: onTap == null ? .4 : 1,
+          child: OkxLeather(
+            radius: 14,
+            padding: EdgeInsets.zero,
+            borderColor: OkeyXColors.gold.withValues(alpha: .55),
+            shadows: const [BoxShadow(color: Color(0x80000000), blurRadius: 10, offset: Offset(0, 5))],
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(icon, size: 22, color: const Color(0xFFFFE9B0)),
+                    Text(l1, style: const TextStyle(fontSize: 17, height: 1.05, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: .5)),
+                    Text(l2, style: const TextStyle(fontSize: 17, height: 1.05, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: .5)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  /// Ben: küçük avatar (sıra halkası dahil) + ad ve altın.
+  Widget _meCompact(_Frame f) {
+    final size = f.s(46).clamp(36.0, 64.0).toDouble();
+    final coins = _integer(_state['viewer_chips'], fallback: widget.profile.coins);
+    final me = _viewer.isEmpty ? <String, dynamic>{'name': widget.profile.displayName, 'seat': _viewerSeat} : _viewer;
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      GestureDetector(onTap: () => unawaited(_showPlayerProfile(me)), child: _seatAvatar(me, size)),
+      const SizedBox(height: 2),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const OkxCoin(size: 11),
+          const SizedBox(width: 3),
+          Text(_formatNumber(coins), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: OkeyXColors.cream, shadows: [Shadow(color: Colors.black87, blurRadius: 4)])),
+          if (_viewer['opened'] == true) ...[
+            const SizedBox(width: 4),
+            _seatTag('${_viewer['opening_mode']}' == 'pairs' ? 'ÇİFT' : 'AÇTI', gold: '${_viewer['opening_mode']}' != 'pairs', mint: '${_viewer['opening_mode']}' == 'pairs'),
+          ],
+        ]),
+      ),
+    ]);
   }
 
   Widget _meBlock(_Frame f) {
@@ -8310,4 +8371,24 @@ class _QuickLongPress extends StatelessWidget {
         },
         child: child,
       );
+}
+
+class _ZoneGridPainter extends CustomPainter {
+  const _ZoneGridPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = const Color(0x14FFFFFF)
+      ..strokeWidth = 1;
+    const step = 22.0;
+    for (var x = step; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
+    }
+    for (var y = step; y < size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ZoneGridPainter oldDelegate) => false;
 }

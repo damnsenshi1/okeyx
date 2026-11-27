@@ -73,7 +73,11 @@ jobs:
         working-directory: mobile
         shell: bash
         continue-on-error: true
-        run: flutter test --reporter expanded 2>&1 | tee ../tour_out/testler.txt
+        run: |
+          flutter test --reporter expanded 2>&1 | tee ../tour_out/testler.txt
+          # Görsel kontrol: ıstaka kaplamalarının ekran görüntüsü
+          OKEYX_GOLDENS=1 flutter test test/rack_golden_test.dart --update-goldens 2>&1 | tail -20 | tee -a ../tour_out/testler.txt || true
+          mkdir -p ../tour_out/gorsel && cp -f test/goldens/*.png ../tour_out/gorsel/ 2>/dev/null || true
 
       - name: Yayın imza anahtarını hazırla
         working-directory: mobile
@@ -178,10 +182,10 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           echo "Çalıştırma: ${{ github.run_id }} • commit ${{ github.sha }}" > README.md
           git add -A && git commit -q -m "Ekran turu ${{ github.run_id }}"
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" tur-sonuclari
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref == 'refs/heads/main' && 'tur-sonuclari' || 'onizleme-sonuclari' }}
 
       - name: GitHub sürümü yayınla (uygulama içi güncelleme bunu okur)
-        if: success() && env.SIGNED == '1'
+        if: success() && env.SIGNED == '1' && github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
