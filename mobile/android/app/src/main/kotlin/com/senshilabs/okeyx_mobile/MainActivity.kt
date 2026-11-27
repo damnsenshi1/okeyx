@@ -13,6 +13,37 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, shareChannel).setMethodCallHandler { call, result ->
+            // Uygulama içi güncelleme: önbellek klasörü, kurulum izni ve APK kurulumu.
+            when (call.method) {
+                "cacheDir" -> { result.success(cacheDir.absolutePath); return@setMethodCallHandler }
+                "canInstall" -> {
+                    val ok = if (android.os.Build.VERSION.SDK_INT >= 26) packageManager.canRequestPackageInstalls() else true
+                    result.success(ok); return@setMethodCallHandler
+                }
+                "openInstallSettings" -> {
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT >= 26) {
+                            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:$packageName")))
+                        }
+                        result.success(true)
+                    } catch (e: Exception) { result.error("settings_failed", e.message, null) }
+                    return@setMethodCallHandler
+                }
+                "installApk" -> {
+                    try {
+                        val file = File(call.argument<String>("path") ?: "")
+                        if (!file.exists()) { result.error("missing_file", "APK bulunamadı", null); return@setMethodCallHandler }
+                        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.android.package-archive")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) { result.error("install_failed", e.message, null) }
+                    return@setMethodCallHandler
+                }
+            }
             if (call.method != "shareImage") {
                 result.notImplemented()
                 return@setMethodCallHandler

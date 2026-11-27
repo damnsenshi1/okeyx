@@ -756,7 +756,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             isExpanded: true,
-                            dropdownColor: const Color(0xFA231A12),
+                            dropdownColor: const Color(0xFA120B33),
                             borderRadius: BorderRadius.circular(14),
                             value: _liveFeatures.radioStations.any((x) => x.id == _preferences.radioStation) ? _preferences.radioStation : _liveFeatures.radioStations.first.id,
                             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: OkeyXColors.cream, fontFamily: OkeyXFonts.sans),
@@ -962,7 +962,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             height: 20,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: value ? Colors.white : const Color(0xFFCBB98F),
+              color: value ? Colors.white : const Color(0xFFACA7DB),
               boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 3, offset: Offset(0, 1))],
             ),
           ),

@@ -45,7 +45,7 @@ class ChanceHall extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF3E3023), Color(0xFF281E16), Color(0xFF18130E)],
+              colors: [Color(0xFF1F1455), Color(0xFF140D3A), Color(0xFF0E0A26)],
             ),
             border: Border.all(color: OkeyXColors.gold.withValues(alpha: .28)),
             boxShadow: const [BoxShadow(color: Color(0x44000000), blurRadius: 22, offset: Offset(0, 10))],
@@ -57,7 +57,7 @@ class ChanceHall extends StatelessWidget {
                 height: 52,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(colors: [Color(0xFFB98A34), Color(0xFF56411E)]),
+                  gradient: const LinearGradient(colors: [Color(0xFFB98A34), Color(0xFF281973)]),
                   boxShadow: const [BoxShadow(color: Color(0x55F4C542), blurRadius: 16)],
                 ),
                 child: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 30),
@@ -451,7 +451,7 @@ class _SlotDialogState extends State<SlotDialog> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
-                gradient: LinearGradient(colors: i == jackpots.length - 1 ? const [Color(0xFF5A2819), Color(0xFF26120E)] : const [Color(0xFF3D2F22), Color(0xFF251C15)]),
+                gradient: LinearGradient(colors: i == jackpots.length - 1 ? const [Color(0xFF2A1A78), Color(0xFF26120E)] : const [Color(0xFF1E1354), Color(0xFF140D36)]),
                 border: Border.all(color: i == jackpots.length - 1 ? const Color(0x88FF9B43) : const Color(0x335BDCC6)),
               ),
               child: Column(children: [
@@ -481,7 +481,7 @@ class _SlotDialogState extends State<SlotDialog> {
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(colors: [Color(0xFF3A2A13), Color(0xFF231B14), Color(0xFF120E0A)]),
+        gradient: const LinearGradient(colors: [Color(0xFF1C1250), Color(0xFF130D33), Color(0xFF0B071E)]),
         border: Border.all(color: const Color(0xFFB98B3B), width: 1.2),
         boxShadow: const [BoxShadow(color: Color(0x44000000), blurRadius: 18, offset: Offset(0, 8)), BoxShadow(color: Color(0x33E7B84C), blurRadius: 18)],
       ),
@@ -506,7 +506,7 @@ class _SlotDialogState extends State<SlotDialog> {
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(13),
-                          gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF30251B), Color(0xFF16110C), Color(0xFF30251B)]),
+                          gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF181044), Color(0xFF0C0823), Color(0xFF181044)]),
                           border: Border.all(color: Colors.white12),
                         ),
                         child: Column(children: [
@@ -517,7 +517,7 @@ class _SlotDialogState extends State<SlotDialog> {
                                 margin: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(10),
-                                  gradient: winCells.contains('$row:$col') ? const LinearGradient(colors: [Color(0xFF65451D), Color(0xFF24190F)]) : const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF392C20), Color(0xFF18120D), Color(0xFF2F241B)]),
+                                  gradient: winCells.contains('$row:$col') ? const LinearGradient(colors: [Color(0xFF2F1D86), Color(0xFF120C35)]) : const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF1C124F), Color(0xFF0D0826), Color(0xFF191042)]),
                                   border: Border.all(color: winCells.contains('$row:$col') ? OkeyXColors.gold : const Color(0x335FE0D0), width: winCells.contains('$row:$col') ? 1.7 : 1),
                                   boxShadow: winCells.contains('$row:$col') ? const [BoxShadow(color: Color(0x99F4C542), blurRadius: 12)] : const [],
                                 ),
@@ -714,7 +714,7 @@ class _SlotDialogState extends State<SlotDialog> {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xED261D15), Color(0xED18120D)]),
+        gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xED130C37), Color(0xED0D0826)]),
         border: Border.all(color: Colors.white12),
       ),
       child: Column(
@@ -1027,7 +1027,7 @@ class _HorseDialogState extends State<HorseDialog> {
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(colors: [Color(0xFF392C20), Color(0xFF292017), Color(0xFF16110C)]), border: Border.all(color: const Color(0x3373D6A8))),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: const LinearGradient(colors: [Color(0xFF1C124F), Color(0xFF150E3B), Color(0xFF0C0823)]), border: Border.all(color: const Color(0x3373D6A8))),
             child: Column(children: [
               for (final horse in _horses)
                 Expanded(child: _horseLane(horse)),
@@ -1178,7 +1178,7 @@ class _CircusDialogState extends State<CircusDialog> {
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), gradient: const RadialGradient(colors: [Color(0xFF4B2350), Color(0xFF251C15), Color(0xFF140F0B)]), border: Border.all(color: const Color(0x44D795DC))),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), gradient: const RadialGradient(colors: [Color(0xFF4B2350), Color(0xFF140D36), Color(0xFF0B0721)]), border: Border.all(color: const Color(0x44D795DC))),
             child: Column(children: [
               const Text('ALTIN IŞIĞI YAKALA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1)),
               const Spacer(),
@@ -1186,7 +1186,7 @@ class _CircusDialogState extends State<CircusDialog> {
                 alignment: WrapAlignment.center,
                 spacing: 8,
                 runSpacing: 8,
-                children: [for (var i = 0; i < _count; i++) AnimatedContainer(duration: const Duration(milliseconds: 65), width: 39, height: 39, decoration: BoxDecoration(shape: BoxShape.circle, color: i == _active ? OkeyXColors.gold : const Color(0xCC251D15), border: Border.all(color: i == _target ? const Color(0xFFD795DC) : Colors.white12, width: i == _target ? 2.2 : 1), boxShadow: i == _active ? const [BoxShadow(color: Color(0x99F4C542), blurRadius: 15)] : const []), child: Center(child: Text('${i + 1}', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: i == _active ? const Color(0xFF251A09) : Colors.white70))))],
+                children: [for (var i = 0; i < _count; i++) AnimatedContainer(duration: const Duration(milliseconds: 65), width: 39, height: 39, decoration: BoxDecoration(shape: BoxShape.circle, color: i == _active ? OkeyXColors.gold : const Color(0xCC140D36), border: Border.all(color: i == _target ? const Color(0xFFD795DC) : Colors.white12, width: i == _target ? 2.2 : 1), boxShadow: i == _active ? const [BoxShadow(color: Color(0x99F4C542), blurRadius: 15)] : const []), child: Center(child: Text('${i + 1}', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: i == _active ? const Color(0xFF130C36) : Colors.white70))))],
               ),
               const Spacer(),
               Text(_result, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900)),
@@ -1276,7 +1276,7 @@ class _DropDialogState extends State<DropDialog> {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(22),
-                  gradient: const LinearGradient(colors: [Color(0xFF34281D), Color(0xFF221A13), Color(0xFF140F0B)]),
+                  gradient: const LinearGradient(colors: [Color(0xFF1A1049), Color(0xFF120B32), Color(0xFF0B0721)]),
                   border: Border.all(color: const Color(0x335DD7FF)),
                 ),
                 child: _animatingDrop
@@ -1374,7 +1374,7 @@ class _TowerDialogState extends State<TowerDialog>{
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(22),
-                      gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xFF251C15), Color(0xFF49351A), Color(0xFF201812)]),
+                      gradient: const LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xFF140D36), Color(0xFF231663), Color(0xFF110B30)]),
                       border: Border.all(color: const Color(0x44EAC45B)),
                     ),
                     child: Column(
@@ -1415,7 +1415,7 @@ class _TowerDialogState extends State<TowerDialog>{
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: const Color(0xB81A140E), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white10)),
+                          decoration: BoxDecoration(color: const Color(0xB80E0928), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white10)),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -1500,7 +1500,7 @@ class _DropBoardPainter extends CustomPainter{
     for(var i=0;i<cols;i++){
       final hit=progress>.93&&i==active;
       final rect=RRect.fromRectAndRadius(Rect.fromLTWH(i*w+2,size.height-38,w-4,31),const Radius.circular(6));
-      canvas.drawRRect(rect,Paint()..color=hit?const Color(0xFFB87920):const Color(0xFF2F241B));
+      canvas.drawRRect(rect,Paint()..color=hit?const Color(0xFFB87920):const Color(0xFF191042));
       final tp=TextPainter(text:TextSpan(text:labels[i],style:TextStyle(color:hit?Colors.white:const Color(0xFFB5D7D5),fontSize:7,fontWeight:FontWeight.w900)),textDirection:TextDirection.ltr)..layout();
       tp.paint(canvas,Offset(i*w+(w-tp.width)/2,size.height-28));
     }
@@ -1531,15 +1531,15 @@ Widget _gameTile(BuildContext context, {required String title, required String s
       child: Ink(
         height: 142,
         decoration: BoxDecoration(
-          color: const Color(0xFF1C1510),
+          color: const Color(0xFF100A2B),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: accent.withValues(alpha: .42), width: 1.1),
           boxShadow: [BoxShadow(color: accent.withValues(alpha: .08), blurRadius: 18, offset: const Offset(0, 8)), const BoxShadow(color: Color(0x55000000), blurRadius: 13, offset: Offset(0, 6))],
         ),
         child: Stack(children: [
           Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(19), child: CustomPaint(painter: _ChanceArtPainter(kind: kind, accent: accent)))),
-          Positioned(left: 12, top: 10, child: Container(width: 36, height: 36, decoration: BoxDecoration(color: const Color(0xD9291F17), borderRadius: BorderRadius.circular(11), border: Border.all(color: accent.withValues(alpha: .42))), child: Icon(icon, color: accent, size: 21))),
-          Positioned(right: 10, top: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: const Color(0xD91C1510), borderRadius: BorderRadius.circular(9), border: Border.all(color: accent.withValues(alpha: .34))), child: Text(badge, style: TextStyle(fontSize: 6, color: accent, fontWeight: FontWeight.w900)))),
+          Positioned(left: 12, top: 10, child: Container(width: 36, height: 36, decoration: BoxDecoration(color: const Color(0xD9150E3B), borderRadius: BorderRadius.circular(11), border: Border.all(color: accent.withValues(alpha: .42))), child: Icon(icon, color: accent, size: 21))),
+          Positioned(right: 10, top: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: const Color(0xD9100A2B), borderRadius: BorderRadius.circular(9), border: Border.all(color: accent.withValues(alpha: .34))), child: Text(badge, style: TextStyle(fontSize: 6, color: accent, fontWeight: FontWeight.w900)))),
           Positioned(left: 12, right: 96, bottom: 11, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, letterSpacing: .2)),
             const SizedBox(height: 1),
@@ -1547,7 +1547,7 @@ Widget _gameTile(BuildContext context, {required String title, required String s
             const SizedBox(height: 3),
             Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 6.5, height: 1.22, color: Colors.white60)),
           ])),
-          Positioned(right: 12, bottom: 12, child: Container(width: 72, height: 29, alignment: Alignment.center, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: accent.withValues(alpha: .25), blurRadius: 10)]), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('OYNA', style: TextStyle(fontSize: 7.2, fontWeight: FontWeight.w900, color: Color(0xFF16110D))), SizedBox(width: 3), Icon(Icons.play_arrow_rounded, size: 13, color: Color(0xFF16110D))]))),
+          Positioned(right: 12, bottom: 12, child: Container(width: 72, height: 29, alignment: Alignment.center, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: accent.withValues(alpha: .25), blurRadius: 10)]), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('OYNA', style: TextStyle(fontSize: 7.2, fontWeight: FontWeight.w900, color: Color(0xFF0E0923))), SizedBox(width: 3), Icon(Icons.play_arrow_rounded, size: 13, color: Color(0xFF0E0923))]))),
         ]),
       ),
     ),
@@ -1609,7 +1609,7 @@ class _ChanceArtPainter extends CustomPainter {
 
 Widget _premiumDialog(BuildContext context, {required String title, required String subtitle, required IconData icon, required Color accent, required Widget child}) {
   return Dialog(
-    backgroundColor: const Color(0xFF140F0B),
+    backgroundColor: const Color(0xFF0B0721),
     insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: accent.withValues(alpha: .36))),
     child: ConstrainedBox(
@@ -1619,7 +1619,7 @@ Widget _premiumDialog(BuildContext context, {required String title, required Str
       ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 9, 12, 12),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF281F17), Color(0xFF18120E), Color(0xFF040D14)])),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF160E3A), Color(0xFF0E0A26), Color(0xFF040D14)])),
         child: Column(children: [
           Row(children: [
             Container(width: 37, height: 37, decoration: BoxDecoration(color: accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: accent, size: 22)),
@@ -1658,7 +1658,7 @@ Widget _voucherBar(Map<String, dynamic> vouchers) {
   final rows = vouchers.entries.where((e) => _int(e.value) > 0).toList()..sort((a, b) => _int(a.key).compareTo(_int(b.key)));
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-    decoration: BoxDecoration(color: const Color(0xFF2B2118), borderRadius: BorderRadius.circular(13), border: Border.all(color: OkeyXColors.gold.withValues(alpha: .20))),
+    decoration: BoxDecoration(color: const Color(0xFF160E3D), borderRadius: BorderRadius.circular(13), border: Border.all(color: OkeyXColors.gold.withValues(alpha: .20))),
     child: Row(children: [
       const Icon(Icons.local_activity_rounded, color: OkeyXColors.gold, size: 15),
       const SizedBox(width: 6),
@@ -1680,7 +1680,7 @@ Widget _slotSymbol(String id, bool win, bool spinning) {
     case 'okey': value='O'; tag='OKEY'; color=const Color(0xFF188A5B); break;
     case 'diamond': value='12'; tag='✦'; color=const Color(0xFF236FCE); break;
   }
-  final child=Container(width:38,height:47,alignment:Alignment.center,decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xFFFFFFFF),Color(0xFFFFFAF0),Color(0xFFE6D9C8)]),borderRadius:BorderRadius.circular(8),border:Border.all(color:win?OkeyXColors.gold:const Color(0xFFB8AA99),width:win?2:1),boxShadow:win?const[BoxShadow(color:Color(0x99F4C542),blurRadius:13)]:const[BoxShadow(color:Color(0x55000000),blurRadius:3,offset:Offset(0,2))]),child:Column(mainAxisSize:MainAxisSize.min,children:[Text(value,style:TextStyle(fontSize:value=='O'?18:20,fontWeight:FontWeight.w900,color:color,height:.9)),if(tag.isNotEmpty)Text(tag,style:TextStyle(fontSize:5.2,fontWeight:FontWeight.w900,color:color,height:1))]));
+  final child=Container(width:38,height:47,alignment:Alignment.center,decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xFFFFFFFF),Color(0xFFFFFAF0),Color(0xFFE6D9C8)]),borderRadius:BorderRadius.circular(8),border:Border.all(color:win?OkeyXColors.gold:const Color(0xFFA6A3C7),width:win?2:1),boxShadow:win?const[BoxShadow(color:Color(0x99F4C542),blurRadius:13)]:const[BoxShadow(color:Color(0x55000000),blurRadius:3,offset:Offset(0,2))]),child:Column(mainAxisSize:MainAxisSize.min,children:[Text(value,style:TextStyle(fontSize:value=='O'?18:20,fontWeight:FontWeight.w900,color:color,height:.9)),if(tag.isNotEmpty)Text(tag,style:TextStyle(fontSize:5.2,fontWeight:FontWeight.w900,color:color,height:1))]));
   return AnimatedScale(scale: spinning ? .90 : 1,duration:const Duration(milliseconds:80),child:child);
 }
 
@@ -1722,7 +1722,7 @@ Future<void> _offerCoins(BuildContext context, {required int needed, required in
   final go = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      backgroundColor: const Color(0xFF1D1610),
+      backgroundColor: const Color(0xFF0F0A2C),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: OkeyXColors.gold.withValues(alpha: .30))),
       title: const Row(children: [Icon(Icons.monetization_on_rounded, color: OkeyXColors.gold), SizedBox(width: 7), Text('ALTININ YETMİYOR')]),
       content: Text('Bu oyun için ${_compact(needed)} altın gerekiyor. Bakiyen ${_compact(current)} • ${_compact(missing)} eksik. Günlük fırsatlardan uygun paketi seçebilirsin.', style: const TextStyle(fontSize: 9, color: Colors.white70)),

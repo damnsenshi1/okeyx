@@ -33,9 +33,9 @@ class AvatarService {
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Profil fotoğrafını kırp',
-          toolbarColor: const Color(0xFF2A2018),
+          toolbarColor: const Color(0xFF160F3C),
           toolbarWidgetColor: Colors.white,
-          backgroundColor: const Color(0xFF19130E),
+          backgroundColor: const Color(0xFF0E0927),
           activeControlsWidgetColor: const Color(0xFF54E2BE),
           lockAspectRatio: true,
           hideBottomControls: false,

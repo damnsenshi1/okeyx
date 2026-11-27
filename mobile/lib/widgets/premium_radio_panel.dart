@@ -136,7 +136,7 @@ class _PremiumRadioPanelState extends State<PremiumRadioPanel> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF30251B), Color(0xFF1F1711), Color(0xFF15100C)],
+          colors: [Color(0xFF181044), Color(0xFF100A2E), Color(0xFF0D0822)],
         ),
         border: Border.all(color: accent.withValues(alpha: .42)),
         boxShadow: const [BoxShadow(color: Color(0xB3000000), blurRadius: 36, offset: Offset(0, 15))],
@@ -173,7 +173,7 @@ class _PremiumRadioPanelState extends State<PremiumRadioPanel> {
             padding: EdgeInsets.symmetric(horizontal: short ? 10 : 14, vertical: short ? 8 : 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(19),
-              gradient: LinearGradient(colors: [accent.withValues(alpha: .22), const Color(0xEE261D16), const Color(0xF219130E)]),
+              gradient: LinearGradient(colors: [accent.withValues(alpha: .22), const Color(0xEE150E37), const Color(0xF20E0927)]),
               border: Border.all(color: accent.withValues(alpha: .45)),
               boxShadow: [BoxShadow(color: accent.withValues(alpha: .11), blurRadius: 20)],
             ),

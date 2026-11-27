@@ -208,7 +208,7 @@ class _TutorialScreenState extends State<TutorialScreen> {
                   ),
                 FilledButton(
                   onPressed: canContinue ? _next : null,
-                  style: FilledButton.styleFrom(backgroundColor: OkeyXColors.gold, foregroundColor: const Color(0xFF241500)),
+                  style: FilledButton.styleFrom(backgroundColor: OkeyXColors.gold, foregroundColor: const Color(0xFF120C35)),
                   child: Text(_last ? 'ANTRENMANA BAŞLA' : 'DEVAM', style: const TextStyle(fontWeight: FontWeight.w900)),
                 ),
               ]),

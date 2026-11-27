@@ -30,6 +30,15 @@ def _tier_curve(max_level: int = 200) -> list[dict[str, int]]:
     return out
 
 
+RTP_MIN=85.0
+RTP_MAX=97.0
+
+def _effective_price(item:dict)->int:
+    """İndirim uygulanmış mağaza fiyatı."""
+    price=max(0,int(item.get("price",0) or 0))
+    d=max(0,min(90,int(item.get("discount_percent",0) or 0)))
+    return int(round(price*(100-d)/100)) if d else price
+
 DEFAULT_PHASE4_CONFIG: dict[str, Any] = {
     "version": 1,
     "economy_test_mode": True,
@@ -420,7 +429,7 @@ class Phase4Service:
             a = self._ensure_account(player_id)
             cfg = self._global()["config"]
             inventory = set(a["inventory"])
-            cosmetics = [{**deepcopy(item), "owned": item["id"] in inventory, "equipped": a["equipped"].get(item["category"]) == item["id"]} for item in cfg.get("cosmetics", []) if (not item.get("store_hidden") or item["id"] in inventory)]
+            cosmetics = [{**deepcopy(item), "price": _effective_price(item), "original_price": int(item.get("price", 0) or 0), "discount_percent": int(item.get("discount_percent", 0) or 0), "owned": item["id"] in inventory, "equipped": a["equipped"].get(item["category"]) == item["id"]} for item in cfg.get("cosmetics", []) if (not item.get("store_hidden") or item["id"] in inventory)]
             first_purchase_done = any(r.get("player_id") == player_id and r.get("status") == "verified" for r in self._global()["receipts"].values())
             offers = []
             for offer in cfg.get("offers", []):
@@ -445,7 +454,7 @@ class Phase4Service:
                 "wallet": {"salon_chips": int(self._salon_ensure(a)["salon_chips"]), "coins": int(a["chips"]), "diamonds": int(a["diamonds"]), "tickets": int(a["tickets"]), "slot_vouchers":deepcopy(a.get("slot_vouchers",{})), "debt_minor": int(a.get("economy_debt_minor", 0)), "debt_coins":int(a.get("economy_debt_coins",0))},
                 "vip": self._vip_view(a),
                 "pass": self._pass_view(a),
-                "billing_products": [({**deepcopy(x),"slot_vouchers":{}} if not bool((cfg.get("chance_controls") or {}).get("purchasable_tickets",False)) else deepcopy(x)) for x in cfg.get("billing_products",[])],
+                "billing_products": [({**deepcopy(x),"slot_vouchers":{}} if not bool((cfg.get("chance_controls") or {}).get("purchasable_tickets",False)) else deepcopy(x)) for x in cfg.get("billing_products",[]) if x.get("enabled",True)],
                 "offers": offers,
                 "first_purchase_done": first_purchase_done,
                 "cosmetics": cosmetics,
@@ -481,7 +490,7 @@ class Phase4Service:
                 return {"ok": False, "code": "item_not_found"}
             if item_id in a["inventory"]:
                 return {"ok": True, "already_owned": True, "item": deepcopy(item)}
-            price = max(0, int(item.get("price", 0)))
+            price = _effective_price(item)
             currency = item.get("currency", "coins")
             key = "chips" if currency == "coins" else "diamonds"
             if int(a.get(key, 0)) < price:
@@ -886,9 +895,61 @@ class Phase4Service:
         a=self._ensure_account(pid);key="chips" if currency=="coins" else "diamonds";before=int(a.get(key,0));amount=max(-9_000_000_000_000,min(9_000_000_000_000,int(amount)));after=max(0,before+amount);a[key]=after;row={"actor":actor,"player_id":pid,"currency":currency,"actual":after-before,"before":before,"after":after,"reason":reason[:120],"created_at":_now()};self._global()["wallet_adjustments"].append(row);self._global()["admin_audit"].append({"actor":actor,"action":"wallet_adjust","player_id":pid,"amount":after-before,"created_at":_now()});unit='altın' if currency=='coins' else 'elmas';self.store.add_notification(pid,'Hesabın güncellendi',f"Yönetim hesabına {after-before:+,} {unit} uyguladı. {reason[:60]}".replace(',','.'),'admin');self.store._save();return {"ok":True,"wallet":{"coins":a["chips"],"diamonds":a["diamonds"]},"actual":after-before}
     def staff_set_rtp(self,actor,game,percent,event_title=""):
         self.require_staff(actor,"rtp")
-        return {"ok":False,"code":"rtp_control_removed"}  # Şans Salonu oranları sabit; personel değiştiremez.
+        # Oran sınırlı aralıkta değişir ve oyunculara gösterilen oran her zaman
+        # gerçekte kullanılan orandır (katalogda active_rtp_percent).
         if game not in {"slot","horse","circus","drop"}:return {"ok":False,"code":"invalid_game"}
-        p=round(max(60.,min(98.,float(percent))),2);cfg=self._global()["config"]["side_games"][game];before=float(cfg.get("rtp_percent",90));cfg["rtp_percent"]=p;self._global()["config"]["version"]=int(self._global()["config"].get("version",1))+1;self._global()["admin_audit"].append({"actor":actor,"action":"rtp_update","game":game,"before":before,"after":p,"event_title":event_title[:80],"created_at":_now()});self.store._save();return {"ok":True,"rtp_percent":p}
+        p=round(max(RTP_MIN,min(RTP_MAX,float(percent))),2);cfg=self._global()["config"]["side_games"][game];before=float(cfg.get("rtp_percent",90));cfg["rtp_percent"]=p;self._global()["config"]["version"]=int(self._global()["config"].get("version",1))+1;self._global()["admin_audit"].append({"actor":actor,"action":"rtp_update","game":game,"before":before,"after":p,"event_title":event_title[:80],"created_at":_now()});self.store._save();return {"ok":True,"rtp_percent":p}
+    # ───────── Yönetici paneli: market, ekonomi, RTP raporu, kayıt ─────────
+    def _audit(self,actor,action,**data):
+        g=self._global();g.setdefault("admin_audit",[]).append({"actor":actor,"action":action,"created_at":_now(),**data});g["admin_audit"]=g["admin_audit"][-500:]
+    def realized_rtp(self)->dict:
+        out={}
+        for ev in self._global().get("rng_events",[]):
+            row=out.setdefault(ev.get("game","?"),{"rounds":0,"wagered":0,"paid":0})
+            row["rounds"]+=1;row["wagered"]+=int(ev.get("wager_coins",0) or 0);row["paid"]+=int(ev.get("payout_coins",0) or 0)+int(ev.get("event_bonus_coins",0) or 0)
+        for row in out.values():row["realized_percent"]=round(100.0*row["paid"]/row["wagered"],2) if row["wagered"]>0 else None
+        return out
+    def staff_market(self,actor):
+        self.require_staff(actor,"economy")
+        with self.store._lock:
+            cfg=self._global()["config"]
+            games={k:{"title":v.get("title",k),"rtp_percent":float(v.get("rtp_percent",90))} for k,v in cfg.get("side_games",{}).items() if "rtp_percent" in v}
+            return {"ok":True,"cosmetics":deepcopy(cfg.get("cosmetics",[])),"products":deepcopy(cfg.get("billing_products",[])),"offers":deepcopy(cfg.get("offers",[])),
+                    "economy":self.store.economy(),"side_games":games,"realized_rtp":self.realized_rtp(),"rtp_bounds":[RTP_MIN,RTP_MAX],
+                    "audit":deepcopy(list(reversed(self._global().get("admin_audit",[])[-80:])))}
+    def staff_update_cosmetic(self,actor,item_id,patch):
+        self.require_staff(actor,"economy")
+        with self.store._lock:
+            item=next((x for x in self._global()["config"].get("cosmetics",[]) if x.get("id")==item_id),None)
+            if not item:return {"ok":False,"code":"item_not_found"}
+            before={k:item.get(k) for k in ("price","currency","discount_percent","store_hidden","name")}
+            if "price" in patch:item["price"]=max(0,min(1_000_000_000,int(patch["price"])))
+            if patch.get("currency") in ("coins","diamonds"):item["currency"]=patch["currency"]
+            if "discount_percent" in patch:item["discount_percent"]=max(0,min(90,int(patch["discount_percent"])))
+            if "store_hidden" in patch:item["store_hidden"]=bool(patch["store_hidden"])
+            if "name" in patch and str(patch["name"]).strip():item["name"]=str(patch["name"]).strip()[:40]
+            self._audit(actor,"cosmetic_update",item_id=item_id,before=before,after={k:item.get(k) for k in before})
+            self.store._save();return {"ok":True,"item":deepcopy(item)}
+    def staff_update_product(self,actor,sku,patch):
+        self.require_staff(actor,"economy")
+        with self.store._lock:
+            item=next((x for x in self._global()["config"].get("billing_products",[]) if x.get("sku")==sku),None)
+            if not item:return {"ok":False,"code":"product_not_found"}
+            before={k:item.get(k) for k in ("coins","diamonds","title","value_label","price_hint","enabled")}
+            if "coins" in patch:item["coins"]=max(0,min(10_000_000_000,int(patch["coins"])))
+            if "diamonds" in patch:item["diamonds"]=max(0,min(1_000_000,int(patch["diamonds"])))
+            for k,n in (("title",40),("value_label",24),("price_hint",16)):
+                if k in patch:item[k]=str(patch[k] or "").strip()[:n]
+            if "enabled" in patch:item["enabled"]=bool(patch["enabled"])
+            self._audit(actor,"product_update",sku=sku,before=before,after={k:item.get(k) for k in before})
+            self.store._save();return {"ok":True,"product":deepcopy(item)}
+    def staff_update_economy(self,actor,patch):
+        self.require_staff(actor,"economy")
+        with self.store._lock:
+            before=self.store.economy();after=self.store.update_economy(patch if isinstance(patch,dict) else {})
+            self._audit(actor,"economy_update",before=before,after=after)
+            self.store._save();return {"ok":True,"economy":after}
+
     def staff_reward_config(self,actor,patch):
         self.require_staff(actor,"rtp")
         cfg=self.store.update_reward_config(patch if isinstance(patch,dict) else {})

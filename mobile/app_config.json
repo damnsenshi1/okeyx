@@ -10,5 +10,6 @@
   "FCM_API_KEY": "",
   "FCM_APP_ID": "",
   "FCM_SENDER_ID": "",
-  "FCM_PROJECT_ID": ""
+  "FCM_PROJECT_ID": "",
+  "GOOGLE_WEB_CLIENT_ID": ""
 }

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/app_theme.dart';
@@ -60,9 +61,12 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     } catch (error) {
+      if ('$error'.contains('google_cancelled')) return;
       if (mounted) {
         setState(() {
-          _message = _friendlyError(error);
+          _message = '$error'.contains('google_no_id_token') || '$error'.contains('ApiException: 10')
+              ? 'Google girişi ayarı tamamlanmamış (OAuth istemcisi). Şimdilik misafir ya da e-posta ile girebilirsin.'
+              : _friendlyError(error);
           _messageIsError = true;
         });
       }
@@ -114,17 +118,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: OkeyXColors.ink,
-        // Lacivert merkezli, kenarlara doğru ceviz tonuna dönen ışık.
-        body: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(-.35, -.25),
-              radius: 1.3,
-              colors: [Color(0xFF1B3558), Color(0xFF0C1626), Color(0xFF2A190C)],
-              stops: [0, .55, 1],
-            ),
-          ),
-          child: SafeArea(
+        body: OkxRoom(
+          child: Stack(children: [
+            const Positioned.fill(child: IgnorePointer(child: _FloatingTiles())),
+            SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final compact = constraints.maxHeight < 430;
@@ -150,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1120),
                         child: wide
-                            ? Row(crossAxisAlignment: CrossAxisAlignment.center, children: [Expanded(flex: 45, child: hero), const SizedBox(width: 28), Expanded(flex: 55, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: panel))])
+                            ? Row(crossAxisAlignment: CrossAxisAlignment.center, children: [Expanded(flex: 50, child: hero), const SizedBox(width: 28), Expanded(flex: 50, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 500), child: panel))])
                             : Column(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: hero), SizedBox(height: compact ? 10 : 18), ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: panel)]),
                       ),
                     ),
@@ -159,62 +156,41 @@ class _LoginScreenState extends State<LoginScreen> {
               },
             ),
           ),
+          ]),
         ),
       );
 
   Widget _hero(bool compact) {
-    final tableH = compact ? 170.0 : 230.0;
+    final logoH = compact ? 170.0 : 250.0;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 900),
       curve: Curves.easeOutBack,
-      builder: (context, v, child) => Opacity(opacity: v.clamp(0, 1), child: Transform.scale(scale: .94 + .06 * v, child: child)),
+      builder: (context, v, child) => Opacity(opacity: v.clamp(0, 1), child: Transform.scale(scale: .85 + .15 * v, child: child)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            height: tableH,
-            padding: const EdgeInsets.all(11),
-            decoration: walnutDecoration(radius: BorderRadius.circular(tableH / 2)),
-            child: OkxFelt(
-              borderRadius: BorderRadius.circular(tableH / 2),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Hero(
-                    tag: 'okeyx-brand',
-                    child: Image.asset('assets/brand/okeyx_logo_transparent.png', height: tableH * .62, fit: BoxFit.contain, filterQuality: FilterQuality.medium),
-                  ),
-                  Positioned(
-                    left: tableH * .32,
-                    bottom: tableH * .14,
-                    child: Transform.rotate(
-                      angle: -.18,
-                      child: SizedBox(width: compact ? 26 : 34, height: compact ? 37 : 48, child: const TileWidget(tile: GameTile(id: 'l1', number: 7, colorIndex: 0))),
-                    ),
-                  ),
-                  Positioned(
-                    right: tableH * .32,
-                    bottom: tableH * .14,
-                    child: Transform.rotate(
-                      angle: .16,
-                      child: SizedBox(width: compact ? 26 : 34, height: compact ? 37 : 48, child: const TileWidget(tile: GameTile(id: 'l2', number: 8, colorIndex: 0, isJoker: true))),
-                    ),
-                  ),
-                ],
-              ),
+          // Logonun arkasında nefes alan renkli hale.
+          _PulseHalo(
+            size: logoH * 1.15,
+            child: Hero(
+              tag: 'okeyx-brand',
+              child: Image.asset('assets/brand/okeyx_logo_3d.png', height: logoH, fit: BoxFit.contain, filterQuality: FilterQuality.medium),
             ),
           ),
-          SizedBox(height: compact ? 12 : 18),
-          OkxTitle('Arkadaşlarınla okey keyfi', size: compact ? 20 : 26),
+          SizedBox(height: compact ? 6 : 10),
+          ShaderMask(
+            shaderCallback: (r) => const LinearGradient(colors: [Color(0xFFFFE36B), Color(0xFFFF8A3D), Color(0xFFFF4D8D)]).createShader(r),
+            child: Text('Arkadaşlarınla okey keyfi', textAlign: TextAlign.center, style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: compact ? 20 : 27, color: Colors.white, letterSpacing: .3)),
+          ),
           const SizedBox(height: 6),
-          Text('Gerçek 101 kuralları • canlı rakipler • sohbet ve hediyeler', textAlign: TextAlign.center, style: TextStyle(color: OkeyXColors.muted, fontSize: compact ? 11 : 12.5, fontWeight: FontWeight.w600)),
+          Text('101 Okey • Klasik Okey • canlı rakipler • sohbet ve hediyeler', textAlign: TextAlign.center, style: TextStyle(color: OkeyXColors.muted, fontSize: compact ? 11 : 12.5, fontWeight: FontWeight.w700)),
           if (!compact) ...[
             const SizedBox(height: 14),
             const Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
-              OkxChip(label: 'SUNUCU DOĞRULAMALI', icon: Icons.verified_rounded),
-              OkxChip(label: '4 KİŞİLİK CANLI MASA', icon: Icons.groups_rounded),
-              OkxChip(label: 'RADYO VE SESLİ SOHBET', icon: Icons.graphic_eq_rounded),
+              _GlowChip(label: 'SUNUCU DOĞRULAMALI', icon: Icons.verified_rounded, color: Color(0xFF3DF2D0)),
+              _GlowChip(label: '4 KİŞİLİK CANLI MASA', icon: Icons.groups_rounded, color: Color(0xFFFF7AC6)),
+              _GlowChip(label: 'SESLİ SOHBET', icon: Icons.graphic_eq_rounded, color: Color(0xFFFFCB45)),
             ]),
           ],
         ],
@@ -239,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
           SizedBox(height: compact ? 14 : 18),
           if (widget.remoteConfig.googleEnabled)
-            _entryButton(textIcon: 'G', label: 'GOOGLE İLE GİR', subtitle: 'İlerlemen hesabında güvende', style: OkxButtonStyle.ghost, onTap: _busy ? null : () => _run(() => widget.auth.signInWithGoogle(), working: 'Google giriş ekranı açılıyor…')),
+            _entryButton(textIcon: 'G', label: 'GOOGLE İLE GİR', subtitle: 'Tek dokunuş • ilerlemen hesabında güvende', style: OkxButtonStyle.green, onTap: _busy ? null : () => _run(() => widget.auth.signInWithGoogle(), working: 'Google giriş ekranı açılıyor…')),
           if (widget.remoteConfig.googleEnabled) const SizedBox(height: 10),
           _entryButton(icon: Icons.person_rounded, label: 'MİSAFİR OYNA', subtitle: 'Hemen başla, sonra hesabını bağla', style: OkxButtonStyle.brass, onTap: _busy ? null : () => _run(widget.auth.signInAnonymously, working: 'Misafir oturumun hazırlanıyor…')),
           if (_message.isNotEmpty) ...[const SizedBox(height: 10), _messageView()],
@@ -349,7 +325,8 @@ class _LoginScreenState extends State<LoginScreen> {
     required VoidCallback? onTap,
   }) {
     final dark = style == OkxButtonStyle.brass;
-    final fg = dark ? okxTextDark : OkeyXColors.cream;
+    final google = style == OkxButtonStyle.green;
+    final fg = google ? const Color(0xFF1F1F3A) : (dark ? okxTextDark : OkeyXColors.cream);
     return Opacity(
       opacity: onTap == null ? .55 : 1,
       child: GestureDetector(
@@ -360,10 +337,11 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             gradient: dark ? brassGradient : null,
-            color: dark ? null : const Color(0xA6140E09),
-            border: dark ? null : Border.all(color: OkeyXColors.line2, width: 1.3),
+            color: google ? Colors.white : (dark ? null : const Color(0xA6311F7A)),
+            border: dark || google ? null : Border.all(color: OkeyXColors.line2, width: 1.3),
             boxShadow: [
-              if (dark) const BoxShadow(color: Color(0xFF4A2F0C), offset: Offset(0, 3)),
+              if (dark) const BoxShadow(color: Color(0xFFA8480A), offset: Offset(0, 3)),
+              if (google) const BoxShadow(color: Color(0x664D7CFF), blurRadius: 18),
               const BoxShadow(color: Color(0x80000000), blurRadius: 14, offset: Offset(0, 7)),
             ],
           ),
@@ -372,7 +350,10 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(
                 width: 30,
                 child: textIcon != null
-                    ? Text(textIcon, textAlign: TextAlign.center, style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: 20, color: fg))
+                    ? ShaderMask(
+                        shaderCallback: (r) => const SweepGradient(colors: [Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335), Color(0xFF4285F4)]).createShader(r),
+                        child: Text(textIcon, textAlign: TextAlign.center, style: const TextStyle(fontFamily: OkeyXFonts.number, fontSize: 22, color: Colors.white)),
+                      )
                     : Icon(icon, color: fg, size: 23),
               ),
               const SizedBox(width: 10),
@@ -417,7 +398,7 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.symmetric(vertical: 9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(9),
-            gradient: selected ? const LinearGradient(colors: [Color(0xFFF6DC95), Color(0xFFC99440)], begin: Alignment.topCenter, end: Alignment.bottomCenter) : null,
+            gradient: selected ? const LinearGradient(colors: [Color(0xFFFFE36B), Color(0xFFFFA928)], begin: Alignment.topCenter, end: Alignment.bottomCenter) : null,
           ),
           child: Text(
             label,
@@ -438,4 +419,111 @@ class _LoginScreenState extends State<LoginScreen> {
     if (text.contains('supabase_not_configured')) return 'Sunucu yapılandırması eksik.';
     return 'İşlem tamamlanamadı. Biraz sonra tekrar dene.';
   }
+}
+
+
+class _GlowChip extends StatelessWidget {
+  const _GlowChip({required this.label, required this.icon, required this.color});
+  final String label;
+  final IconData icon;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: color.withValues(alpha: .12),
+          border: Border.all(color: color.withValues(alpha: .55)),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: .25), blurRadius: 12)],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: .8, color: color)),
+        ]),
+      );
+}
+
+/// Logonun arkasında yavaşça büyüyüp küçülen renkli ışık halesi.
+class _PulseHalo extends StatefulWidget {
+  const _PulseHalo({required this.child, required this.size});
+  final Widget child;
+  final double size;
+  @override
+  State<_PulseHalo> createState() => _PulseHaloState();
+}
+
+class _PulseHaloState extends State<_PulseHalo> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600))..repeat(reverse: true);
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        child: widget.child,
+        builder: (context, child) {
+          final t = Curves.easeInOut.transform(_c.value);
+          return Stack(alignment: Alignment.center, children: [
+            Container(
+              width: widget.size * (.78 + .12 * t),
+              height: widget.size * (.78 + .12 * t),
+              decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [const Color(0xFFFF4D8D).withValues(alpha: .38 + .12 * t), const Color(0xFF7B2FF7).withValues(alpha: .18), const Color(0x00000000)], stops: const [0, .55, 1])),
+            ),
+            Transform.translate(offset: Offset(0, -4 * t), child: child),
+          ]);
+        },
+      );
+}
+
+/// Arka planda yavaşça süzülen okey taşları.
+class _FloatingTiles extends StatefulWidget {
+  const _FloatingTiles();
+  @override
+  State<_FloatingTiles> createState() => _FloatingTilesState();
+}
+
+class _FloatingTilesState extends State<_FloatingTiles> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 14))..repeat();
+  static const _tiles = [
+    (0.06, 0.18, 7, 0, -.3, 44.0),
+    (0.90, 0.12, 13, 1, .25, 38.0),
+    (0.14, 0.80, 1, 2, .35, 36.0),
+    (0.84, 0.78, 9, 3, -.2, 46.0),
+    (0.48, 0.06, 4, 1, .12, 30.0),
+    (0.56, 0.92, 11, 0, -.15, 32.0),
+  ];
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, box) => AnimatedBuilder(
+          animation: _c,
+          builder: (context, _) => Stack(children: [
+            for (var i = 0; i < _tiles.length; i++)
+              Builder(builder: (context) {
+                final t = _tiles[i];
+                final phase = _c.value * 2 * math.pi + i;
+                return Positioned(
+                  left: t.$1 * box.maxWidth - t.$6 / 2,
+                  top: t.$2 * box.maxHeight + math.sin(phase) * 12,
+                  child: Opacity(
+                    opacity: .55,
+                    child: Transform.rotate(
+                      angle: t.$5 + math.sin(phase * .7) * .12,
+                      child: SizedBox(width: t.$6, height: t.$6 * 1.42, child: TileWidget(tile: GameTile(id: 'f$i', number: t.$3, colorIndex: t.$4))),
+                    ),
+                  ),
+                );
+              }),
+          ]),
+        ),
+      );
 }

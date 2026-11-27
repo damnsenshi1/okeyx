@@ -1,7 +1,7 @@
 name: okeyx_mobile
 description: OkeyX mobile-only 101 Okey client
 publish_to: none
-version: 19.0.0+191
+version: 20.0.0+200
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:
@@ -9,6 +9,7 @@ dependencies:
     sdk: flutter
   supabase_flutter: 2.9.1
   url_launcher: 6.3.2
+  google_sign_in: 6.2.2
   shared_preferences: 2.5.5
   audioplayers: 6.2.0
   just_audio: ^0.9.46

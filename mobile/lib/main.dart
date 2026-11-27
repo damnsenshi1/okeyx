@@ -35,7 +35,7 @@ void main() {
         'OKEYX_ERROR_WIDGET: ${details.exceptionAsString()}\n${details.stack ?? StackTrace.current}',
       );
       return const Material(
-        color: Color(0xFF201812),
+        color: Color(0xFF110B30),
         child: Center(
           child: Text(
             'OkeyX ekran hatasi kaydedildi.',

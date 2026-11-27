@@ -9,30 +9,36 @@ import '../core/app_theme.dart';
 
 const _walnut = AssetImage('assets/textures/walnut.jpg');
 const _felt = AssetImage('assets/textures/felt.jpg');
-const _leather = AssetImage('assets/textures/leather.jpg');
 
 const brassGradient = LinearGradient(
   begin: Alignment.topCenter,
   end: Alignment.bottomCenter,
-  colors: [Color(0xFFFBE7A8), Color(0xFFF0CF7C), Color(0xFFD9A94E), Color(0xFF9A6A24)],
-  stops: [0, .22, .52, 1],
+  colors: [Color(0xFFFFF1A8), Color(0xFFFFD54A), Color(0xFFFFA928), Color(0xFFE0701A)],
+  stops: [0, .28, .62, 1],
 );
 
 const greenGradient = LinearGradient(
   begin: Alignment.topCenter,
   end: Alignment.bottomCenter,
-  colors: [Color(0xFF5FE0A6), Color(0xFF23A46D), Color(0xFF16714A)],
-  stops: [0, .55, 1],
+  colors: [Color(0xFF7CFFD0), Color(0xFF16D9A0), Color(0xFF0A9C8A)],
+  stops: [0, .5, 1],
 );
 
 const redGradient = LinearGradient(
   begin: Alignment.topCenter,
   end: Alignment.bottomCenter,
-  colors: [Color(0xFFE4705D), Color(0xFFB23423), Color(0xFF7C1F14)],
-  stops: [0, .6, 1],
+  colors: [Color(0xFFFF8FB1), Color(0xFFFF4D7E), Color(0xFFC21E5C)],
+  stops: [0, .55, 1],
 );
 
-const okxTextDark = Color(0xFF2B1906);
+/// Renkli bölüm vurguları (her mod/özellik kendi renginde).
+const okxVioletGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFB36BFF), Color(0xFF6A3DF0)]);
+const okxCyanGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF4DF2FF), Color(0xFF2F7BFF)]);
+const okxPinkGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFF7AC6), Color(0xFFFF3D6E)]);
+const okxOrangeGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFFC94A), Color(0xFFFF6B2C)]);
+const okxEmeraldGradient = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF3DFFB0), Color(0xFF0FA3A3)]);
+
+const okxTextDark = Color(0xFF150E3D);
 
 /// Ekran arka planı: deri doku + üstten sıcak lamba ışığı + kenar gölgesi.
 class OkxRoom extends StatelessWidget {
@@ -44,40 +50,45 @@ class OkxRoom extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
-        color: OkeyXColors.ink,
-        image: DecorationImage(image: _leather, repeat: ImageRepeat.repeat),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E1056), Color(0xFF0C0830), Color(0xFF07273D)],
+          stops: [0, .55, 1],
+        ),
       ),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (lamp)
-            const IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment(0, -1.25),
-                    radius: 1.05,
-                    colors: [Color(0x38FFC46E), Color(0x00FFC46E)],
-                  ),
-                ),
-              ),
-            ),
-          const IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  radius: 1.1,
-                  colors: [Color(0x00000000), Color(0xAA000000)],
-                  stops: [.55, 1],
-                ),
-              ),
-            ),
-          ),
+          // Renkli ışık lekeleri: mor, turkuaz ve sıcak altın.
+          const IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(-.9, -.9), radius: .9, colors: [Color(0x55B04DFF), Color(0x00B04DFF)])))),
+          const IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(1.0, .9), radius: .9, colors: [Color(0x4419E3D0), Color(0x0019E3D0)])))),
+          if (lamp) const IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(.1, -1.3), radius: 1.0, colors: [Color(0x40FFC845), Color(0x00FFC845)])))),
+          const IgnorePointer(child: CustomPaint(painter: _SparklePainter())),
           child,
         ],
       ),
     );
   }
+}
+
+/// Arka planda hafif yıldız/parıltı noktaları (sabit, performans dostu).
+class _SparklePainter extends CustomPainter {
+  const _SparklePainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rnd = math.Random(7);
+    final p = Paint();
+    for (var i = 0; i < 70; i++) {
+      final o = Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height);
+      final r = .6 + rnd.nextDouble() * 1.6;
+      p.color = [const Color(0x66FFFFFF), const Color(0x55FFD45A), const Color(0x5566F0FF), const Color(0x55E08BFF)][i % 4];
+      canvas.drawCircle(o, r, p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklePainter oldDelegate) => false;
 }
 
 /// Çuha yüzey (masa). İsteğe bağlı renk tonu (bordo, gece mavisi...).
@@ -193,7 +204,7 @@ const okxRackStyles = <(String, String)>[
 /// Ceviz ahşap kasnak (masa kenarı, ıstaka). [rack] ile ağaç türü değişir.
 BoxDecoration walnutDecoration({BorderRadius radius = const BorderRadius.all(Radius.circular(18)), bool deep = true, String rack = 'walnut'}) => BoxDecoration(
       borderRadius: radius,
-      color: const Color(0xFF5A321B),
+      color: const Color(0xFF2A1A78),
       image: DecorationImage(image: _walnut, fit: BoxFit.cover, alignment: Alignment.centerLeft, colorFilter: okxRackFilter(rack)),
       boxShadow: deep
           ? const [
@@ -227,25 +238,29 @@ class OkxLeather extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Cam panel: mor-lacivert geçiş, üstte ışık şeridi, ince renkli kenar.
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        color: const Color(0xFF1A140F),
-        image: const DecorationImage(image: _leather, repeat: ImageRepeat.repeat),
-        border: Border.all(color: borderColor ?? OkeyXColors.line, width: 1),
-        boxShadow: shadows ?? const [BoxShadow(color: Color(0x73000000), blurRadius: 24, offset: Offset(0, 10))],
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xF2302079), Color(0xF21A1250), Color(0xF2102A55)],
+          stops: [0, .55, 1],
+        ),
+        border: Border.all(color: borderColor ?? OkeyXColors.line2, width: 1.1),
+        boxShadow: shadows ?? const [BoxShadow(color: Color(0x80070320), blurRadius: 26, offset: Offset(0, 12)), BoxShadow(color: Color(0x226A3DF0), blurRadius: 30, spreadRadius: -4)],
       ),
-      // Not: BoxDecoration'da color ile gradient birlikte olamaz; ışık
-      // geçişi ayrı bir katmanda.
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
           gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0x10FFEBC8), Color(0x2E000000)],
+            colors: [Color(0x1FFFFFFF), Color(0x00FFFFFF), Color(0x26000000)],
+            stops: [0, .35, 1],
           ),
         ),
         child: stitch
@@ -268,16 +283,10 @@ class _StitchPainter extends CustomPainter {
     final rect = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)).deflate(5);
     final path = Path()..addRRect(rect);
     final paint = Paint()
-      ..color = const Color(0x38E8C478)
+      ..shader = const LinearGradient(colors: [Color(0x99FFD45A), Color(0x66E08BFF), Color(0x9966F0FF)]).createShader(Offset.zero & size)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.3;
-    for (final metric in path.computeMetrics()) {
-      var d = 0.0;
-      while (d < metric.length) {
-        canvas.drawPath(metric.extractPath(d, d + 5), paint);
-        d += 9;
-      }
-    }
+      ..strokeWidth = 1.2;
+    canvas.drawPath(path, paint);
   }
 
   @override
@@ -349,10 +358,10 @@ class _OkxButtonState extends State<OkxButton> {
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
     final (Gradient? grad, Color? bg, Color fg, Color lip, Color? border) = switch (widget.style) {
-      OkxButtonStyle.brass => (brassGradient, null, okxTextDark, const Color(0xFF4A2F0C), null),
+      OkxButtonStyle.brass => (brassGradient, null, okxTextDark, const Color(0xFFA8480A), null),
       OkxButtonStyle.green => (greenGradient, null, const Color(0xFF04241A), const Color(0xFF0B4A30), null),
       OkxButtonStyle.red => (redGradient, null, const Color(0xFFFFF3EC), const Color(0xFF561208), null),
-      OkxButtonStyle.ghost => (null, const Color(0xA6140E09), OkeyXColors.cream, const Color(0x00000000), OkeyXColors.line2),
+      OkxButtonStyle.ghost => (null, const Color(0xA6311F7A), OkeyXColors.cream, const Color(0x00000000), OkeyXColors.line2),
     };
     final content = Row(
       mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
@@ -431,7 +440,7 @@ class OkxIconTile extends StatelessWidget {
             height: size,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(size * .28),
-              color: active ? null : const Color(0xA6140E09),
+              color: active ? null : const Color(0xA60B0721),
               gradient: active ? brassGradient : null,
               border: Border.all(color: active ? Colors.transparent : OkeyXColors.line2, width: 1.3),
               boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 6))],
@@ -539,7 +548,7 @@ class OkxAvatar extends StatelessWidget {
   const OkxAvatar({super.key, required this.name, this.imageUrl, this.size = 52, this.ring, this.online = false, this.highlight = false, this.child});
 
   static const _palette = [
-    [Color(0xFF7A5A3C), Color(0xFF3B2A1C)],
+    [Color(0xFF7A5A3C), Color(0xFF1C1251)],
     [Color(0xFF4F7BB6), Color(0xFF1E3558)],
     [Color(0xFFB6554A), Color(0xFF5A1F19)],
     [Color(0xFF5C9A6E), Color(0xFF1E4A2D)],
@@ -655,7 +664,7 @@ class OkxChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
-          gradient: selected ? const LinearGradient(colors: [Color(0xFFF6DC95), Color(0xFFC99440)], begin: Alignment.topCenter, end: Alignment.bottomCenter) : null,
+          gradient: selected ? const LinearGradient(colors: [Color(0xFFFFE36B), Color(0xFFFFA928)], begin: Alignment.topCenter, end: Alignment.bottomCenter) : null,
           color: selected ? null : (onFelt ? const Color(0x47000000) : const Color(0x10FFEBC8)),
           border: Border.all(color: selected ? Colors.transparent : (onFelt ? const Color(0x24FFFFFF) : OkeyXColors.line)),
         ),

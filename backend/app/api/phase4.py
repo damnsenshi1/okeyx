@@ -300,6 +300,35 @@ def staff_wallet(body:StaffWalletIn,x_account_token:str|None=Header(None)):
     try:return _svc().staff_adjust_wallet(body.actor_id,body.player_id,body.currency,body.amount,body.reason)
     except PermissionError:raise HTTPException(403,"staff_permission_denied")
 
+class StaffPatchIn(BaseModel):
+    actor_id: str
+    target: str = ""
+    patch: dict = {}
+
+@router.get("/phase4/staff/{player_id}/market")
+def staff_market(player_id:str,x_account_token:str|None=Header(None)):
+    _require(player_id,x_account_token)
+    try:return _svc().staff_market(player_id)
+    except PermissionError:raise HTTPException(403,"staff_permission_denied")
+
+@router.post("/phase4/staff/cosmetic")
+def staff_cosmetic(body:StaffPatchIn,x_account_token:str|None=Header(None)):
+    _require(body.actor_id,x_account_token)
+    try:return _svc().staff_update_cosmetic(body.actor_id,body.target,body.patch)
+    except PermissionError:raise HTTPException(403,"staff_permission_denied")
+
+@router.post("/phase4/staff/product")
+def staff_product(body:StaffPatchIn,x_account_token:str|None=Header(None)):
+    _require(body.actor_id,x_account_token)
+    try:return _svc().staff_update_product(body.actor_id,body.target,body.patch)
+    except PermissionError:raise HTTPException(403,"staff_permission_denied")
+
+@router.post("/phase4/staff/economy")
+def staff_economy(body:StaffPatchIn,x_account_token:str|None=Header(None)):
+    _require(body.actor_id,x_account_token)
+    try:return _svc().staff_update_economy(body.actor_id,body.patch)
+    except PermissionError:raise HTTPException(403,"staff_permission_denied")
+
 @router.post("/phase4/staff/rtp")
 def staff_rtp(body:StaffRtpIn,x_account_token:str|None=Header(None)):
     _require(body.actor_id,x_account_token)

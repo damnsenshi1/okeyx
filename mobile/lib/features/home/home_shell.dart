@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/game_audio.dart';
+import '../../core/app_updater.dart';
+import '../onboarding/onboarding_overlay.dart';
 import '../../core/live_features.dart';
 import '../../core/remote_config.dart';
 import '../../core/telemetry.dart';
@@ -95,7 +97,7 @@ class _HomeShellState extends State<HomeShell> {
   String _lastRuleVariant = 'non_fold';
   String _teamMode = 'solo';
   bool _assisted = true;
-  int _rounds = 3;
+  int _rounds = 1;
   int _entryFee = 5000;
   int _turnSeconds = 35;
   String _leagueScope = 'global';
@@ -140,7 +142,10 @@ class _HomeShellState extends State<HomeShell> {
     unawaited(_loadStaffFallback());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future<void>.delayed(const Duration(milliseconds: 420), () {
-        if (mounted) unawaited(_maybeShowWelcomeBonus());
+        if (mounted) unawaited(_maybeOnboard());
+      });
+      Future<void>.delayed(const Duration(seconds: 3), () {
+        if (mounted) unawaited(AppUpdater.checkAndPrompt(context));
       });
     });
     Future<void>.delayed(const Duration(milliseconds: 2400), () {
@@ -205,6 +210,17 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  /// Yeni oyuncu karşılaması (bir kez). Hoş geldin hediyesi 1.000.000 altın
+  /// sunucuda hesap açılırken yüklenir; burada kutlanır.
+  Future<void> _maybeOnboard() async {
+    if (!await OkxOnboarding.shouldShow(_profile.userId) || !mounted) return;
+    final next = await OkxOnboarding.show(context, userId: _profile.userId, name: _profile.displayName, sound: _preferences.soundEnabled);
+    if (!mounted) return;
+    if (next == 'practice') unawaited(_practicePlay());
+    if (next == 'tutorial') _openTutorial();
+  }
+
+  // ignore: unused_element
   Future<void> _maybeShowWelcomeBonus() async {
     try {
       final raw = await Supabase.instance.client.rpc('okeyx_welcome_bonus_status');
@@ -248,7 +264,7 @@ class _HomeShellState extends State<HomeShell> {
                         gradient: const LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [Color(0xFF5C4734), Color(0xFF2F241B), Color(0xFF19130E)],
+                          colors: [Color(0xFF2D1D7B), Color(0xFF191042), Color(0xFF0E0927)],
                         ),
                         border: Border.all(color: OkeyXColors.gold, width: 1.5),
                         boxShadow: const [BoxShadow(color: Color(0x66F4C542), blurRadius: 28)],
@@ -311,7 +327,7 @@ class _HomeShellState extends State<HomeShell> {
                             child: FilledButton.icon(
                               style: FilledButton.styleFrom(
                                 backgroundColor: OkeyXColors.gold,
-                                foregroundColor: const Color(0xFF251C15),
+                                foregroundColor: const Color(0xFF140D36),
                                 padding: const EdgeInsets.symmetric(horizontal: 10),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
@@ -884,7 +900,7 @@ class _HomeShellState extends State<HomeShell> {
               height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF1A140F),
+                color: const Color(0xFF0F0A28),
                 image: const DecorationImage(image: AssetImage('assets/textures/leather.jpg'), repeat: ImageRepeat.repeat),
                 border: Border.all(color: active ? OkeyXColors.cyan : OkeyXColors.line, width: active ? 1.6 : 1),
                 boxShadow: const [BoxShadow(color: Color(0x59000000), blurRadius: 10, offset: Offset(0, 4))],
@@ -985,13 +1001,32 @@ class _HomeShellState extends State<HomeShell> {
   Widget _heroCard(bool compact) {
     final fees = const [1000, 5000, 10000, 25000, 100000];
     final heroH = compact ? 250.0 : 284.0;
-    return Container(
+    final classic = _variant == 'duz';
+    // Her modun kendi canlı rengi: 101 Okey zümrüt-turkuaz, Klasik Okey mor-pembe.
+    final colors = classic
+        ? const [Color(0xFF7B2FF7), Color(0xFFC0269E), Color(0xFFFF5A6E)]
+        : const [Color(0xFF0BA37F), Color(0xFF0E7FA8), Color(0xFF3B3BC4)];
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
       height: heroH,
-      padding: const EdgeInsets.all(13),
-      decoration: walnutDecoration(radius: BorderRadius.circular(32)),
-      child: OkxFelt(
-        borderRadius: BorderRadius.circular(22),
-        child: Padding(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
+        border: Border.all(color: const Color(0x66FFFFFF), width: 1.2),
+        boxShadow: [
+          BoxShadow(color: colors[1].withValues(alpha: .55), blurRadius: 34, spreadRadius: -6, offset: const Offset(0, 14)),
+          const BoxShadow(color: Color(0x99050218), blurRadius: 24, offset: Offset(0, 12)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(29),
+        child: Stack(children: [
+          // Parlak üst ışık ve büyük filigran.
+          Positioned.fill(child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.white.withValues(alpha: .18), Colors.white.withValues(alpha: 0), Colors.black.withValues(alpha: .18)], stops: const [0, .45, 1]))))),
+          Positioned(right: compact ? 150 : 200, bottom: -30, child: IgnorePointer(child: Text(classic ? 'OKEY' : '101', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: compact ? 150 : 190, color: Colors.white.withValues(alpha: .07), height: 1)))),
+          const Positioned.fill(child: IgnorePointer(child: _ShineSweep())),
+          Padding(
           padding: EdgeInsets.fromLTRB(compact ? 16 : 26, compact ? 14 : 20, compact ? 16 : 24, compact ? 14 : 18),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1013,12 +1048,12 @@ class _HomeShellState extends State<HomeShell> {
                               Row(mainAxisSize: MainAxisSize.min, children: [
                                 Container(width: 7, height: 7, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF3CCF8E), boxShadow: [BoxShadow(color: Color(0xFF3CCF8E), blurRadius: 8)])),
                                 const SizedBox(width: 6),
-                                Text('${_rooms.length} AÇIK MASA', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: OkeyXColors.mint)),
+                                Text('${_rooms.length} AÇIK MASA', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: Color(0xFFB6FFE4))),
                               ]),
                               const SizedBox(height: 6),
-                              FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: OkxTitle(_variant == 'duz' ? 'Klasik Okey' : '101 Okey', size: compact ? 32 : 40)),
+                              FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: OkxTitle(_variant == 'duz' ? 'Klasik Okey' : '101 Okey', size: compact ? 32 : 40, color: Colors.white)),
                               const SizedBox(height: 5),
-                              Text('Gerçek rakipler • boş koltuklar 15 sn’de dolar', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 11 : 12, color: const Color(0xFFCFE8D8), fontWeight: FontWeight.w600)),
+                              Text('Gerçek rakipler • boş koltuklar 15 sn’de dolar', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 11 : 12, color: Colors.white.withValues(alpha: .88), fontWeight: FontWeight.w700)),
                             ],
                           ),
                         ),
@@ -1070,13 +1105,21 @@ class _HomeShellState extends State<HomeShell> {
                           active: _assisted,
                           onTap: () => setState(() => _assisted = !_assisted),
                         ),
+                        const SizedBox(width: 7),
+                        OkxToggleChip(
+                          height: compact ? 30 : 34,
+                          label: '$_rounds El',
+                          icon: Icons.layers_rounded,
+                          active: true,
+                          onTap: () => setState(() => _rounds = switch (_rounds) { 1 => 2, 2 => 3, _ => 1 }),
+                        ),
                       ]),
                     ),
                     const SizedBox(height: 10),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(children: [
-                        const Text('GİRİŞ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5, color: Color(0xFFCFE8D8))),
+                        const Text('GİRİŞ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white)),
                         const SizedBox(width: 8),
                         for (final f in fees) ...[
                           OkxChip(
@@ -1100,14 +1143,15 @@ class _HomeShellState extends State<HomeShell> {
                   _playButton(compact),
                   const SizedBox(height: 8),
                   Text(
-                    _turbo ? 'Turbo: giriş x10 • ödül x10' : '4 oyuncu • $_rounds el',
-                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFFCFE8D8)),
+                    _turbo ? 'Turbo: giriş x10 • ödül x10 • $_rounds el' : '4 oyuncu • $_rounds el',
+                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white),
                   ),
                 ],
               ),
             ],
           ),
         ),
+        ]),
       ),
     );
   }
@@ -1141,9 +1185,9 @@ class _HomeShellState extends State<HomeShell> {
             borderRadius: BorderRadius.circular(20),
             gradient: brassGradient,
             boxShadow: const [
-              BoxShadow(color: Color(0xFF4A2F0C), offset: Offset(0, 4)),
+              BoxShadow(color: Color(0xFFA8480A), offset: Offset(0, 5)),
               BoxShadow(color: Color(0x99000000), blurRadius: 22, offset: Offset(0, 12)),
-              BoxShadow(color: Color(0x40FFC85A), blurRadius: 30),
+              BoxShadow(color: Color(0x80FFC845), blurRadius: 34),
             ],
           ),
           child: Column(
@@ -1162,7 +1206,7 @@ class _HomeShellState extends State<HomeShell> {
       );
 
   Widget _shortcutRow(bool compact) {
-    Widget item(IconData icon, String title, String sub, VoidCallback onTap) => Expanded(
+    Widget item(IconData icon, String title, String sub, VoidCallback onTap, Gradient grad) => Expanded(
           child: GestureDetector(
             onTap: _busy ? null : onTap,
             child: OkxLeather(
@@ -1173,8 +1217,8 @@ class _HomeShellState extends State<HomeShell> {
                   Container(
                     width: compact ? 38 : 44,
                     height: compact ? 38 : 44,
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(13), gradient: brassGradient, boxShadow: const [BoxShadow(color: Color(0xFF4A2F0C), offset: Offset(0, 2))]),
-                    child: Icon(icon, color: okxTextDark, size: compact ? 20 : 22),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(13), gradient: grad, boxShadow: [BoxShadow(color: grad.colors.last.withValues(alpha: .55), blurRadius: 12, offset: const Offset(0, 4))]),
+                    child: Icon(icon, color: Colors.white, size: compact ? 21 : 23),
                   ),
                   SizedBox(width: compact ? 9 : 12),
                   Expanded(
@@ -1194,13 +1238,13 @@ class _HomeShellState extends State<HomeShell> {
         );
     return Row(
       children: [
-        item(Icons.smart_toy_rounded, 'Antrenman', 'Botlarla • ücretsiz', () => unawaited(_practicePlay())),
+        item(Icons.smart_toy_rounded, 'Antrenman', 'Botlarla • ücretsiz', () => unawaited(_practicePlay()), okxOrangeGradient),
         SizedBox(width: compact ? 8 : 12),
-        item(Icons.add_rounded, 'Oda kur', 'Arkadaşlarını çağır', () => unawaited(_createRoomDialog())),
+        item(Icons.add_rounded, 'Oda kur', 'Arkadaşlarını çağır', () => unawaited(_createRoomDialog()), okxPinkGradient),
         SizedBox(width: compact ? 8 : 12),
-        item(Icons.search_rounded, 'Oda bul', '${_rooms.length} açık masa', () => setState(() => _selected = 1)),
+        item(Icons.search_rounded, 'Oda bul', '${_rooms.length} açık masa', () => setState(() => _selected = 1), okxCyanGradient),
         SizedBox(width: compact ? 8 : 12),
-        item(Icons.school_rounded, 'Öğren', 'Kuralları adım adım', _openTutorial),
+        item(Icons.school_rounded, 'Öğren', 'Kuralları adım adım', _openTutorial, okxVioletGradient),
       ],
     );
   }
@@ -1332,7 +1376,7 @@ class _HomeShellState extends State<HomeShell> {
       if (compactMode) return const SizedBox.shrink();
       return Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: const Color(0x7A1C1510), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
+        decoration: BoxDecoration(color: const Color(0x7A100A2B), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
         child: const Row(children: [Icon(Icons.event_available_rounded, color: Colors.white30), SizedBox(width: 8), Expanded(child: Text('Şu anda yayınlanmış etkinlik yok. Yeni etkinlikler burada görünür.', style: TextStyle(fontSize: 8, color: Colors.white54)))]),
       );
     }
@@ -1341,7 +1385,7 @@ class _HomeShellState extends State<HomeShell> {
       padding: EdgeInsets.all(compact ? 9 : 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(compactMode ? 16 : 20),
-        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF3B2714), Color(0xFF36291E), Color(0xFF1B150F)]),
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1C1251), Color(0xFF1B114B), Color(0xFF0F0929)]),
         border: Border.all(color: OkeyXColors.gold.withValues(alpha: .32)),
         boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 15, offset: Offset(0, 7))],
       ),
@@ -1380,7 +1424,7 @@ class _HomeShellState extends State<HomeShell> {
         : 'BAŞLAR • ${duration.inHours}sa ${(duration.inMinutes % 60).toString().padLeft(2, '0')}dk';
     return Container(
       padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 11, vertical: compact ? 7 : 9),
-      decoration: BoxDecoration(color: const Color(0xA61B150F), borderRadius: BorderRadius.circular(12), border: Border.all(color: active ? OkeyXColors.mint.withValues(alpha: .28) : Colors.white10)),
+      decoration: BoxDecoration(color: const Color(0xA60F0929), borderRadius: BorderRadius.circular(12), border: Border.all(color: active ? OkeyXColors.mint.withValues(alpha: .28) : Colors.white10)),
       child: Row(children: [
         Container(width: compact ? 31 : 36, height: compact ? 31 : 36, alignment: Alignment.center, decoration: BoxDecoration(shape: BoxShape.circle, color: (active ? OkeyXColors.mint : OkeyXColors.gold).withValues(alpha: .11), border: Border.all(color: (active ? OkeyXColors.mint : OkeyXColors.gold).withValues(alpha: .30))), child: Icon(active ? Icons.bolt_rounded : Icons.schedule_rounded, size: compact ? 17 : 20, color: active ? OkeyXColors.mint : OkeyXColors.gold)),
         const SizedBox(width: 8),
@@ -1434,7 +1478,7 @@ class _HomeShellState extends State<HomeShell> {
       return Container(
         height: compact ? 38 : 42,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(color: const Color(0x991D1610), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white10)),
+        decoration: BoxDecoration(color: const Color(0x990F0A2C), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white10)),
         child: const Row(children: [Icon(Icons.wifi_tethering_rounded, size: 15, color: OkeyXColors.mint), SizedBox(width: 7), Text('CANLI • Yeni masalar ve oyuncu hareketleri burada akacak.', style: TextStyle(fontSize: 7.5, color: Colors.white60, fontWeight: FontWeight.w800))]),
       );
     }
@@ -1452,7 +1496,7 @@ class _HomeShellState extends State<HomeShell> {
           return Container(
             constraints: BoxConstraints(minWidth: compact ? 165 : 190, maxWidth: compact ? 230 : 280),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: const Color(0xB8211913), borderRadius: BorderRadius.circular(13), border: Border.all(color: color.withValues(alpha: .22))),
+            decoration: BoxDecoration(color: const Color(0xB8120C31), borderRadius: BorderRadius.circular(13), border: Border.all(color: color.withValues(alpha: .22))),
             child: Row(children: [Icon(icon, size: 15, color: color), const SizedBox(width: 6), Expanded(child: Text('${row['message'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 7.2, color: Colors.white70, fontWeight: FontWeight.w800)))]),
           );
         },
@@ -1475,7 +1519,7 @@ class _HomeShellState extends State<HomeShell> {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF281F17), Color(0xFF3A2D21), Color(0xFF2D2319), Color(0xFF1F1811)],
+                  colors: [Color(0xFF160E3A), Color(0xFF1D1350), Color(0xFF170E40), Color(0xFF100A2E)],
                 ),
                 boxShadow: const [BoxShadow(color: Color(0x88000000), blurRadius: 26, offset: Offset(0, 12))],
               ),
@@ -1543,7 +1587,7 @@ class _HomeShellState extends State<HomeShell> {
       height: compact ? 32 : 38,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xB818130E),
+        color: const Color(0xB80E0A26),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white10),
       ),
@@ -1582,7 +1626,7 @@ class _HomeShellState extends State<HomeShell> {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF755A42), Color(0xFF4E3C2C), Color(0xFF2B2118), Color(0xFF1A140F)]),
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF56527E), Color(0xFF261969), Color(0xFF160E3D), Color(0xFF0F0A28)]),
           border: Border.all(color: const Color(0x9977E9D0), width: 1.4),
           boxShadow: const [BoxShadow(color: Color(0x4400D8B4), blurRadius: 18, offset: Offset(0, 7))],
         ),
@@ -1699,7 +1743,7 @@ class _HomeShellState extends State<HomeShell> {
     final entries = switch (_gameCategory) {
       'Masalar' => <(IconData, String, String, String, Color, VoidCallback)>[
           (Icons.bolt_rounded, 'Hemen Oyna', _modeSummary, 'HAZIR', const Color(0xFF1C8ED8), () => unawaited(_quickPlay())),
-          (Icons.smart_toy_rounded, 'Botlarla Antrenman', 'Bahissiz • anında başlar', 'ÜCRETSİZ', const Color(0xFF7E6148), () => unawaited(_practicePlay())),
+          (Icons.smart_toy_rounded, 'Botlarla Antrenman', 'Bahissiz • anında başlar', 'ÜCRETSİZ', const Color(0xFF5D5988), () => unawaited(_practicePlay())),
           (Icons.school_rounded, 'Öğretici Masa', 'Kuralları adım adım öğren', 'YENİ', const Color(0xFF3C6FD1), _openTutorial),
           (Icons.search_rounded, 'Oda Bul', '${_rooms.length} açık masa', 'CANLI', const Color(0xFF178C79), () => setState(() => _selected = 1)),
           (Icons.group_add_rounded, 'Arkadaş Masası', 'Özel oda ve davet', 'SOSYAL', const Color(0xFF7653C8), _createRoomDialog),
@@ -1756,7 +1800,7 @@ class _HomeShellState extends State<HomeShell> {
             padding: EdgeInsets.all(compact ? 7 : 9),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [item.$5.withValues(alpha: .80), item.$5.withValues(alpha: .31), const Color(0xE91C1610)]),
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [item.$5.withValues(alpha: .80), item.$5.withValues(alpha: .31), const Color(0xE9100A2B)]),
               border: Border.all(color: item.$5.withValues(alpha: .55)),
               boxShadow: [BoxShadow(color: item.$5.withValues(alpha: .09), blurRadius: 10, offset: const Offset(0, 4))],
             ),
@@ -1801,7 +1845,7 @@ class _HomeShellState extends State<HomeShell> {
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(featured ? 22 : 17),
-              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [primary, secondary, const Color(0xFF1D1711)]),
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [primary, secondary, const Color(0xFF110C2C)]),
               border: Border.all(color: primary.withValues(alpha: .72), width: featured ? 1.5 : 1),
               boxShadow: [BoxShadow(color: primary.withValues(alpha: .16), blurRadius: featured ? 18 : 10, offset: const Offset(0, 5))],
             ),
@@ -1816,7 +1860,7 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                 ),
                 Positioned(right: -14, bottom: -18, child: Icon(icon, size: featured ? 112 : 68, color: Colors.white.withValues(alpha: .045))),
-                Positioned(top: 9, right: 9, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: const Color(0x7A15100C), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white12)), child: Text(badge, style: const TextStyle(fontSize: 6.3, color: Colors.white70, fontWeight: FontWeight.w900, letterSpacing: .5)))),
+                Positioned(top: 9, right: 9, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: const Color(0x7A0D0822), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white12)), child: Text(badge, style: const TextStyle(fontSize: 6.3, color: Colors.white70, fontWeight: FontWeight.w900, letterSpacing: .5)))),
                 Positioned.fill(
                   child: Padding(
                     padding: EdgeInsets.all(featured ? 14 : 10),
@@ -1845,7 +1889,7 @@ class _HomeShellState extends State<HomeShell> {
     final tier = '${league['tier'] ?? 'Bronz'}';
     final points = _integer(league['points']);
     return Material(
-      color: const Color(0xA61E1711),
+      color: const Color(0xA6100B2D),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: () => setState(() => _selected = 2),
@@ -1880,7 +1924,7 @@ class _HomeShellState extends State<HomeShell> {
     final friendCount = _friends.length;
     final requestCount = _requests.length;
     return Material(
-      color: const Color(0xA61E1711),
+      color: const Color(0xA6100B2D),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: () => setState(() => _selected = 3),
@@ -1918,7 +1962,7 @@ class _HomeShellState extends State<HomeShell> {
     return Container(
       height: compact ? 29 : 34,
       padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 12),
-      decoration: BoxDecoration(color: const Color(0xA4120E0A), borderRadius: BorderRadius.circular(12), border: Border.all(color: OkeyXColors.mint.withValues(alpha: .16))),
+      decoration: BoxDecoration(color: const Color(0xA40B071E), borderRadius: BorderRadius.circular(12), border: Border.all(color: OkeyXColors.mint.withValues(alpha: .16))),
       child: Row(children: [
         Container(padding: const EdgeInsets.symmetric(horizontal:6,vertical:3),decoration:BoxDecoration(color:OkeyXColors.mint.withValues(alpha:.12),borderRadius:BorderRadius.circular(8),border:Border.all(color:OkeyXColors.mint.withValues(alpha:.28))),child:const Row(children:[Icon(Icons.circle,size:5,color:OkeyXColors.mint),SizedBox(width:3),Text('CANLI',style:TextStyle(fontSize:6,fontWeight:FontWeight.w900,color:OkeyXColors.mint))])),
         const SizedBox(width: 8),
@@ -1938,7 +1982,7 @@ class _HomeShellState extends State<HomeShell> {
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF433326), Color(0xFF35291E), Color(0xFF251C15)]),
+              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF21165B), Color(0xFF1B124A), Color(0xFF140D36)]),
               border: Border.all(color: const Color(0x667BEADD)),
               boxShadow: const [BoxShadow(color: Color(0x77000000), blurRadius: 22, offset: Offset(0, 10)), BoxShadow(color: Color(0x2212E4D0), blurRadius: 25)],
             ),
@@ -1956,7 +2000,7 @@ class _HomeShellState extends State<HomeShell> {
                           constraints: const BoxConstraints(maxWidth: 360),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(95),
-                            gradient: const RadialGradient(colors: [Color(0xFF07917D), Color(0xFF5E4835), Color(0xFF3E3023)]),
+                            gradient: const RadialGradient(colors: [Color(0xFF07917D), Color(0xFF2D1D7D), Color(0xFF1F1455)]),
                             border: Border.all(color: const Color(0xFFB9873A), width: 5),
                             boxShadow: const [BoxShadow(color: Color(0x5500D8C0), blurRadius: 30), BoxShadow(color: Color(0x88000000), blurRadius: 15, offset: Offset(0, 8))],
                           ),
@@ -1967,7 +2011,7 @@ class _HomeShellState extends State<HomeShell> {
                             const SizedBox(height: 6),
                             Row(mainAxisSize: MainAxisSize.min, children: [
                               for (final n in const [3, 5, 8]) ...[
-                                Container(width: compact ? 20 : 24, height: compact ? 28 : 32, alignment: Alignment.center, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFF8CC0AF))), child: Text('$n', style: const TextStyle(color: Color(0xFF5D4835), fontSize: 10, fontWeight: FontWeight.w900))),
+                                Container(width: compact ? 20 : 24, height: compact ? 28 : 32, alignment: Alignment.center, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFF8CC0AF))), child: Text('$n', style: const TextStyle(color: Color(0xFF2E1E7C), fontSize: 10, fontWeight: FontWeight.w900))),
                                 const SizedBox(width: 3),
                               ],
                             ]),
@@ -2005,7 +2049,7 @@ class _HomeShellState extends State<HomeShell> {
   Widget _lobbyArenaSeat(String label, IconData icon, bool mine) => Container(
         width: 61,
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-        decoration: BoxDecoration(color: const Color(0xE81E1711), borderRadius: BorderRadius.circular(12), border: Border.all(color: mine ? OkeyXColors.mint : Colors.white12), boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 8, offset: Offset(0, 4))]),
+        decoration: BoxDecoration(color: const Color(0xE8100B2D), borderRadius: BorderRadius.circular(12), border: Border.all(color: mine ? OkeyXColors.mint : Colors.white12), boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 8, offset: Offset(0, 4))]),
         child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 11, color: mine ? OkeyXColors.mint : Color(0x73FFFFFF)), const SizedBox(width: 3), Expanded(child: Text(label, maxLines: 1, style: TextStyle(fontSize: 5.6, fontWeight: FontWeight.w900, color: mine ? OkeyXColors.mint : Colors.white54)))]),
       );
 
@@ -2065,7 +2109,7 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Widget _bonusTile(IconData icon, String title, String detail, Color color, Future<void> Function() onTap, {bool enabled = true}) => Material(
-        color: const Color(0xA61E1711),
+        color: const Color(0xA6100B2D),
         borderRadius: BorderRadius.circular(15),
         child: InkWell(
           onTap: _busy || !enabled ? null : onTap,
@@ -2113,7 +2157,7 @@ class _HomeShellState extends State<HomeShell> {
     ];
     return Container(
       height: compact ? 38 : 44,
-      decoration: BoxDecoration(color: const Color(0x88120E0A), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white12)),
+      decoration: BoxDecoration(color: const Color(0x880B071E), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white12)),
       child: Row(
         children: [
           for (final entry in entries)
@@ -2239,7 +2283,7 @@ class _HomeShellState extends State<HomeShell> {
           padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: turbo ? const [Color(0xFF3A2A14), Color(0xFF1C140C)] : const [Color(0xFF173A2B), Color(0xFF0E2219)]),
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: turbo ? const [Color(0xFF1C1250), Color(0xFF0F092B)] : const [Color(0xFF173A2B), Color(0xFF0E2219)]),
             border: Border.all(color: turbo ? const Color(0x99E0B354) : const Color(0x6650C894), width: 1.2),
             boxShadow: const [BoxShadow(color: Color(0x80000000), blurRadius: 14, offset: Offset(0, 6))],
           ),
@@ -2263,7 +2307,7 @@ class _HomeShellState extends State<HomeShell> {
                     height: 24,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: i < humans ? const Color(0xFF2E7D5B) : i < humans + bots ? const Color(0xFF4A3A26) : const Color(0x22FFFFFF),
+                      color: i < humans ? const Color(0xFF2E7D5B) : i < humans + bots ? const Color(0xFF231664) : const Color(0x22FFFFFF),
                       border: Border.all(color: i < players ? const Color(0xCCE8C478) : const Color(0x33FFFFFF)),
                     ),
                     child: Icon(i < humans ? Icons.person_rounded : i < humans + bots ? Icons.smart_toy_rounded : Icons.add_rounded, size: 13, color: i < players ? const Color(0xFFFFE9B0) : const Color(0x66FFFFFF)),
@@ -2283,7 +2327,7 @@ class _HomeShellState extends State<HomeShell> {
                 padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
-                  gradient: full ? null : LinearGradient(colors: affordable ? const [Color(0xFFF6DC95), Color(0xFFC99440)] : const [Color(0xFF8A6A3A), Color(0xFF5E4526)]),
+                  gradient: full ? null : LinearGradient(colors: affordable ? const [Color(0xFFFFE36B), Color(0xFFFFA928)] : const [Color(0xFF8A6A3A), Color(0xFF2C1C7D)]),
                   color: full ? const Color(0x22FFFFFF) : null,
                 ),
                 child: Text(full ? 'DOLU' : affordable ? 'OTUR' : 'ALTIN AL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .6, color: full ? OkeyXColors.muted : okxTextDark)),
@@ -2408,7 +2452,7 @@ class _HomeShellState extends State<HomeShell> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
-            color: const Color(0xFF261D15),
+            color: const Color(0xFF130C37),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: OkeyXColors.mint.withValues(alpha: .16)),
             boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 4))],
@@ -2563,7 +2607,7 @@ class _HomeShellState extends State<HomeShell> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          gradient: const LinearGradient(colors: [Color(0xFF3F3124), Color(0xFF1C1510)]),
+          gradient: const LinearGradient(colors: [Color(0xFF201556), Color(0xFF100A2B)]),
           border: Border.all(color: OkeyXColors.gold.withValues(alpha: .32)),
         ),
         child: Row(children: [
@@ -2598,7 +2642,7 @@ class _HomeShellState extends State<HomeShell> {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            gradient: const LinearGradient(colors: [Color(0xFF352B16), Color(0xFF271E16), Color(0xFF19130E)]),
+            gradient: const LinearGradient(colors: [Color(0xFF1A104A), Color(0xFF140D38), Color(0xFF0E0927)]),
             border: Border.all(color: OkeyXColors.gold.withValues(alpha: .42)),
             boxShadow: const [BoxShadow(color: Color(0x44000000), blurRadius: 24, offset: Offset(0, 10))],
           ),
@@ -2772,7 +2816,7 @@ class _HomeShellState extends State<HomeShell> {
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
           behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFF2B1906),
+          backgroundColor: const Color(0xFF150E3D),
           content: Row(children: [
             const Icon(Icons.paid_rounded, color: OkeyXColors.gold),
             const SizedBox(width: 8),
@@ -2968,7 +3012,7 @@ class _HomeShellState extends State<HomeShell> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                gradient: const LinearGradient(colors: [Color(0xFF453527), Color(0xFF654D39)]),
+                gradient: const LinearGradient(colors: [Color(0xFF22165E), Color(0xFF312086)]),
                 border: Border.all(color: const Color(0x556CE7D0)),
               ),
               child: Row(
@@ -3018,7 +3062,7 @@ class _HomeShellState extends State<HomeShell> {
   Widget _actionCard(IconData icon, String title, String detail, Color color, Future<void> Function() onTap, bool compact) => SizedBox(
         width: compact ? 185 : 235,
         child: Material(
-          color: const Color(0xD92D2219),
+          color: const Color(0xD9170E40),
           borderRadius: BorderRadius.circular(17),
           child: InkWell(
             onTap: _busy ? null : onTap,
@@ -3079,7 +3123,7 @@ class _HomeShellState extends State<HomeShell> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF1D1610),
+        backgroundColor: const Color(0xFF0F0A2C),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: OkeyXColors.gold.withValues(alpha: .32))),
         title: const Row(children: [Icon(Icons.account_balance_wallet_rounded, color: OkeyXColors.gold), SizedBox(width: 8), Text('ALTIN GEREKİYOR')]),
         content: SizedBox(width: 430, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -3152,8 +3196,8 @@ class _HomeShellState extends State<HomeShell> {
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(9),
-                              gradient: selected == o.$1 ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF6DC95), Color(0xFFC99440)]) : null,
-                              boxShadow: selected == o.$1 ? const [BoxShadow(color: Color(0xFF5E3D10), offset: Offset(0, 2))] : null,
+                              gradient: selected == o.$1 ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFFFE36B), Color(0xFFFFA928)]) : null,
+                              boxShadow: selected == o.$1 ? const [BoxShadow(color: Color(0xFF2C1C7D), offset: Offset(0, 2))] : null,
                             ),
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
@@ -3187,7 +3231,7 @@ class _HomeShellState extends State<HomeShell> {
                           gradient: value ? const LinearGradient(colors: [Color(0xFF1F8F5D), Color(0xFF3CCF8E)]) : null,
                           color: value ? null : const Color(0x1FFFFFFF),
                         ),
-                        child: Container(width: 16, height: 16, decoration: BoxDecoration(shape: BoxShape.circle, color: value ? Colors.white : const Color(0xFFCBB98F))),
+                        child: Container(width: 16, height: 16, decoration: BoxDecoration(shape: BoxShape.circle, color: value ? Colors.white : const Color(0xFFACA7DB))),
                       ),
                     ]),
                   ),
@@ -3208,7 +3252,7 @@ class _HomeShellState extends State<HomeShell> {
                       height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: me ? null : const Color(0x8C0E0A06),
+                        color: me ? null : const Color(0x8C090619),
                         border: Border.all(color: me ? const Color(0xFF7CF2B8) : const Color(0xB3E8C478), width: 2),
                         boxShadow: const [BoxShadow(color: Color(0x80000000), blurRadius: 8, offset: Offset(0, 3))],
                       ),
@@ -3234,7 +3278,7 @@ class _HomeShellState extends State<HomeShell> {
                           Row(children: [
                             GestureDetector(
                               onTap: () => setupStep == 1 ? localSet(() => setupStep = 0) : Navigator.pop(dialogContext, false),
-                              child: Container(width: 40, height: 40, decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF1A140F), border: Border.all(color: OkeyXColors.line)), child: const Icon(Icons.arrow_back_rounded, size: 19, color: Color(0xFFFFE9B0))),
+                              child: Container(width: 40, height: 40, decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF0F0A28), border: Border.all(color: OkeyXColors.line)), child: const Icon(Icons.arrow_back_rounded, size: 19, color: Color(0xFFFFE9B0))),
                             ),
                             const SizedBox(width: 12),
                             const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -3433,7 +3477,7 @@ class _HomeShellState extends State<HomeShell> {
           child: Container(
             width: 360,
             padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xF235291E), Color(0xF21A140E)]), borderRadius: BorderRadius.circular(24), border: Border.all(color: (turbo ? OkeyXColors.gold : OkeyXColors.mint).withValues(alpha: .38)), boxShadow: const [BoxShadow(color: Color(0x99000000), blurRadius: 30)]),
+            decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xF21B124A), Color(0xF20E0928)]), borderRadius: BorderRadius.circular(24), border: Border.all(color: (turbo ? OkeyXColors.gold : OkeyXColors.mint).withValues(alpha: .38)), boxShadow: const [BoxShadow(color: Color(0x99000000), blurRadius: 30)]),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TweenAnimationBuilder<double>(tween: Tween(begin: .78, end: 1), duration: const Duration(milliseconds: 420), curve: Curves.easeOutBack, builder: (_, v, child) => Transform.scale(scale: v, child: child), child: Container(width: 64, height: 64, decoration: BoxDecoration(shape: BoxShape.circle, color: (turbo ? OkeyXColors.gold : OkeyXColors.mint).withValues(alpha: .10), border: Border.all(color: (turbo ? OkeyXColors.gold : OkeyXColors.mint).withValues(alpha: .35))), child: Icon(turbo ? Icons.bolt_rounded : Icons.table_bar_rounded, size: 31, color: turbo ? OkeyXColors.gold : OkeyXColors.mint))),
               const SizedBox(height: 9),
@@ -3652,7 +3696,7 @@ class _HomeShellState extends State<HomeShell> {
               padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(26),
-                gradient: const LinearGradient(colors: [Color(0xFF523F2F), Color(0xFF241B14)]),
+                gradient: const LinearGradient(colors: [Color(0xFF291B6E), Color(0xFF130C35)]),
                 border: Border.all(color: OkeyXColors.gold, width: 1.8),
                 boxShadow: const [BoxShadow(color: Color(0x99F4C542), blurRadius: 34, spreadRadius: 1)],
               ),
@@ -3701,7 +3745,7 @@ class _HomeShellState extends State<HomeShell> {
             padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(26),
-              gradient: const LinearGradient(colors: [Color(0xFF523F2F), Color(0xFF281E16)]),
+              gradient: const LinearGradient(colors: [Color(0xFF291B6E), Color(0xFF140D3A)]),
               border: Border.all(color: OkeyXColors.gold, width: 1.6),
               boxShadow: const [BoxShadow(color: Color(0x99F4C542), blurRadius: 34, spreadRadius: 1)],
             ),
@@ -3883,7 +3927,7 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _showNotifications() async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF221A13),
+      backgroundColor: const Color(0xFF120B32),
       isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
         child: SizedBox(
@@ -4080,7 +4124,7 @@ class _HomeShellState extends State<HomeShell> {
         'coral' => const Color(0xFFAD514E),
         'blue' => const Color(0xFF275E9C),
         'mint' => const Color(0xFF178265),
-        _ => const Color(0xFF664E3A),
+        _ => const Color(0xFF322187),
       };
 
   String _friendly(Object error) {
@@ -4215,7 +4259,7 @@ class _PrizeWheelDialogState extends State<_PrizeWheelDialog> with SingleTickerP
 
   @override
   Widget build(BuildContext context) => Dialog(
-        backgroundColor: const Color(0xFF2D2219),
+        backgroundColor: const Color(0xFF170E40),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26), side: BorderSide(color: OkeyXColors.gold.withValues(alpha: .55))),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
@@ -4232,7 +4276,7 @@ class _PrizeWheelDialogState extends State<_PrizeWheelDialog> with SingleTickerP
                   child: CustomPaint(size: const Size.square(220), painter: const _PrizeWheelPainter(rewards)),
                 ),
                 const Positioned(top: 0, child: Icon(Icons.arrow_drop_down_rounded, color: Colors.white, size: 38, shadows: [Shadow(color: Colors.black54, blurRadius: 5)])),
-                Container(width: 48, height: 48, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF35291E), boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 7)]), child: const Icon(Icons.casino_rounded, color: OkeyXColors.gold)),
+                Container(width: 48, height: 48, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1B124A), boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 7)]), child: const Icon(Icons.casino_rounded, color: OkeyXColors.gold)),
               ]),
             ),
             const SizedBox(height: 6),
@@ -4305,7 +4349,7 @@ class _ChestOpenDialogState extends State<_ChestOpenDialog> {
 
   @override
   Widget build(BuildContext context) => Dialog(
-        backgroundColor: const Color(0xFF2D2219),
+        backgroundColor: const Color(0xFF170E40),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26), side: BorderSide(color: OkeyXColors.gold.withValues(alpha: .48))),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
@@ -4361,7 +4405,7 @@ class _HubGameArtPainter extends CustomPainter {
         width: size.width * (featured ? .42 : .44),
         height: size.height * (featured ? .34 : .40),
       );
-      canvas.drawOval(table, Paint()..color = const Color(0x4A2C2219));
+      canvas.drawOval(table, Paint()..color = const Color(0x4A170F3F));
       canvas.drawOval(table.deflate(2), line);
       final tileW = featured ? 18.0 : 12.0;
       final tileH = featured ? 25.0 : 17.0;
@@ -4370,7 +4414,7 @@ class _HubGameArtPainter extends CustomPainter {
         final y = size.height * .35 + (i.isOdd ? 4 : 0);
         final r = RRect.fromRectAndRadius(Rect.fromLTWH(x, y, tileW, tileH), const Radius.circular(3));
         canvas.drawRRect(r, Paint()..color = const Color(0xDFF4E9CE));
-        canvas.drawCircle(Offset(x + tileW / 2, y + tileH * .34), featured ? 2.5 : 1.8, Paint()..color = i == 3 ? const Color(0xFFD34F42) : const Color(0xFF6D533E));
+        canvas.drawCircle(Offset(x + tileW / 2, y + tileH * .34), featured ? 2.5 : 1.8, Paint()..color = i == 3 ? const Color(0xFFD34F42) : const Color(0xFF504D76));
       }
       if (title.contains('TURBO')) {
         final bolt = Path()
@@ -4391,7 +4435,7 @@ class _HubGameArtPainter extends CustomPainter {
         Rect.fromLTWH(size.width * .51, size.height * .22, size.width * .42, size.height * .52),
         const Radius.circular(10),
       );
-      canvas.drawRRect(cabinet, Paint()..color = const Color(0x5A130E0B));
+      canvas.drawRRect(cabinet, Paint()..color = const Color(0x5A0C081F));
       canvas.drawRRect(cabinet, line);
       for (var i = 0; i < 3; i++) {
         final rr = RRect.fromRectAndRadius(
@@ -4469,7 +4513,7 @@ class _LobbyTileFace extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFF7F0DF),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFFBDAF91)),
+            border: Border.all(color: const Color(0xFFA9A6CC)),
             boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 6, offset: Offset(0, 4))],
           ),
           child: Text(text, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: color)),
@@ -4490,7 +4534,7 @@ class _RoomCreatePreviewPainter extends CustomPainter {
       Radius.circular(size.height * .18),
     );
     final accent = turbo ? OkeyXColors.gold : OkeyXColors.mint;
-    canvas.drawRRect(table, Paint()..color = const Color(0x8A473628));
+    canvas.drawRRect(table, Paint()..color = const Color(0x8A231760));
     canvas.drawRRect(table, Paint()..style = PaintingStyle.stroke..strokeWidth = 4..color = accent.withValues(alpha: .58));
     final glow = Paint()..shader = RadialGradient(colors: [accent.withValues(alpha: .16), Colors.transparent]).createShader(Rect.fromCircle(center: table.center, radius: size.width * .36));
     canvas.drawCircle(table.center, size.width * .36, glow);
@@ -4590,7 +4634,7 @@ class _InviteToastState extends State<_InviteToast> with TickerProviderStateMixi
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
-                  gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xF8281E14), Color(0xF816100B)]),
+                  gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xF8140D3A), Color(0xF80C0823)]),
                   border: Border.all(color: const Color(0xA6FFD278), width: 1.5),
                   boxShadow: const [BoxShadow(color: Color(0xB3000000), blurRadius: 40, offset: Offset(0, 18))],
                 ),
@@ -4698,7 +4742,7 @@ class _InviteSplashState extends State<_InviteSplash> with TickerProviderStateMi
                   padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(26),
-                    gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF2B2016), Color(0xFF140E09)]),
+                    gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF150E3D), Color(0xFF0B0721)]),
                     border: Border.all(color: const Color(0xFFE8C478), width: 1.8),
                     boxShadow: [
                       const BoxShadow(color: Color(0xCC000000), blurRadius: 40, offset: Offset(0, 20)),
@@ -4752,4 +4796,40 @@ class _InviteSplashState extends State<_InviteSplash> with TickerProviderStateMi
       ),
     );
   }
+}
+
+
+/// Kartın üstünden belirli aralıklarla geçen ince ışık parıltısı.
+class _ShineSweep extends StatefulWidget {
+  const _ShineSweep();
+  @override
+  State<_ShineSweep> createState() => _ShineSweepState();
+}
+
+class _ShineSweepState extends State<_ShineSweep> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 4200))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        builder: (context, _) {
+          final t = (_c.value * 1.6 - .3);
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment(-1 + t * 2.4, -1),
+                end: Alignment(-.6 + t * 2.4, 1),
+                colors: [Colors.white.withValues(alpha: 0), Colors.white.withValues(alpha: .16), Colors.white.withValues(alpha: 0)],
+                stops: const [0, .5, 1],
+              ),
+            ),
+          );
+        },
+      );
 }

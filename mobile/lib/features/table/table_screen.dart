@@ -568,7 +568,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: gold ? const Color(0x2E281400) : const Color(0x29000000),
+                color: gold ? const Color(0x2E140D3A) : const Color(0x29000000),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: gold ? const Color(0x4DFFCE6E) : const Color(0x24FFECBE), width: 1.4),
               ),
@@ -581,7 +581,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: gold ? const Color(0xFF3A2A12) : const Color(0xFF123D2C),
+                color: gold ? const Color(0xFF1C1250) : const Color(0xFF123D2C),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: gold ? const Color(0x66FFCE6E) : const Color(0x33FFECBE)),
               ),
@@ -604,7 +604,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF3B2A1C),
+        color: const Color(0xFF1C1251),
         border: Border.all(color: const Color(0xFFC8963F), width: 1.2),
         image: url == null ? null : DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
       ),
@@ -845,14 +845,14 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
-                    gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF6DC95), Color(0xFFC99440)]),
+                    gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFFFE36B), Color(0xFFFFA928)]),
                     boxShadow: const [BoxShadow(color: Color(0xAA000000), blurRadius: 24, offset: Offset(0, 10))],
                   ),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Text('🏺💥', style: TextStyle(fontSize: 34)),
-                    const Text('ÇANAK KIRILDI!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Color(0xFF2B1906))),
+                    const Text('ÇANAK KIRILDI!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Color(0xFF150E3D))),
                     const SizedBox(height: 4),
-                    Text('${c['name'] ?? ''} • $how', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF4A2C0C))),
+                    Text('${c['name'] ?? ''} • $how', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF231664))),
                     const SizedBox(height: 6),
                     Text('+${_compactMoney(amount)} altın', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1F6B2E))),
                   ]),
@@ -979,7 +979,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E0B08),
+        color: const Color(0xFF090619),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: danger ? OkeyXColors.danger : const Color(0xFF7CF2B8), width: 1.5),
       ),
@@ -1047,7 +1047,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                 width: size * .34,
                 height: size * .34,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF15110D),
+                  color: const Color(0xFF0E0A22),
                   shape: BoxShape.circle,
                   border: Border.all(color: speaking ? OkeyXColors.cyan : OkeyXColors.line2),
                 ),
@@ -1137,7 +1137,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
               decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(13), boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3))]),
-              child: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF2B1906), fontSize: 11.5, fontWeight: FontWeight.w700)),
+              child: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF150E3D), fontSize: 11.5, fontWeight: FontWeight.w700)),
             ),
           ),
           Positioned.fill(
@@ -1357,7 +1357,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.fromLTRB(9, 2, 9, 3),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(11),
-          gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xF2201811), Color(0xF20F0B07)]),
+          gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xF2110A30), Color(0xF209061A)]),
           border: Border.all(color: ready ? emerald : const Color(0xCCD9A94A), width: ready ? 1.8 : 1.3),
           boxShadow: [
             const BoxShadow(color: Color(0x80000000), blurRadius: 8, offset: Offset(0, 3)),
@@ -1400,7 +1400,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                       widthFactor: p,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: ready || reached ? const [Color(0xFF1F8F5D), emerald] : const [Color(0xFFC99440), Color(0xFFF6DC95)]),
+                          gradient: LinearGradient(colors: ready || reached ? const [Color(0xFF1F8F5D), emerald] : const [Color(0xFFFFA928), Color(0xFFFFE36B)]),
                         ),
                       ),
                     ),
@@ -1809,7 +1809,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   width: double.infinity,
                   padding: EdgeInsets.fromLTRB(16, f.s(12), 16, f.s(12)),
                   decoration: BoxDecoration(
-                    color: const Color(0xF2201710),
+                    color: const Color(0xF2110A30),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: const Color(0xFFD9A94E), width: 1.6),
                     boxShadow: const [
@@ -1846,13 +1846,13 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(center: Alignment(-.3, -.4), colors: [Color(0xFFFFF0B8), Color(0xFFE3A740), Color(0xFFA8661C)]),
-                        boxShadow: [BoxShadow(color: Color(0x99FFC864), blurRadius: 18), BoxShadow(color: Color(0xFF4A2F0C), spreadRadius: 2)],
+                        boxShadow: [BoxShadow(color: Color(0x99FFC864), blurRadius: 18), BoxShadow(color: Color(0xFF231664), spreadRadius: 2)],
                       ),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Padding(
                           padding: const EdgeInsets.all(6),
-                          child: Text(pairs ? '$value\nÇİFT' : '$value', textAlign: TextAlign.center, style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: pairs ? 16 : 22, height: 1, color: const Color(0xFF2B1906))),
+                          child: Text(pairs ? '$value\nÇİFT' : '$value', textAlign: TextAlign.center, style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: pairs ? 16 : 22, height: 1, color: const Color(0xFF150E3D))),
                         ),
                       ),
                     ),
@@ -1878,7 +1878,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         constraints: const BoxConstraints(maxWidth: 460),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: penalty ? const Color(0xF27A2218) : const Color(0xF21D1712),
+          color: penalty ? const Color(0xF27A2218) : const Color(0xF2130D2C),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: penalty ? OkeyXColors.danger : OkeyXColors.line2),
           boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 12)],
@@ -1899,7 +1899,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xE61D1712),
+              color: const Color(0xE6130D2C),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: const Color(0xFFFFC24A).withValues(alpha: .82)),
               boxShadow: [BoxShadow(color: const Color(0xFFFFC24A).withValues(alpha: .30), blurRadius: 16)],
@@ -3087,13 +3087,13 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       width: 92,
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xEE201812),
+        color: const Color(0xEE110B30),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: spawnColor!=Colors.transparent?spawnColor:(mine ? OkeyXColors.mint : Colors.white24), width: spawnColor!=Colors.transparent?2:mine?1.5:1),
         boxShadow: [const BoxShadow(color: Color(0x66000000), blurRadius: 10, offset: Offset(0, 5)),if(spawnColor!=Colors.transparent)BoxShadow(color:spawnColor.withValues(alpha:.38),blurRadius:16)],
       ),
       child: Row(children: [
-        Stack(clipBehavior:Clip.none,children:[CircleAvatar(radius: 12, backgroundColor: mine ? const Color(0xFF735841) : const Color(0xFF523F2F), child: Text(initial, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),if(spawnColor!=Colors.transparent)Positioned(right:-5,top:-6,child:Icon(spawn=='spawn_fire'?Icons.local_fire_department_rounded:spawn=='spawn_lightning'?Icons.bolt_rounded:Icons.workspace_premium_rounded,size:11,color:spawnColor))]),
+        Stack(clipBehavior:Clip.none,children:[CircleAvatar(radius: 12, backgroundColor: mine ? const Color(0xFF55517C) : const Color(0xFF291B6E), child: Text(initial, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),if(spawnColor!=Colors.transparent)Positioned(right:-5,top:-6,child:Icon(spawn=='spawn_fire'?Icons.local_fire_department_rounded:spawn=='spawn_lightning'?Icons.bolt_rounded:Icons.workspace_premium_rounded,size:11,color:spawnColor))]),
         const SizedBox(width: 5),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900)),
@@ -3111,7 +3111,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: .045), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.white12)),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          CircleAvatar(radius: 14, backgroundColor: const Color(0xFF634C38), child: Text(initial, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900))),
+          CircleAvatar(radius: 14, backgroundColor: const Color(0xFF301F83), child: Text(initial, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900))),
           const SizedBox(height: 3),
           FittedBox(child: Text(name, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900))),
           Text(relation, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: relation == 'SEN' || relation == 'EŞİN' ? OkeyXColors.mint : Colors.white54)),
@@ -3138,7 +3138,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               decoration: BoxDecoration(
-                color: const Color(0xF232261C),
+                color: const Color(0xF2191046),
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(color: OkeyXColors.gold),
               ),
@@ -3467,7 +3467,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           child:ConstrainedBox(
             constraints:BoxConstraints(maxWidth:560,maxHeight:size.height*.90),
             child:Container(
-              decoration:BoxDecoration(gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF34281D),Color(0xFF1E1711),Color(0xFF14100B)]),borderRadius:BorderRadius.circular(24),border:Border.all(color:accent.withValues(alpha:.42)),boxShadow:[BoxShadow(color:accent.withValues(alpha:.16),blurRadius:34),const BoxShadow(color:Colors.black54,blurRadius:28,offset:Offset(0,12))]),
+              decoration:BoxDecoration(gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF1A1049),Color(0xFF100B2D),Color(0xFF0B0721)]),borderRadius:BorderRadius.circular(24),border:Border.all(color:accent.withValues(alpha:.42)),boxShadow:[BoxShadow(color:accent.withValues(alpha:.16),blurRadius:34),const BoxShadow(color:Colors.black54,blurRadius:28,offset:Offset(0,12))]),
               child:SingleChildScrollView(
                 padding:const EdgeInsets.all(16),
                 child:Column(mainAxisSize:MainAxisSize.min,children:[
@@ -3795,7 +3795,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             ),
           ),
         ),
-        if (pendingLeft) Positioned(right:-3,top:-5,child:Container(padding:const EdgeInsets.symmetric(horizontal:3,vertical:1),decoration:BoxDecoration(color:OkeyXColors.gold,borderRadius:BorderRadius.circular(6)),child:Text(pendingCanOpen?'AÇ':'KULLAN',style:const TextStyle(fontSize:9,color:Color(0xFF2C1900),fontWeight:FontWeight.w900)))),
+        if (pendingLeft) Positioned(right:-3,top:-5,child:Container(padding:const EdgeInsets.symmetric(horizontal:3,vertical:1),decoration:BoxDecoration(color:OkeyXColors.gold,borderRadius:BorderRadius.circular(6)),child:Text(pendingCanOpen?'AÇ':'KULLAN',style:const TextStyle(fontSize:9,color:Color(0xFF160E3F),fontWeight:FontWeight.w900)))),
       ]),
     );
     if (_dealAnimating && _dealSequence > 0) {
@@ -4279,7 +4279,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             height: 92,
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: const Color(0xD92E231A),
+              color: const Color(0xD9180F41),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: OkeyXColors.gold, width: 1.4),
               boxShadow: const [BoxShadow(color: Color(0x88F4C542), blurRadius: 22, spreadRadius: 1)],
@@ -4569,7 +4569,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                     ? const Color(0xFF6E5368)
                     : cosmeticId == 'avatar_phoenix'
                         ? const Color(0xFF6E2F20)
-                        : const Color(0xFF664E3A),
+                        : const Color(0xFF322187),
         shape: BoxShape.circle,
       ),
       child: child,
@@ -4592,7 +4592,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     await showDialog<void>(
       context:context,
       builder:(dialogContext)=>StatefulBuilder(builder:(context,setLocal)=>Dialog(
-        backgroundColor:const Color(0xF5281E16),
+        backgroundColor:const Color(0xF5140D3A),
         shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(24),side:BorderSide(color:OkeyXColors.gold.withValues(alpha:.45))),
         child:SizedBox(width:430,height:245,child:Padding(padding:const EdgeInsets.all(14),child:Column(children:[
           Row(children:[const Icon(Icons.toys_rounded,color:OkeyXColors.gold),const SizedBox(width:8),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('MASA ALTI OYUNCAKLARI',style:TextStyle(fontSize:13,fontWeight:FontWeight.w900)),Text('Sadece sende görünür; gerçek ıstaka ve oyun akışı değişmez.',style:TextStyle(fontSize:9,color:Colors.white54))])),IconButton(onPressed:()=>Navigator.pop(dialogContext),icon:const Icon(Icons.close_rounded))]),
@@ -4607,7 +4607,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _fidgetChoice(IconData icon,String title,String id,String selected,int taps,VoidCallback onTap)=>Material(color:Colors.transparent,child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(20),child:AnimatedContainer(duration:const Duration(milliseconds:140),decoration:BoxDecoration(gradient:LinearGradient(colors:id==selected?[OkeyXColors.gold.withValues(alpha:.18),const Color(0xFF382B20)]:[Colors.white.withValues(alpha:.035),const Color(0xFF1E1711)]),borderRadius:BorderRadius.circular(20),border:Border.all(color:id==selected?OkeyXColors.gold:Colors.white12)),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[TweenAnimationBuilder<double>(key:ValueKey('$id-$taps'),tween:Tween(begin:0,end:1),duration:const Duration(milliseconds:320),curve:Curves.elasticOut,builder:(context,v,child)=>Transform.rotate(angle:id=='chip'?v*math.pi*2:math.sin(v*math.pi*3)*.28,child:Transform.scale(scale:.72+.28*v,child:child)),child:Icon(icon,size:46,color:id==selected?OkeyXColors.gold:Colors.white54)),const SizedBox(height:8),Text(title,style:const TextStyle(fontSize:9,fontWeight:FontWeight.w900)),Text('DOKUN • $taps',style:const TextStyle(fontSize:9,color:Colors.white38))]))));
+  Widget _fidgetChoice(IconData icon,String title,String id,String selected,int taps,VoidCallback onTap)=>Material(color:Colors.transparent,child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(20),child:AnimatedContainer(duration:const Duration(milliseconds:140),decoration:BoxDecoration(gradient:LinearGradient(colors:id==selected?[OkeyXColors.gold.withValues(alpha:.18),const Color(0xFF1D134E)]:[Colors.white.withValues(alpha:.035),const Color(0xFF100B2D)]),borderRadius:BorderRadius.circular(20),border:Border.all(color:id==selected?OkeyXColors.gold:Colors.white12)),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[TweenAnimationBuilder<double>(key:ValueKey('$id-$taps'),tween:Tween(begin:0,end:1),duration:const Duration(milliseconds:320),curve:Curves.elasticOut,builder:(context,v,child)=>Transform.rotate(angle:id=='chip'?v*math.pi*2:math.sin(v*math.pi*3)*.28,child:Transform.scale(scale:.72+.28*v,child:child)),child:Icon(icon,size:46,color:id==selected?OkeyXColors.gold:Colors.white54)),const SizedBox(height:8),Text(title,style:const TextStyle(fontSize:9,fontWeight:FontWeight.w900)),Text('DOKUN • $taps',style:const TextStyle(fontSize:9,color:Colors.white38))]))));
 
   List<String> _chatEmojiSet() {
     final pack='${_map(_viewer['loadout'])['emoji_pack'] ?? ''}';
@@ -4848,7 +4848,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final shortViewport = MediaQuery.sizeOf(context).height < 760;
     Map<String, dynamic> at(int seat) => players.firstWhere((x) => _integer(x['seat']) == seat, orElse: () => const <String, dynamic>{});
     return ColoredBox(
-      color: const Color(0xFF0E0B08),
+      color: const Color(0xFF090619),
       child: Container(
         decoration: const BoxDecoration(
           gradient: RadialGradient(center: Alignment(.02, -.15), radius: 1.18, colors: [Color(0xFF173E2E), Color(0xFF10271D), Color(0xFF080D0A)]),
@@ -4972,7 +4972,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                   Expanded(flex:4,child:OutlinedButton.icon(style:OutlinedButton.styleFrom(foregroundColor:const Color(0xFFFF8E91),side:const BorderSide(color:Color(0x55FF5B63))),onPressed:_busy?null:_leaveWaitingRoom,icon:const Icon(Icons.logout_rounded,size:13),label:const FittedBox(child:Text('AYRIL')))),
                                   const SizedBox(width:6),
                                   Expanded(flex:7,child:FilledButton.icon(
-                                    style:FilledButton.styleFrom(backgroundColor:current<required?const Color(0xFF9A6A2F):tableReady?const Color(0xFF8A5A1C):const Color(0xFF4B3828),foregroundColor:Colors.white,shadowColor:tableReady?OkeyXColors.gold:Colors.transparent,elevation:tableReady?14:2,padding:EdgeInsets.symmetric(vertical:shortViewport?9:11),side:BorderSide(color:tableReady?OkeyXColors.gold.withValues(alpha:.75):Colors.white12,width:tableReady?1.4:1)),
+                                    style:FilledButton.styleFrom(backgroundColor:current<required?const Color(0xFF9A6A2F):tableReady?const Color(0xFF8A5A1C):const Color(0xFF231665),foregroundColor:Colors.white,shadowColor:tableReady?OkeyXColors.gold:Colors.transparent,elevation:tableReady?14:2,padding:EdgeInsets.symmetric(vertical:shortViewport?9:11),side:BorderSide(color:tableReady?OkeyXColors.gold.withValues(alpha:.75):Colors.white12,width:tableReady?1.4:1)),
                                     onPressed:isHost&&!_busy?(current<required?_leaveForStore:(tableReady?()=>_startMatchFromWaiting(required,current):null)):null,
                                     icon:Icon(current<required?Icons.shopping_bag_rounded:(tableReady?Icons.play_arrow_rounded:Icons.hourglass_bottom_rounded),size:16),
                                     label:FittedBox(child:Text(current<required?'ALTIN AL':tableReady?'OYUNU BAŞLAT':'$emptyCount KOLTUK BOŞ',style:const TextStyle(fontWeight:FontWeight.w900))),
@@ -5111,7 +5111,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       height: 54,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: empty ? null : const RadialGradient(colors: [Color(0xFF3A2A18), Color(0xFF1A120A)]),
+        gradient: empty ? null : const RadialGradient(colors: [Color(0xFF1C1250), Color(0xFF0E0928)]),
         color: empty ? const Color(0x33000000) : null,
         border: Border.all(color: empty ? const Color(0x66E8C478) : teamColor, width: empty ? 1.4 : 2.2),
         boxShadow: empty ? null : [BoxShadow(color: teamColor.withValues(alpha: .35), blurRadius: 12)],
@@ -5128,7 +5128,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
           avatar,
           if (seat == ownerSeat && !empty) const Positioned(top: -10, child: Icon(Icons.workspace_premium_rounded, size: 18, color: OkeyXColors.gold)),
-          if (!empty) Positioned(right: -2, bottom: -2, child: Container(width: 14, height: 14, decoration: BoxDecoration(shape: BoxShape.circle, color: connected ? OkeyXColors.mint : const Color(0xFFFFB86B), border: Border.all(color: const Color(0xFF120D08), width: 2)))),
+          if (!empty) Positioned(right: -2, bottom: -2, child: Container(width: 14, height: 14, decoration: BoxDecoration(shape: BoxShape.circle, color: connected ? OkeyXColors.mint : const Color(0xFFFFB86B), border: Border.all(color: const Color(0xFF0B071E), width: 2)))),
         ]),
         const SizedBox(height: 5),
         Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: empty ? const Color(0xCCE8C478) : OkeyXColors.cream)),
@@ -5168,7 +5168,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               child: Container(
                 padding: const EdgeInsets.fromLTRB(14, 11, 14, 13),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xF22C2219), Color(0xF21A140F)]),
+                  gradient: const LinearGradient(colors: [Color(0xF2170F3F), Color(0xF20F0A28)]),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: OkeyXColors.ruby.withValues(alpha: .38)),
                   boxShadow: const [BoxShadow(color: Color(0xAA000000), blurRadius: 28, offset: Offset(0, 12))],
@@ -5283,7 +5283,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               child: Container(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 13),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xF22C2219), Color(0xF21A140F)]),
+                  gradient: const LinearGradient(colors: [Color(0xF2170F3F), Color(0xF20F0A28)]),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: OkeyXColors.gold.withValues(alpha: .28)),
                   boxShadow: const [BoxShadow(color: Color(0xAA000000), blurRadius: 30, offset: Offset(0, 12))],
@@ -5378,7 +5378,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               color: Colors.transparent,
               child: Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xF22C2219), Color(0xF21A140F)]), borderRadius: BorderRadius.circular(22), border: Border.all(color: OkeyXColors.cyan.withValues(alpha: .25))),
+                decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xF2170F3F), Color(0xF20F0A28)]), borderRadius: BorderRadius.circular(22), border: Border.all(color: OkeyXColors.cyan.withValues(alpha: .25))),
                 child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Row(children: [const Icon(Icons.smart_toy_rounded, color: OkeyXColors.gold), const SizedBox(width: 7), Expanded(child: Text(explicit ? 'BOT AYARI' : 'BOT EKLE', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15))), IconButton(onPressed: () => Navigator.pop(dialogContext), icon: const Icon(Icons.close_rounded))]),
                   Wrap(spacing: 8, runSpacing: 8, children: [
@@ -5411,7 +5411,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.only(bottom: 5),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-          decoration: BoxDecoration(color: warning ? const Color(0x332E1B0B) : Colors.white.withValues(alpha: .035), borderRadius: BorderRadius.circular(11), border: Border.all(color: warning ? OkeyXColors.gold.withValues(alpha: .34) : Colors.white10)),
+          decoration: BoxDecoration(color: warning ? const Color(0x33170E41) : Colors.white.withValues(alpha: .035), borderRadius: BorderRadius.circular(11), border: Border.all(color: warning ? OkeyXColors.gold.withValues(alpha: .34) : Colors.white10)),
           child: Row(children: [Icon(icon, size: 14, color: warning ? OkeyXColors.gold : Color(0x73FFFFFF)), const SizedBox(width: 7), Expanded(child: Text(label, style: const TextStyle(fontSize: 9, color: Color(0x73FFFFFF), fontWeight: FontWeight.w900))), Text(value, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: warning ? OkeyXColors.gold : Colors.white))]),
         ),
       );
@@ -5465,7 +5465,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         builder: (dialogContext) {
           final size = MediaQuery.sizeOf(dialogContext);
           return Dialog(
-            backgroundColor: const Color(0xFF2A2018),
+            backgroundColor: const Color(0xFF160F3C),
             insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: OkeyXColors.mint.withValues(alpha: .28))),
             child: ConstrainedBox(
@@ -5500,7 +5500,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
                           decoration: BoxDecoration(color: Colors.white.withValues(alpha: .035), borderRadius: BorderRadius.circular(13), border: Border.all(color: Colors.white10)),
                           child: Row(children: [
-                            CircleAvatar(radius: 16, backgroundColor: const Color(0xFF4A392A), child: Text(name.isEmpty ? '?' : name.substring(0,1).toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900))),
+                            CircleAvatar(radius: 16, backgroundColor: const Color(0xFF251864), child: Text(name.isEmpty ? '?' : name.substring(0,1).toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900))),
                             const SizedBox(width: 9),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900)),
@@ -5555,7 +5555,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     const fees=<int>[1000,5000,10000,25000,50000,100000,250000,500000];
     try{
       final save=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(context,setLocal)=>AlertDialog(
-        backgroundColor:const Color(0xFF281F17),
+        backgroundColor:const Color(0xFF160E3A),
         title:const Row(children:[Icon(Icons.tune_rounded,color:OkeyXColors.gold),SizedBox(width:8),Text('Masa ayarları')]),
         content:SizedBox(width:430,child:SingleChildScrollView(padding:const EdgeInsets.only(top:12),child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
           // Üstte boşluk: kayan etiket ('Masa adı') kırpılmasın.
@@ -5589,13 +5589,13 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
 
 
   Widget _loadingPanel() => ColoredBox(
-        color: const Color(0xEE120E0A),
+        color: const Color(0xEE0B071E),
         child: Center(
           child: Container(
             constraints: const BoxConstraints(maxWidth:420),
             padding: const EdgeInsets.symmetric(horizontal:24,vertical:20),
             decoration:BoxDecoration(
-              gradient:const LinearGradient(colors:[Color(0xE835291E),Color(0xEF1C1610)]),
+              gradient:const LinearGradient(colors:[Color(0xE81B124A),Color(0xEF100A2B)]),
               borderRadius:BorderRadius.circular(24),
               border:Border.all(color:OkeyXColors.cyan.withValues(alpha:.25)),
               boxShadow:const [BoxShadow(color:Colors.black54,blurRadius:24,offset:Offset(0,12))],
@@ -5643,7 +5643,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       );
 
   Widget _errorBanner() => Material(
-        color: const Color(0xF0241A12),
+        color: const Color(0xF0120C35),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xAAD9A94A), width: 1.2)),
         elevation: 8,
         child: Padding(
@@ -5681,8 +5681,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       duration:(widget.preferences.reducedMotionEnabled||widget.preferences.dataSaverEnabled)?Duration.zero:const Duration(milliseconds:1900),
       curve:Curves.bounceOut,
       builder:(context,v,_)=>Stack(children:[
-        Positioned(left:(anchor.dx-25).clamp(2.0,size.width-50),top:(-60+(anchor.dy-44+60)*v).clamp(-60.0,size.height-50),child:Transform.rotate(angle:(1-v)*-.8,child:Container(width:50,height:50,decoration:BoxDecoration(shape:BoxShape.circle,color:const Color(0xFF453527),border:Border.all(color:OkeyXColors.cyan,width:2),boxShadow:const [BoxShadow(color:Color(0x8866E8FF),blurRadius:15)]),child:const Icon(Icons.smart_toy_rounded,color:OkeyXColors.cyan,size:28)))),
-        if(v>.58)Positioned(left:(anchor.dx-70).clamp(2.0,size.width-140),top:(anchor.dy+17).clamp(2.0,size.height-27),width:140,child:Opacity(opacity:(1-v).clamp(.15,1),child:Container(padding:const EdgeInsets.symmetric(horizontal:7,vertical:4),decoration:BoxDecoration(color:const Color(0xE9271E16),borderRadius:BorderRadius.circular(10),border:Border.all(color:OkeyXColors.cyan)),child:const Text('ROBOT KASKI İNDİ • BOT DEVİRDE',textAlign:TextAlign.center,style:TextStyle(fontSize:9,fontWeight:FontWeight.w900,color:OkeyXColors.cyan))))),
+        Positioned(left:(anchor.dx-25).clamp(2.0,size.width-50),top:(-60+(anchor.dy-44+60)*v).clamp(-60.0,size.height-50),child:Transform.rotate(angle:(1-v)*-.8,child:Container(width:50,height:50,decoration:BoxDecoration(shape:BoxShape.circle,color:const Color(0xFF22165E),border:Border.all(color:OkeyXColors.cyan,width:2),boxShadow:const [BoxShadow(color:Color(0x8866E8FF),blurRadius:15)]),child:const Icon(Icons.smart_toy_rounded,color:OkeyXColors.cyan,size:28)))),
+        if(v>.58)Positioned(left:(anchor.dx-70).clamp(2.0,size.width-140),top:(anchor.dy+17).clamp(2.0,size.height-27),width:140,child:Opacity(opacity:(1-v).clamp(.15,1),child:Container(padding:const EdgeInsets.symmetric(horizontal:7,vertical:4),decoration:BoxDecoration(color:const Color(0xE9140D38),borderRadius:BorderRadius.circular(10),border:Border.all(color:OkeyXColors.cyan)),child:const Text('ROBOT KASKI İNDİ • BOT DEVİRDE',textAlign:TextAlign.center,style:TextStyle(fontSize:9,fontWeight:FontWeight.w900,color:OkeyXColors.cyan))))),
       ]),
     );
   });
@@ -6011,7 +6011,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setLocal) => Dialog(
-          backgroundColor: const Color(0xFF201912),
+          backgroundColor: const Color(0xFF110B30),
           insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 18),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
@@ -6138,7 +6138,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   Expanded(child: FilledButton.tonal(onPressed: () => Navigator.pop(dialogContext), child: const Text('OYUNA DÖN'))),
                   const SizedBox(width: 8),
                   Expanded(child: FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: active && turbo ? const Color(0xFF503E2D) : OkeyXColors.danger),
+                    style: FilledButton.styleFrom(backgroundColor: active && turbo ? const Color(0xFF27196C) : OkeyXColors.danger),
                     onPressed: active && turbo ? null : () { Navigator.pop(dialogContext); unawaited(_requestLeaveTable()); },
                     icon: Icon(active && turbo ? Icons.lock_rounded : Icons.logout_rounded, size: 15),
                     label: Text(active && turbo ? 'ÇIKIŞ KİLİTLİ' : 'MASADAN AYRIL'),
@@ -6237,7 +6237,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       final leave = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          backgroundColor: const Color(0xFF2D2219),
+          backgroundColor: const Color(0xFF170E40),
           title: const Text('Masadan ayrıl?'),
           content: Text('Maç devam ediyor. Ayrılırsan ${_compact(stake)} altın masa bedelini kaybedersin ve koltuğunu bot devralır.'),
           actions: [
@@ -6551,7 +6551,7 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
                             shaderCallback: (r) => LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
-                              colors: lost ? const [Color(0xFFF4EAD2), Color(0xFFB8A684)] : const [Color(0xFFFFF0B8), Color(0xFFE3A740), Color(0xFFA8661C)],
+                              colors: lost ? const [Color(0xFFF4EAD2), Color(0xFF9E9AC7)] : const [Color(0xFFFFF0B8), Color(0xFFE3A740), Color(0xFFA8661C)],
                             ).createShader(r),
                             child: Text(titleText, textAlign: TextAlign.center, style: TextStyle(fontFamily: OkeyXFonts.serif, fontWeight: FontWeight.w700, fontSize: compact ? 30 : 40, height: 1.1, color: Colors.white)),
                           ),
@@ -6645,7 +6645,7 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
                       height: 10 + (i % 4) * 2.0,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(1.5),
-                        color: const [Color(0xFFFFD15C), Color(0xFF3CCF8E), Color(0xFFF6DC95), Color(0xFFE85A4F), Color(0xFF5BC0EB), Color(0xFFFFFFFF)][i % 6],
+                        color: const [Color(0xFFFFD15C), Color(0xFF3CCF8E), Color(0xFFFFE36B), Color(0xFFE85A4F), Color(0xFF5BC0EB), Color(0xFFFFFFFF)][i % 6],
                       ),
                     ),
                   ),
@@ -6686,7 +6686,7 @@ class _RoundResultDialogState extends State<_RoundResultDialog> {
             if (won) const Positioned(top: -8, child: Icon(Icons.workspace_premium_rounded, size: 28, color: OkeyXColors.gold)),
           ]),
           const SizedBox(height: 10),
-          ShaderMask(shaderCallback: (r) => LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: lost ? const [Color(0xFFF4EAD2), Color(0xFFB8A684)] : const [Color(0xFFFFF0B8), Color(0xFFE3A740), Color(0xFFA8661C)]).createShader(r), child: Text(titleText, textAlign: TextAlign.center, style: TextStyle(fontFamily: OkeyXFonts.serif, fontWeight: FontWeight.w700, fontSize: compact ? 27 : 38, height: 1.05, color: Colors.white))),
+          ShaderMask(shaderCallback: (r) => LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: lost ? const [Color(0xFFF4EAD2), Color(0xFF9E9AC7)] : const [Color(0xFFFFF0B8), Color(0xFFE3A740), Color(0xFFA8661C)]).createShader(r), child: Text(titleText, textAlign: TextAlign.center, style: TextStyle(fontFamily: OkeyXFonts.serif, fontWeight: FontWeight.w700, fontSize: compact ? 27 : 38, height: 1.05, color: Colors.white))),
           const SizedBox(height: 7),
           Text(finishLine, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1, color: OkeyXColors.cream)),
           if (widget.matchFinished && mine.isNotEmpty) ...[
@@ -6887,7 +6887,7 @@ class _GiftPainter extends CustomPainter {
     final gold = Paint()..color = OkeyXColors.gold;
     final red = Paint()..color = const Color(0xFFE84D5B);
     final blue = Paint()..color = const Color(0xFF4DA3E8);
-    final dark = Paint()..color = const Color(0xFF2B2118);
+    final dark = Paint()..color = const Color(0xFF160E3D);
 
     void sparkle(Offset p, double r, Paint paint) {
       canvas.drawCircle(p, r, paint);
@@ -7514,7 +7514,7 @@ class _PlayerCardBodyState extends State<_PlayerCardBody> {
             child: Container(
               width: 38,
               height: 38,
-              decoration: BoxDecoration(color: const Color(0xA6140E09), borderRadius: BorderRadius.circular(12), border: Border.all(color: OkeyXColors.line2, width: 1.3)),
+              decoration: BoxDecoration(color: const Color(0xA60B0721), borderRadius: BorderRadius.circular(12), border: Border.all(color: OkeyXColors.line2, width: 1.3)),
               child: const Icon(Icons.arrow_back_rounded, size: 18, color: OkeyXColors.cream),
             ),
           ),
@@ -7736,7 +7736,7 @@ class _GiftFxPainter extends CustomPainter {
             canvas.drawPath(Path()..addPolygon([p, p + Offset(unit * .12, unit * .02), p + Offset(unit * .04, unit * .11)], true), shell);
           }
         }
-        _splat(canvas, c, main: const Color(0xFFFBF6EA), dark: const Color(0xFF9C9180), yolk: const Color(0xFFFFB81F));
+        _splat(canvas, c, main: const Color(0xFFFBF6EA), dark: const Color(0xFF8D8AA8), yolk: const Color(0xFFFFB81F));
       case 'slipper':
       case 'terlik':
       case 'fish':

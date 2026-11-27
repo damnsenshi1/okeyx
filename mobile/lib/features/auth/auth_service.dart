@@ -1,3 +1,4 @@
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config.dart';
@@ -62,6 +63,20 @@ class AuthService {
         redirectTo: mobileAuthCallback,
         queryParams: const {'prompt': 'select_account'},
       );
+      return;
+    }
+    // Uygulama içi Google penceresi: tarayıcıya çıkmaz, ekran yatay kalır.
+    if (AppConfig.googleWebClientId.isNotEmpty) {
+      final google = GoogleSignIn(serverClientId: AppConfig.googleWebClientId, scopes: const ['email', 'profile']);
+      try {
+        await google.signOut();
+      } catch (_) {}
+      final account = await google.signIn();
+      if (account == null) throw StateError('google_cancelled');
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) throw StateError('google_no_id_token');
+      await _client.auth.signInWithIdToken(provider: OAuthProvider.google, idToken: idToken, accessToken: auth.accessToken);
       return;
     }
     final launched = await _client.auth.signInWithOAuth(

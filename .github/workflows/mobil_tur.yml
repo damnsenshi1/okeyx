@@ -75,6 +75,21 @@ jobs:
         continue-on-error: true
         run: flutter test --reporter expanded 2>&1 | tee ../tour_out/testler.txt
 
+      - name: Yayın imza anahtarını hazırla
+        working-directory: mobile
+        shell: bash
+        env:
+          KS_B64: ${{ secrets.OKEYX_KEYSTORE_B64 }}
+          KS_PW: ${{ secrets.OKEYX_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PW" ]; then
+            echo "UYARI: imza anahtarı secret'ları yok; APK debug anahtarla imzalanır ve GitHub sürümü yayınlanmaz."
+            echo "SIGNED=0" >> "$GITHUB_ENV"; exit 0
+          fi
+          echo "$KS_B64" | base64 -d > android/okeyx_release.p12
+          printf 'storeFile=okeyx_release.p12\nstorePassword=%s\nkeyAlias=okeyx\nkeyPassword=%s\n' "$KS_PW" "$KS_PW" > android/key.properties
+          echo "SIGNED=1" >> "$GITHUB_ENV"
+
       - name: APK derle
         working-directory: mobile
         shell: bash
@@ -84,7 +99,8 @@ jobs:
           # Maven Central ara sıra 429 (çok istek) dönebiliyor: bekleyip yeniden dene.
           set -o pipefail
           for i in 1 2 3 4; do
-            flutter build apk --release --dart-define-from-file=app_config.json 2>&1 | tee ../tour_out/derleme.txt && exit 0
+            BUILD=$(grep '^version:' pubspec.yaml | sed 's/.*+//')
+            flutter build apk --release --dart-define-from-file=app_config.json --dart-define=OKEYX_BUILD=$BUILD 2>&1 | tee ../tour_out/derleme.txt && exit 0
             echo "Derleme denemesi $i başarısız, $((i*60)) sn sonra tekrar"; sleep $((i*60))
           done
           exit 1 2>&1 | tee ../tour_out/derleme.txt
@@ -161,3 +177,21 @@ jobs:
           echo "Çalıştırma: ${{ github.run_id }} • commit ${{ github.sha }}" > README.md
           git add -A && git commit -q -m "Ekran turu ${{ github.run_id }}"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" tur-sonuclari
+
+      - name: GitHub sürümü yayınla (uygulama içi güncelleme bunu okur)
+        if: success() && env.SIGNED == '1'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}')
+          NAME=${VER%%+*}; BUILD=${VER##*+}
+          TAG="v${NAME}-b${BUILD}"
+          cp mobile/build/app/outputs/flutter-apk/app-release.apk okeyx.apk
+          NOTES=mobile/RELEASE_NOTES.md; [ -f "$NOTES" ] || { echo "Yeni sürüm" > /tmp/notes.md; NOTES=/tmp/notes.md; }
+          if gh release view "$TAG" -R "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" okeyx.apk --clobber -R "${{ github.repository }}"
+            gh release edit "$TAG" --notes-file "$NOTES" --latest -R "${{ github.repository }}"
+          else
+            gh release create "$TAG" okeyx.apk --title "OKEYX $NAME (build $BUILD)" --notes-file "$NOTES" --latest --target "${{ github.sha }}" -R "${{ github.repository }}"
+          fi

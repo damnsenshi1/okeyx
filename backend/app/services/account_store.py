@@ -343,7 +343,7 @@ class AccountStore:
                 if not self.verify(player_id,session_token):return None
                 if name:a['name']=(name or a['name'])[:24]
                 a['last_seen']=_now();self._normalize(a);self._save();return deepcopy(a)
-            a=_base_account(player_id,name,is_guest=True)
+            a=_base_account(player_id,name,is_guest=True);a['chips']=int(self.economy()['welcome_chips'])
             a['public_id']=self._ensure_unique_public_id(player_id,a.get('public_id'))
             self._data['accounts'][player_id]=a;self._save();return deepcopy(a)
 
@@ -352,7 +352,7 @@ class AccountStore:
         with self._lock:
             a=self._data['accounts'].get(player_id)
             if not a:
-                a=_base_account(player_id,name,email,avatar_url,is_guest=is_guest)
+                a=_base_account(player_id,name,email,avatar_url,is_guest=is_guest);a['chips']=int(self.economy()['welcome_chips'])
                 a['public_id']=self._ensure_unique_public_id(player_id,a.get('public_id'))
                 self._data['accounts'][player_id]=a
             else:
@@ -881,6 +881,18 @@ class AccountStore:
 
     def reward_config(self)->dict:
         with self._lock:return deepcopy(self._data.setdefault('reward_config',{}))
+
+    _ECONOMY_DEFAULTS={'commission_percent':15,'canak_percent':10,'welcome_chips':1_000_000}
+    def economy(self)->dict:
+        cfg=self._data.setdefault('economy',{})
+        return {k:cfg.get(k,v) for k,v in self._ECONOMY_DEFAULTS.items()}
+    def update_economy(self,patch:dict)->dict:
+        with self._lock:
+            cfg=self._data.setdefault('economy',{})
+            if 'commission_percent' in patch:cfg['commission_percent']=max(0,min(30,int(patch['commission_percent'])))
+            if 'canak_percent' in patch:cfg['canak_percent']=max(0,min(50,int(patch['canak_percent'])))
+            if 'welcome_chips' in patch:cfg['welcome_chips']=max(0,min(100_000_000,int(patch['welcome_chips'])))
+            self._save();return self.economy()
 
     def update_reward_config(self,patch:dict)->dict:
         with self._lock:

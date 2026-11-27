@@ -568,8 +568,11 @@ def _record_round_if_finished(room_id:str):
     _table_canak(room_id,room,m,flags,winner)
 
 def _canak_fee(room)->int:
-    """Masa çanağı: her el sonunda her gerçek oyuncu giriş bedelinin %10'unu koyar."""
-    fee=max(50,int(room.state.entry_fee or 0)//10)
+    """Masa çanağı: her el başında her gerçek oyuncu giriş bedelinin yönetici
+    panelindeki oranı kadar (varsayılan %10) koyar."""
+    pct=max(0,min(50,int(STORE.economy().get('canak_percent',10))))
+    if pct<=0:return 0
+    fee=max(50,int(room.state.entry_fee or 0)*pct//100)
     return fee*(2 if room.state.turbo else 1)
 
 def _canak_round_start(room_id:str)->None:
@@ -596,6 +599,13 @@ def _table_canak(room_id:str,room,m:dict,flags:dict,winner)->None:
     if pot<=0:return
     pid=m.get('player_ids',{}).get(winner)
     if not pid or room.state.players[winner].bot or not STORE.get(pid):return
+    # Etkinlik: "Çanak 2 katı" gibi canlı etkinlikler çanağı büyütür (ev sahibinden).
+    try:
+        from app.api.phase4 import _svc as _p4
+        mult=max([float((ev.get('config') or {}).get('canak_multiplier',1) or 1) for ev in _p4()._active_events()] or [1.0])
+        pot=int(pot*max(1.0,min(5.0,mult)))
+    except Exception:
+        pass
     STORE.credit(pid,pot,'table_canak_win',notify=False)
     kind='okey' if flags.get('joker_finish') else 'cift'
     name=room.state.players[winner].name
@@ -672,7 +682,7 @@ def _settle_if_finished(room_id:str):
         winner_ids=[pid for seat,pid in m['player_ids'].items() if seat in winning_seats]
         result_kind='solo'
 
-    commission_rate=0.15
+    commission_rate=max(0,min(30,int(STORE.economy().get('commission_percent',15))))/100.0
     gross_deltas={seat:int(v) for seat,v in deltas.items()}
     commissions={seat:(int(round(v*commission_rate)) if v>0 else 0) for seat,v in gross_deltas.items()}
     net_deltas={seat:gross_deltas[seat]-commissions[seat] for seat in gross_deltas}
@@ -701,7 +711,7 @@ def _settle_if_finished(room_id:str):
         delta=int(net_deltas.get(seat,0))
         if not STORE.get(pid) or delta==0:continue
         if delta>0:
-            STORE.credit(pid,delta,f'{room.state.room_name} • {rank_by_seat[seat]}. sıra • %15 masa komisyonu sonrası',notify=False)
+            STORE.credit(pid,delta,f'{room.state.room_name} • {rank_by_seat[seat]}. sıra • %{int(round(commission_rate*100))} masa komisyonu sonrası',notify=False)
             applied.append({'seat':seat,'delta':delta,'gross':gross_deltas[seat],'commission':commissions[seat],'ok':True})
         else:
             ok=STORE.debit(pid,-delta,f'{room.state.room_name} • {rank_by_seat[seat]}. sıra',notify=False)
@@ -964,8 +974,8 @@ async def quick_room(body:JoinRoomIn):
         variant=body.variant if body.variant in ('fold','non_fold','duz') else 'non_fold',
         team_mode=body.team_mode if body.team_mode in ('solo','paired') else 'solo',
         entry_fee=requested_fee,
-        # Hızlı maç her zaman tek el (masa kurda 1/2/3 seçimi ayrı kalır).
-        max_rounds=1,
+        # Hızlı maç varsayılan tek el; oyuncu ana ekrandan 2 ya da 3 el seçebilir.
+        max_rounds=body.rounds if body.rounds in (1,2,3) else 1,
         assisted=True if body.assisted is None else body.assisted,
         random_starter=True,intro_seconds=5,
     )

@@ -137,7 +137,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
           Positioned.fill(
             child: IgnorePointer(
               child: ColoredBox(
-                color: const Color(0x66120E0A),
+                color: const Color(0x660B071E),
                 child: Center(child: CircularProgressIndicator(color: _loading ? OkeyXColors.gold : OkeyXColors.mint)),
               ),
             ),
@@ -152,7 +152,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
     return Container(
       padding: EdgeInsets.all(widget.compact ? 10 : 14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF3C2E22), Color(0xFF1A140F)]),
+        gradient: const LinearGradient(colors: [Color(0xFF1E1453), Color(0xFF0F0A28)]),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: OkeyXColors.gold.withValues(alpha: .28)),
         boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 8))],
@@ -199,7 +199,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
             child: Padding(
               padding: EdgeInsets.only(right: i == labels.length - 1 ? 0 : 5),
               child: Material(
-                color: _tab == i ? OkeyXColors.mint.withValues(alpha: .16) : const Color(0x992A2018),
+                color: _tab == i ? OkeyXColors.mint.withValues(alpha: .16) : const Color(0x99160F3C),
                 borderRadius: BorderRadius.circular(13),
                 child: InkWell(
                   onTap: () => _switchTab(i),
@@ -261,7 +261,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
                 width: widget.compact ? 286 : 328,
                 padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: isWelcome ? const [Color(0xFF5B3810), Color(0xFF413225), Color(0xFF1A140F)] : const [Color(0xFF3B2D21), Color(0xFF31261C), Color(0xFF1A140F)]),
+                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: isWelcome ? const [Color(0xFF2A1B79), Color(0xFF211559), Color(0xFF0F0A28)] : const [Color(0xFF1D1351), Color(0xFF1A1145), Color(0xFF0F0A28)]),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: (isWelcome ? OkeyXColors.gold : OkeyXColors.cyan).withValues(alpha: .45)),
                   boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 12, offset: Offset(0, 5))],
@@ -363,7 +363,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
       width:widget.compact?186:224,
       padding:const EdgeInsets.all(10),
       decoration:BoxDecoration(
-        gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[accent.withValues(alpha:.12),const Color(0xE6251C15),const Color(0xF219130E)]),
+        gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[accent.withValues(alpha:.12),const Color(0xE6140D36),const Color(0xF20E0927)]),
         borderRadius:BorderRadius.circular(17),
         border:Border.all(color:accent.withValues(alpha:.34)),
         boxShadow:[BoxShadow(color:accent.withValues(alpha:.07),blurRadius:14,offset:const Offset(0,5))],
@@ -392,7 +392,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
     final id='${item['id']}';final category='${item['category']}';final accent=_cosmeticAccentForId(id);
     Widget content;
     if(category=='rack'){
-      content=Align(alignment:Alignment.center,child:Container(height:25,margin:const EdgeInsets.symmetric(horizontal:12),decoration:BoxDecoration(gradient:LinearGradient(colors:[accent.withValues(alpha:.95),accent.withValues(alpha:.42),const Color(0xFF19100C)]),borderRadius:BorderRadius.circular(8),border:Border.all(color:accent.withValues(alpha:.6))),child:Align(alignment:const Alignment(0,.48),child:Container(height:3,margin:const EdgeInsets.symmetric(horizontal:8),decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(9))))));
+      content=Align(alignment:Alignment.center,child:Container(height:25,margin:const EdgeInsets.symmetric(horizontal:12),decoration:BoxDecoration(gradient:LinearGradient(colors:[accent.withValues(alpha:.95),accent.withValues(alpha:.42),const Color(0xFF0E0927)]),borderRadius:BorderRadius.circular(8),border:Border.all(color:accent.withValues(alpha:.6))),child:Align(alignment:const Alignment(0,.48),child:Container(height:3,margin:const EdgeInsets.symmetric(horizontal:8),decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(9))))));
     }else if(category=='tiles'){
       content=Row(mainAxisAlignment:MainAxisAlignment.center,children:[for(final n in const [1,0,1]) Container(width:28,height:38,margin:const EdgeInsets.symmetric(horizontal:2),alignment:Alignment.center,decoration:BoxDecoration(gradient:LinearGradient(colors:[Colors.white,accent.withValues(alpha:.22)]),borderRadius:BorderRadius.circular(6),border:Border.all(color:accent.withValues(alpha:.62))),child:Text('$n',style:TextStyle(color:n==0?Colors.black:const Color(0xFFD32929),fontSize:14,fontWeight:FontWeight.w900)))]);
     }else if(category=='cloth'){
@@ -484,7 +484,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
               gradient: LinearGradient(colors: [accent, const Color(0xFF7EE8FF)]),
               boxShadow: [BoxShadow(color: accent.withValues(alpha: .26), blurRadius: 18)],
             ),
-            child: Center(child: Text('$level', style: const TextStyle(color: Color(0xFF211A13), fontSize: 25, fontWeight: FontWeight.w900))),
+            child: Center(child: Text('$level', style: const TextStyle(color: Color(0xFF120C31), fontSize: 25, fontWeight: FontWeight.w900))),
           ),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -543,7 +543,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
         Container(
           width:double.infinity,
           padding:const EdgeInsets.all(12),
-          decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xFF553313),Color(0xFF8A5B1D),Color(0xFF2A2114)]),borderRadius:BorderRadius.circular(16),border:Border.all(color:OkeyXColors.gold.withValues(alpha:.72))),
+          decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xFF281972),Color(0xFF8A5B1D),Color(0xFF150D3C)]),borderRadius:BorderRadius.circular(16),border:Border.all(color:OkeyXColors.gold.withValues(alpha:.72))),
           child:Row(children:[
             const Icon(Icons.workspace_premium_rounded,color:OkeyXColors.gold,size:34),const SizedBox(width:10),
             const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('OKEY PASS PREMIUM',style:TextStyle(fontSize:12,fontWeight:FontWeight.w900)),SizedBox(height:3),Text('Premium ödül yolunu aç • kazandığın seviyelerde iki ödülü birden topla.',maxLines:2,style:TextStyle(fontSize:7.5,color:Colors.white70))])),
@@ -615,7 +615,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
               width: 152,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: unlocked ? const Color(0xCC3B2D21) : const Color(0xAA1C1510),
+                color: unlocked ? const Color(0xCC1D1351) : const Color(0xAA100A2B),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: unlocked ? OkeyXColors.gold.withValues(alpha: .42) : Colors.white10),
               ),
@@ -720,7 +720,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
   Widget _emptyState(IconData icon, String title, String subtitle) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: const Color(0x882D2219), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
+        decoration: BoxDecoration(color: const Color(0x88170E40), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
         child: Row(children: [
           Icon(icon, color: OkeyXColors.mint, size: 25),
           const SizedBox(width: 10),
@@ -848,7 +848,7 @@ class _Phase4ScreenState extends State<Phase4Screen> with AutomaticKeepAliveClie
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), duration: const Duration(seconds: 2)));
   }
 
-  Widget _card({required double width, required Widget child}) => Container(width: width, padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: const Color(0xCC2D2219), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white12), boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 10)]), child: child);
+  Widget _card({required double width, required Widget child}) => Container(width: width, padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: const Color(0xCC170E40), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white12), boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 10)]), child: child);
   Widget _wallet(IconData icon, String value, Color color) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7), decoration: BoxDecoration(color: color.withValues(alpha: .08), borderRadius: BorderRadius.circular(11), border: Border.all(color: color.withValues(alpha: .22))), child: Row(children: [Icon(icon, size: 14, color: color), const SizedBox(width: 4), Text(value, style: TextStyle(fontSize: 8, color: color, fontWeight: FontWeight.w900))]));
   Widget _title(String text) => Padding(padding: const EdgeInsets.only(bottom: 6), child: _titleWidget(text));
   Widget _titleWidget(String text) => Text(text, style: const TextStyle(fontSize: 9, color: Colors.white60, fontWeight: FontWeight.w900, letterSpacing: 1.1));

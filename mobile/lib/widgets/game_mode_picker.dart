@@ -33,7 +33,7 @@ class OkxModeTabs extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(height / 2),
                     gradient: classic == opt.$1
-                        ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF6DC95), Color(0xFFC99440)])
+                        ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFFFE36B), Color(0xFFFFA928)])
                         : null,
                     boxShadow: classic == opt.$1 ? const [BoxShadow(color: Color(0x66000000), blurRadius: 6, offset: Offset(0, 2))] : const [],
                   ),
@@ -60,7 +60,7 @@ class OkxModeTabs extends StatelessWidget {
       );
 }
 
-const okxTextDarkMode = Color(0xFF2B1906);
+const okxTextDarkMode = Color(0xFF150E3D);
 
 /// İki seçenekli, tam yazılı seçim: "Katlamasız | Katlamalı" gibi.
 /// Hiçbir zaman kayan şerit olmaz; dar alanda yazı ölçeklenir.
@@ -100,7 +100,7 @@ class OkxPairSwitch extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(height / 2),
-            gradient: selected ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF6DC95), Color(0xFFC99440)]) : null,
+            gradient: selected ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFFFE36B), Color(0xFFFFA928)]) : null,
           ),
           child: FittedBox(
             fit: BoxFit.scaleDown,
@@ -242,7 +242,7 @@ class OkxToggleChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(height / 2),
-            gradient: active ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF6DC95), Color(0xFFC99440)]) : null,
+            gradient: active ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFFFE36B), Color(0xFFFFA928)]) : null,
             color: active ? null : const Color(0x59000000),
             border: Border.all(color: active ? const Color(0x00000000) : const Color(0x40E8C478)),
           ),

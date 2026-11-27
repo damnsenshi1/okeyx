@@ -62,7 +62,7 @@ class _YanciCenterScreenState extends State<YanciCenterScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFF120E0A),
+        backgroundColor: const Color(0xFF0B071E),
         body: OkxRoom(
           child: SafeArea(
             child: Column(children: [
@@ -89,7 +89,7 @@ class _YanciCenterScreenState extends State<YanciCenterScreen> {
   Widget _header() => Container(
         height: 66,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: const BoxDecoration(color: Color(0xCC120E0A), border: Border(bottom: BorderSide(color: OkeyXColors.line2))),
+        decoration: const BoxDecoration(color: Color(0xCC0B071E), border: Border(bottom: BorderSide(color: OkeyXColors.line2))),
         child: Row(children: [
           IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back_rounded)),
           const SizedBox(width: 5),
@@ -107,7 +107,7 @@ class _YanciCenterScreenState extends State<YanciCenterScreen> {
         child: Container(
           width: 380,
           padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(color: const Color(0xF21D1712), borderRadius: BorderRadius.circular(22), border: Border.all(color: OkeyXColors.line2)),
+          decoration: BoxDecoration(color: const Color(0xF2130D2C), borderRadius: BorderRadius.circular(22), border: Border.all(color: OkeyXColors.line2)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, color: OkeyXColors.gold, size: 38),
             const SizedBox(height: 8),
@@ -129,7 +129,7 @@ class _YanciCenterScreenState extends State<YanciCenterScreen> {
         child: Ink(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xF12B2118), Color(0xF21D1712), Color(0xFA0E0B08)]),
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xF1160E3D), Color(0xF2130D2C), Color(0xFA090619)]),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: turbo ? OkeyXColors.gold.withValues(alpha: .48) : OkeyXColors.ruby.withValues(alpha: .32)),
             boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 16, offset: Offset(0, 7))],
@@ -137,13 +137,13 @@ class _YanciCenterScreenState extends State<YanciCenterScreen> {
           child: Row(children: [
             Container(
               width: 116,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(65), gradient: const RadialGradient(colors: [Color(0xFF15927D), Color(0xFF503E2D), Color(0xFF30241B)]), border: Border.all(color: const Color(0xFFB98A41), width: 4)),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(65), gradient: const RadialGradient(colors: [Color(0xFF15927D), Color(0xFF27196C), Color(0xFF181044)]), border: Border.all(color: const Color(0xFFB98A41), width: 4)),
               child: Stack(alignment: Alignment.center, children: [
                 const Text('101', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: Colors.white24)),
                 for (var i = 0; i < math.min(4, players.length); i++)
                   Align(
                     alignment: const [Alignment(0, -.82), Alignment(.82, 0), Alignment(0, .82), Alignment(-.82, 0)][i],
-                    child: CircleAvatar(radius: 10, backgroundColor: players[i]['bot'] == true ? Colors.white24 : OkeyXColors.mint, child: Text('${players[i]['name'] ?? 'O'}'.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 6, fontWeight: FontWeight.w900, color: Color(0xFF221A13)))),
+                    child: CircleAvatar(radius: 10, backgroundColor: players[i]['bot'] == true ? Colors.white24 : OkeyXColors.mint, child: Text('${players[i]['name'] ?? 'O'}'.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 6, fontWeight: FontWeight.w900, color: Color(0xFF120B32)))),
                   ),
               ]),
             ),
@@ -285,7 +285,7 @@ class _YanciTableScreenState extends State<YanciTableScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFF0E0B08),
+        backgroundColor: const Color(0xFF090619),
         body: SafeArea(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -317,7 +317,7 @@ class _YanciTableScreenState extends State<YanciTableScreen> {
   Widget _spectatorBoard(bool compact) => Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(120),
-          gradient: const RadialGradient(colors: [Color(0xFF167A59), Color(0xFF155E43), Color(0xFF302318), Color(0xFF19130E)]),
+          gradient: const RadialGradient(colors: [Color(0xFF167A59), Color(0xFF155E43), Color(0xFF180F44), Color(0xFF0E0927)]),
           border: Border.all(color: const Color(0xFFC09149), width: compact ? 5 : 7),
           boxShadow: const [BoxShadow(color: Color(0x88000000), blurRadius: 25, offset: Offset(0, 12)), BoxShadow(color: Color(0x3300E2C0), blurRadius: 28)],
         ),
@@ -351,14 +351,14 @@ class _YanciTableScreenState extends State<YanciTableScreen> {
         width: 100,
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0xF22B2118),
+          color: const Color(0xF2160E3D),
           borderRadius: BorderRadius.circular(17),
           border: Border.all(color: selected ? OkeyXColors.gold : active ? OkeyXColors.ruby : Colors.white24, width: selected || active ? 2 : 1),
           boxShadow: streak >= 2 ? const [BoxShadow(color: Color(0x88FF723B), blurRadius: 14)] : active ? [BoxShadow(color: OkeyXColors.ruby.withValues(alpha: .23), blurRadius: 11)] : null,
         ),
         child: Row(children: [
           Stack(clipBehavior: Clip.none, children: [
-            CircleAvatar(radius: 13, backgroundColor: active ? OkeyXColors.ruby : const Color(0xFF584432), child: Text(name.isEmpty ? 'O' : name.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFF231B14)))),
+            CircleAvatar(radius: 13, backgroundColor: active ? OkeyXColors.ruby : const Color(0xFF2B1C76), child: Text(name.isEmpty ? 'O' : name.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFF130D33)))),
             if (oneTile) const Positioned(right: -5, top: -6, child: Text('💧', style: TextStyle(fontSize: 10))),
             if (streak >= 2) const Positioned(left: -6, bottom: -7, child: Text('🔥', style: TextStyle(fontSize: 11))),
           ]),
@@ -455,7 +455,7 @@ class _YanciTableScreenState extends State<YanciTableScreen> {
 
   Widget _sidePanel({required String title, required IconData icon, required Color color, required Widget child}) => Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: const Color(0xE8211912), borderRadius: BorderRadius.circular(18), border: Border.all(color: color.withValues(alpha: .32)), boxShadow: const [BoxShadow(color: Color(0x44000000), blurRadius: 12)]),
+        decoration: BoxDecoration(color: const Color(0xE8110B31), borderRadius: BorderRadius.circular(18), border: Border.all(color: color.withValues(alpha: .32)), boxShadow: const [BoxShadow(color: Color(0x44000000), blurRadius: 12)]),
         child: Column(children: [
           Row(children: [Icon(icon, size: 14, color: color), const SizedBox(width: 5), Text(title, style: TextStyle(fontSize: 7, color: color, fontWeight: FontWeight.w900, letterSpacing: .4))]),
           const SizedBox(height: 6),
@@ -466,7 +466,7 @@ class _YanciTableScreenState extends State<YanciTableScreen> {
   Widget _yanciBar() => Container(
         height: 39,
         padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(color: const Color(0xF2281F16), borderRadius: BorderRadius.circular(15), border: Border.all(color: OkeyXColors.gold.withValues(alpha: .35))),
+        decoration: BoxDecoration(color: const Color(0xF2140D3A), borderRadius: BorderRadius.circular(15), border: Border.all(color: OkeyXColors.gold.withValues(alpha: .35))),
         child: Row(children: [
           const CircleAvatar(radius: 12, backgroundColor: Color(0xFF785A2B), child: Icon(Icons.chair_alt_rounded, size: 13, color: OkeyXColors.gold)),
           const SizedBox(width: 7),
@@ -484,23 +484,23 @@ class _YanciTableScreenState extends State<YanciTableScreen> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: const Color(0xEE251D15), borderRadius: BorderRadius.circular(18), border: Border.all(color: color, width: left <= 5 ? 2 : 1), boxShadow: left <= 5 ? [BoxShadow(color: color.withValues(alpha: .28), blurRadius: 13)] : null),
+      decoration: BoxDecoration(color: const Color(0xEE140D36), borderRadius: BorderRadius.circular(18), border: Border.all(color: color, width: left <= 5 ? 2 : 1), boxShadow: left <= 5 ? [BoxShadow(color: color.withValues(alpha: .28), blurRadius: 13)] : null),
       child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.timer_rounded, size: 14, color: color), const SizedBox(width: 5), Text('$left', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w900)), const SizedBox(width: 5), const Text('SANİYE', style: TextStyle(fontSize: 5.5, color: Colors.white38, fontWeight: FontWeight.w900))]),
     );
   }
 
-  Widget _roundButton(IconData icon, VoidCallback onTap) => Material(color: const Color(0xDD281F16), shape: const CircleBorder(), child: IconButton(onPressed: onTap, icon: Icon(icon, size: 18)));
+  Widget _roundButton(IconData icon, VoidCallback onTap) => Material(color: const Color(0xDD140D3A), shape: const CircleBorder(), child: IconButton(onPressed: onTap, icon: Icon(icon, size: 18)));
 
   Widget _statusPill(IconData icon, String text, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(color: const Color(0xDD281F16), borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withValues(alpha: .35))),
+        decoration: BoxDecoration(color: const Color(0xDD140D3A), borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withValues(alpha: .35))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 13, color: color), const SizedBox(width: 4), Text(text, style: TextStyle(fontSize: 6.5, color: color, fontWeight: FontWeight.w900))]),
       );
 
   Widget _notice() => Container(
         constraints: const BoxConstraints(maxWidth: 430),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(color: const Color(0xF22B2118), borderRadius: BorderRadius.circular(14), border: Border.all(color: OkeyXColors.ruby.withValues(alpha: .35)), boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10)]),
+        decoration: BoxDecoration(color: const Color(0xF2160E3D), borderRadius: BorderRadius.circular(14), border: Border.all(color: OkeyXColors.ruby.withValues(alpha: .35)), boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10)]),
         child: Text(_message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 7, color: Colors.white70, fontWeight: FontWeight.w800)),
       );
 }
