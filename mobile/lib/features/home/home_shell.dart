@@ -3328,7 +3328,7 @@ class _HomeShellState extends State<HomeShell> {
                                             FittedBox(fit: BoxFit.scaleDown, child: OkxTitle(tableName, size: 18)),
                                             const SizedBox(height: 4),
                                             FittedBox(fit: BoxFit.scaleDown, child: Text(modeText, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .6, color: Color(0xFFCFE8D8)))),
-                                            if (turbo) const Padding(padding: EdgeInsets.only(top: 6), child: OkxChip(label: 'TURBO • GİRİŞ ×10', icon: Icons.bolt_rounded, selected: true)),
+                                            if (turbo) const Padding(padding: EdgeInsets.only(top: 6), child: FittedBox(fit: BoxFit.scaleDown, child: OkxChip(label: 'TURBO • GİRİŞ ×10', icon: Icons.bolt_rounded, selected: true))),
                                           ]),
                                         ),
                                       ),

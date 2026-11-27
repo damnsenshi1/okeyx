@@ -1,3 +1,7 @@
+OKEYX 20.5.3
+
+• Masa kur ekranında "TURBO • GİRİŞ ×10" yazısı artık sığıyor.
+
 OKEYX 20.5.2
 
 • Yönetim cezası alan oyuncuya ne olduğu açıkça yazılır (askı, davet/hediye kilidi).
