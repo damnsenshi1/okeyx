@@ -5014,8 +5014,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final occupiedCount = _integer(_state['occupied_count'], fallback: derivedOccupied).clamp(0, 4).toInt();
     final emptyCount = _integer(_state['empty_count'], fallback: 4 - occupiedCount).clamp(0, 4).toInt();
     final botCount = _integer(_state['bot_count'], fallback: players.where((p) => p['explicit_bot'] == true).length).clamp(0, 4).toInt();
-    final notReadyCount = _list(_state['players']).map(_map).where((p) => p['ready'] != true && p['bot'] != true && '${p['player_id'] ?? ''}'.isNotEmpty).length;
-    final myReady = _viewer['ready'] == true;
+    // Eski sunucu 'ready' alanını göndermez: o durumda herkes hazır sayılır.
+    final readySupported = _list(_state['players']).map(_map).any((p) => p.containsKey('ready'));
+    final notReadyCount = !readySupported ? 0 : _list(_state['players']).map(_map).where((p) => p['ready'] != true && p['bot'] != true && '${p['player_id'] ?? ''}'.isNotEmpty).length;
+    final myReady = !readySupported || _viewer['ready'] == true;
     final tableReady = occupiedCount == 4 && notReadyCount == 0;
     final humanCount = _integer(
       _state['human_count'],
@@ -5151,9 +5153,9 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                   const SizedBox(width:6),
                                   Expanded(flex:7,child:FilledButton.icon(
                                     style:FilledButton.styleFrom(backgroundColor:current<required?const Color(0xFF9A6A2F):tableReady?const Color(0xFF8A5A1C):const Color(0xFF231665),foregroundColor:Colors.white,shadowColor:tableReady?OkeyXColors.gold:Colors.transparent,elevation:tableReady?14:2,padding:EdgeInsets.symmetric(vertical:shortViewport?9:11),side:BorderSide(color:tableReady?OkeyXColors.gold.withValues(alpha:.75):Colors.white12,width:tableReady?1.4:1)),
-                                    onPressed:_busy?null:(current<required?_leaveForStore:(isHost?(tableReady?()=>_startMatchFromWaiting(required,current):null):()=>unawaited(_toggleReady(!myReady)))),
+                                    onPressed:_busy?null:(current<required?_leaveForStore:(isHost?(tableReady?()=>_startMatchFromWaiting(required,current):null):(readySupported?()=>unawaited(_toggleReady(!myReady)):null))),
                                     icon:Icon(current<required?Icons.shopping_bag_rounded:(isHost?(tableReady?Icons.play_arrow_rounded:Icons.hourglass_bottom_rounded):(myReady?Icons.check_circle_rounded:Icons.front_hand_rounded)),size:16),
-                                    label:FittedBox(child:Text(current<required?'ALTIN AL':isHost?(tableReady?'OYUNU BAŞLAT':emptyCount>0?'$emptyCount KOLTUK BOŞ':'$notReadyCount HAZIR DEĞİL'):(myReady?'HAZIRIM ✓ (İPTAL)':'HAZIRIM'),style:const TextStyle(fontWeight:FontWeight.w900))),
+                                    label:FittedBox(child:Text(current<required?'ALTIN AL':isHost?(tableReady?'OYUNU BAŞLAT':emptyCount>0?'$emptyCount KOLTUK BOŞ':'$notReadyCount HAZIR DEĞİL'):(!readySupported?'MASA SAHİBİ BAŞLATACAK':myReady?'HAZIRIM ✓ (İPTAL)':'HAZIRIM'),style:const TextStyle(fontWeight:FontWeight.w900))),
                                   )),
                                 ]),
                               ] else ...[
@@ -5266,7 +5268,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final teamColor = partner || (paired && mine) ? OkeyXColors.gold : rival ? const Color(0xFF6FA8FF) : OkeyXColors.gold;
     final connected = player['connected'] == true || bot || mine;
     // Hazır durumu: oyuncu HAZIRIM'a basar; masa sahibi ve botlar hep hazırdır.
-    final ready = player['ready'] == true || bot;
+    final ready = player['ready'] == true || bot || !player.containsKey('ready');
     final (statusText, statusColor) = empty
         ? (isHost ? ('DAVET / BOT / GEÇ', const Color(0x99FFE3A0)) : ('BURAYA OTUR', OkeyXColors.mint))
         : !connected

@@ -1,3 +1,4 @@
+• Eski sunucuyla uyum: masa sahibi arkadaşlarla oyunu başlatabilir
 • Masa: üst bilgi şeridi ve karşı oyuncu artık üst üste binmiyor, isim hep görünür
 • SIRA SENDE yazısı bilgi çubuğunun üstüne binmiyor; çift alanı desteye binmiyor
 • SERİ DİZ / ÇİFT DİZ / HEDİYE / SOHBET tuşları büyüdü, yazıları tam sığıyor
