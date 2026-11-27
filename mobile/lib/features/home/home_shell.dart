@@ -4720,74 +4720,120 @@ class _InviteSplashState extends State<_InviteSplash> with TickerProviderStateMi
   @override
   Widget build(BuildContext context) {
     final appear = CurvedAnimation(parent: _in, curve: Curves.easeOutBack);
+    final left = (30 * (1 - _life.value)).ceil();
+    final chips = widget.details.split('•').map((x) => x.trim()).where((x) => x.isNotEmpty).toList();
+    const chipColors = [Color(0xFF3DF2D0), Color(0xFFFFCB45), Color(0xFFFF7AC6), Color(0xFF8FB3FF), Color(0xFFB36BFF)];
     return Positioned.fill(
       child: Material(
         color: Colors.transparent,
         child: AnimatedBuilder(
           animation: Listenable.merge([_in, _pulse, _life]),
           builder: (context, _) => Stack(alignment: Alignment.center, children: [
+            // Renkli, kararan arka plan
             Positioned.fill(
               child: GestureDetector(
                 onTap: () {},
-                child: ColoredBox(color: Color.fromRGBO(0, 0, 0, .62 * _in.value)),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      radius: 1.1,
+                      colors: [const Color(0xFF6A1B9A).withValues(alpha: .70 * _in.value), const Color(0xFF0B0726).withValues(alpha: .92 * _in.value)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Dönen ışık hüzmeleri
+            IgnorePointer(
+              child: Transform.rotate(
+                angle: _life.value * math.pi * 1.5,
+                child: Opacity(opacity: .55 * _in.value, child: CustomPaint(size: const Size(760, 760), painter: _RaysPainter())),
               ),
             ),
             Transform.scale(
-              scale: .6 + .4 * appear.value,
+              scale: .55 + .45 * appear.value,
               child: Opacity(
-                opacity: _in.value,
+                opacity: _in.value.clamp(0.0, 1.0),
                 child: Container(
-                  width: 440,
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+                  width: 500,
+                  constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .92, maxHeight: MediaQuery.sizeOf(context).height * .94),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(26),
-                    gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF150E3D), Color(0xFF0B0721)]),
-                    border: Border.all(color: const Color(0xFFE8C478), width: 1.8),
+                    borderRadius: BorderRadius.circular(30),
+                    gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF3B1D8F), Color(0xFF1A1255), Color(0xFF0C3A5C)]),
+                    border: Border.all(color: Color.lerp(const Color(0xFFFFD54A), const Color(0xFFFF7AC6), _pulse.value)!, width: 2),
                     boxShadow: [
-                      const BoxShadow(color: Color(0xCC000000), blurRadius: 40, offset: Offset(0, 20)),
-                      BoxShadow(color: const Color(0xFFFFC24A).withValues(alpha: .25 + .25 * _pulse.value), blurRadius: 30, spreadRadius: 2),
+                      const BoxShadow(color: Color(0xCC000000), blurRadius: 44, offset: Offset(0, 22)),
+                      BoxShadow(color: const Color(0xFFFF7AC6).withValues(alpha: .25 + .25 * _pulse.value), blurRadius: 40, spreadRadius: 2),
                     ],
                   ),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('MASA DAVETİ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2, color: OkeyXColors.gold)),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: 92,
-                      height: 92,
-                      child: Stack(alignment: Alignment.center, children: [
-                        SizedBox.expand(
-                          child: CircularProgressIndicator(
-                            value: 1 - _life.value,
-                            strokeWidth: 4,
-                            backgroundColor: const Color(0x22FFFFFF),
-                            color: const Color(0xFF3CCF8E),
-                          ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: SingleChildScrollView(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        // Üst şerit
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFFFFD54A), Color(0xFFFF8A3D), Color(0xFFFF4D8D)])),
+                          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Text('🀄', style: TextStyle(fontSize: 16)),
+                            SizedBox(width: 8),
+                            Text('MASA DAVETİ', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: 16, letterSpacing: 2.5, color: Color(0xFF2A0E3D))),
+                            SizedBox(width: 8),
+                            Text('🀄', style: TextStyle(fontSize: 16)),
+                          ]),
                         ),
-                        OkxAvatar(name: widget.from, imageUrl: widget.avatarUrl, size: 70),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 16, 22, 18),
+                          child: Column(mainAxisSize: MainAxisSize.min, children: [
+                            Row(children: [
+                              // Geri sayım halkalı avatar
+                              SizedBox(
+                                width: 104,
+                                height: 104,
+                                child: Stack(alignment: Alignment.center, children: [
+                                  Container(width: 104, height: 104, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: const Color(0xFF3DF2D0).withValues(alpha: .35 + .3 * _pulse.value), blurRadius: 24)])),
+                                  SizedBox.expand(child: CircularProgressIndicator(value: 1 - _life.value, strokeWidth: 5, backgroundColor: const Color(0x22FFFFFF), color: Color.lerp(const Color(0xFFFF5470), const Color(0xFF3DF2D0), 1 - _life.value))),
+                                  OkxAvatar(name: widget.from, imageUrl: widget.avatarUrl, size: 78),
+                                ]),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(widget.from, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: OkeyXFonts.number, fontSize: 24, color: Colors.white, height: 1.1)),
+                                  const SizedBox(height: 4),
+                                  const Text('seni masasına çağırıyor!', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFFFFD9F0))),
+                                  const SizedBox(height: 8),
+                                  Wrap(spacing: 6, runSpacing: 6, children: [
+                                    for (var i = 0; i < chips.length; i++)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(99), color: chipColors[i % chipColors.length].withValues(alpha: .16), border: Border.all(color: chipColors[i % chipColors.length].withValues(alpha: .6))),
+                                        child: Text(chips[i], style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: chipColors[i % chipColors.length])),
+                                      ),
+                                  ]),
+                                ]),
+                              ),
+                            ]),
+                            const SizedBox(height: 16),
+                            Row(children: [
+                              Expanded(child: OkxButton.ghost(label: 'REDDET', height: 50, expand: true, onTap: widget.onDecline)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                flex: 2,
+                                child: Transform.scale(
+                                  scale: 1 + .04 * _pulse.value,
+                                  child: OkxButton.green(label: 'MASAYA OTUR  ($left)', icon: Icons.event_seat_rounded, height: 54, fontSize: 16, expand: true, onTap: widget.onJoin),
+                                ),
+                              ),
+                            ]),
+                            const SizedBox(height: 8),
+                            const Text('Masaya girince istediğin boş koltuğu seçebilirsin.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xAAFFFFFF))),
+                          ]),
+                        ),
                       ]),
                     ),
-                    const SizedBox(height: 12),
-                    Text(widget.from, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: OkeyXFonts.serif, fontSize: 24, fontWeight: FontWeight.w700, color: OkeyXColors.cream)),
-                    const SizedBox(height: 4),
-                    const Text('seni masasına çağırıyor', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: OkeyXColors.muted)),
-                    if (widget.details.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(widget.details, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: OkeyXColors.mint)),
-                    ],
-                    const SizedBox(height: 16),
-                    Row(children: [
-                      Expanded(child: OkxButton.ghost(label: 'REDDET', height: 46, expand: true, onTap: widget.onDecline)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: Transform.scale(
-                          scale: 1 + .03 * _pulse.value,
-                          child: OkxButton.green(label: 'KATIL  (${(30 * (1 - _life.value)).ceil()})', icon: Icons.login_rounded, height: 50, fontSize: 15, expand: true, onTap: widget.onJoin),
-                        ),
-                      ),
-                    ]),
-                  ]),
+                  ),
                 ),
               ),
             ),
@@ -4796,6 +4842,26 @@ class _InviteSplashState extends State<_InviteSplash> with TickerProviderStateMi
       ),
     );
   }
+}
+
+class _RaysPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2;
+    for (var i = 0; i < 16; i++) {
+      final a0 = i * math.pi * 2 / 16;
+      final path = Path()
+        ..moveTo(c.dx, c.dy)
+        ..lineTo(c.dx + r * math.cos(a0), c.dy + r * math.sin(a0))
+        ..lineTo(c.dx + r * math.cos(a0 + .16), c.dy + r * math.sin(a0 + .16))
+        ..close();
+      canvas.drawPath(path, Paint()..shader = RadialGradient(colors: [i.isEven ? const Color(0x88FFD54A) : const Color(0x66FF7AC6), const Color(0x00000000)]).createShader(Rect.fromCircle(center: c, radius: r)));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RaysPainter oldDelegate) => false;
 }
 
 

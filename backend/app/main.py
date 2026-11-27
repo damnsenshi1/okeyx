@@ -134,7 +134,12 @@ async def _startup_watchdog():
 
 @app.on_event('shutdown')
 async def _shutdown_flush():
-    # Kapanmadan önce bekleyen hesap değişikliklerini Supabase'e yaz.
+    # Kapanmadan önce açık masaları ve bekleyen hesap değişikliklerini Supabase'e yaz.
+    try:
+        from app.api.game import flush_runtime_on_shutdown
+        flush_runtime_on_shutdown()
+    except Exception as exc:
+        print(f'OKEYX_SHUTDOWN_ROOMS_FAIL {exc}', flush=True)
     try:
         from app.services.account_store import STORE
         STORE.flush()

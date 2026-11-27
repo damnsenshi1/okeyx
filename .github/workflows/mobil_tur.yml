@@ -132,7 +132,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: false
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim
           script: adb install -r mobile/build/app/outputs/flutter-apk/app-release.apk && OUT=$GITHUB_WORKSPACE/tour_out bash mobile/tool/screen_tour.sh
 
       - name: Videoları hazırla

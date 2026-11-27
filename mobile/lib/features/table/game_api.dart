@@ -39,6 +39,7 @@ class GameApiClient {
   int _requestSequence = 0;
   int _lastPingMs = 0;
   int _lastStateVersion = 0;
+  String _serverBoot = '';
   final Map<String, Completer<Map<String, dynamic>>> _pendingActions = <String, Completer<Map<String, dynamic>>>{};
 
   String? roomId;
@@ -153,6 +154,20 @@ class GameApiClient {
     return response;
   }
 
+
+  /// Bekleme odasında boş bir koltuğa geç (koltuk ve bağlantı anahtarı değişir).
+  Future<Map<String, dynamic>> changeSeat(int toSeat) async {
+    final id = roomId;
+    final token = reconnectToken;
+    if (id == null || token == null) throw const GameApiException('game_session_missing');
+    final out = await _post('/api/game/$id/sit', {'seat': seat, 'reconnect_token': token, 'to_seat': toSeat});
+    if (out['ok'] == true) {
+      _lastStateVersion = 0;
+      _applySession(out);
+      unawaited(_connectSocket());
+    }
+    return out;
+  }
 
   Future<Map<String, dynamic>> chat(
     String kind,
@@ -376,6 +391,12 @@ class GameApiClient {
   void _acceptState(Map<String, dynamic> state) {
     if (state.isEmpty || _disposed) return;
     final version = (state['state_version'] as num?)?.toInt() ?? 0;
+    // Sunucu yeniden başladıysa (yeni sürüm yüklendi) sayaç sıfırlanmış olabilir.
+    final boot = '${state['server_boot'] ?? ''}';
+    if (boot.isNotEmpty && boot != _serverBoot) {
+      if (_serverBoot.isNotEmpty) _lastStateVersion = 0;
+      _serverBoot = boot;
+    }
     if (version > 0) {
       if (version <= _lastStateVersion) return;
       _lastStateVersion = version;

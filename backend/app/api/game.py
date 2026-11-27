@@ -32,7 +32,13 @@ class CreateRoomIn(BaseModel):
     turn_seconds:int=35
     password:str|None=None
 
+class SitIn(BaseModel):
+    seat:int
+    reconnect_token:str
+    to_seat:int
+
 class JoinRoomIn(BaseModel):
+    seat:int|None=None  # oyuncunun seçtiği boş koltuk (yoksa ilk boş koltuk)
     name:str='Oyuncu'
     player_id:str='local-player'
     account_token:str=''
@@ -86,6 +92,9 @@ class ManageRoomIn(BaseModel):
     bot_level:str|None=None
 
 SOCKETS:dict[str,dict[int,list[WebSocket]]]={}
+# Sunucu her açılışta yeni kimlik alır; istemci yeniden başlatmayı anlayıp
+# sürüm sayacını sıfırlar (yoksa eski sayaçtan küçük yeni durumları yok sayar).
+SERVER_BOOT_ID=uuid.uuid4().hex[:8]
 ROOM_META:dict[str,dict]={}
 WATCHDOG_TASK:asyncio.Task|None=None
 QUICK_FILL_TASKS:dict[str,asyncio.Task]={}
@@ -146,6 +155,19 @@ def _persist_runtime(force:bool=False)->None:
         _RUNTIME_DIRTY=True
 
 
+def flush_runtime_on_shutdown()->None:
+    """Yeni sürüm yüklenirken (Render yeniden başlatır) açık masaları kaybetmemek için
+    oda görüntüsünü eşzamanlı yazıp Supabase'e iter; yeni sunucu açılınca geri yükler."""
+    try:
+        raw=build_runtime_blob(ROOMS,ROOM_META)
+        path=settings.runtime_snapshot_path
+        write_runtime_blob(path,settings.effective_runtime_secret,raw)
+        m=_mirror()
+        if m:m._push(path)
+    except Exception as exc:
+        print(f'OKEYX_RUNTIME_SHUTDOWN_FLUSH_FAIL {exc}',flush=True)
+
+
 def _restore_runtime_once()->None:
     global _RUNTIME_LOADED
     if _RUNTIME_LOADED:return
@@ -190,6 +212,13 @@ def _occupied_count(room_id:str)->int:
     explicit=set(meta.get('bot_seats') or set())
     bot_seats={seat for seat in range(4) if seat in explicit and room.state.players[seat].bot and seat not in human_seats}
     return min(4,len(human_seats|bot_seats))
+
+def _seat_is_open(room_id:str,seat:int)->bool:
+    room=ROOMS.get(room_id)
+    if not room or seat not in range(4):return False
+    meta=_ensure_meta(room_id,legacy=True)
+    p=room.state.players.get(seat)
+    return bool(p and p.bot and seat not in set(meta.get('bot_seats') or set()) and seat not in meta.get('player_ids',{}))
 
 def _free_human_seat(room_id:str)->int|None:
     room=ROOMS.get(room_id)
@@ -336,6 +365,7 @@ def _state(room_id:str,viewer:int)->dict:
     state['required_balance']=_required_balance(int(state.get('entry_fee',0) or 0),bool(state.get('turbo')))
     state['canak']={'enabled':bool(m.get('canak_enabled',True)) and not m.get('practice'),'pot':int(m.get('canak_pot',0) or 0),'fee':_canak_fee(room),'last':m.get('canak_last')}
     state['state_version']=int(m.get('state_version',1) or 1)
+    state['server_boot']=SERVER_BOOT_ID
     state['quick_fill_at_ms']=int(float(m.get('quick_fill_at',0) or 0)*1000) if m.get('quick_match') and not room.state.started else 0
     state['quick_fill_seconds']=max(0,int(float(m.get('quick_fill_at',0) or 0)-_now()+.999)) if m.get('quick_match') and not room.state.started and m.get('quick_fill_at') else 0
     state['quick_fill_error']=m.get('quick_fill_error')
@@ -1028,7 +1058,7 @@ async def join_room(room_id:str,body:JoinRoomIn):
         # Authenticated rejoin of the same waiting room.
         seat=next(s for s,pid in m['player_ids'].items() if pid==body.player_id)
         return {'room_id':room_id,'seat':seat,'reconnect_token':m['seat_tokens'][seat],'state':_state(room_id,seat)}
-    seat=_free_human_seat(room_id)
+    seat=body.seat if body.seat is not None and _seat_is_open(room_id,body.seat) else _free_human_seat(room_id)
     if seat is None:raise HTTPException(409,'room_full')
     token=_bind_human(room_id,seat,body.player_id,account['name'])
     STORE.record_activity('room_join',body.player_id,f'{account["name"]} bir masaya katıldı',{'room_id':room_id,'entry_fee':r.state.entry_fee,'turbo':r.state.turbo})
@@ -1230,6 +1260,31 @@ async def manage_room(room_id:str,body:ManageRoomIn):
         await _broadcast(room_id)
         return {'ok':True,'code':'settings_updated','state':_state(room_id,body.seat)}
     raise HTTPException(400,'bad_manage_action')
+
+@router.post('/game/{room_id}/sit')
+async def change_seat(room_id:str,body:SitIn):
+    """Bekleme odasında oyuncu istediği boş koltuğa geçer (eşli oyunda eşini seçer)."""
+    r=ROOMS.get(room_id)
+    if not r:raise HTTPException(404,'room_not_found')
+    m=_auth(room_id,body.seat,body.reconnect_token)
+    if r.state.phase!='waiting' or r.state.started:raise HTTPException(409,'seat_change_waiting_only')
+    src,dst=int(body.seat),int(body.to_seat)
+    if src==dst:return {'ok':True,'room_id':room_id,'seat':src,'reconnect_token':body.reconnect_token,'state':_state(room_id,src)}
+    if not _seat_is_open(room_id,dst):return {'ok':False,'code':'seat_not_free'}
+    pid=m['player_ids'].get(src)
+    if not pid:raise HTTPException(404,'player_not_found')
+    name=r.state.player(src).name
+    token=m['seat_tokens'].pop(src)
+    m['player_ids'].pop(src,None)
+    m['seat_tokens'][dst]=token;m['player_ids'][dst]=pid
+    m['connected'][dst]=m['connected'].pop(src,False);m['disconnect_at'].pop(src,None)
+    m['afk_strikes'][dst]=0;m['afk_strikes'][src]=0
+    r.set_player_identity(dst,pid,name,bot=False)
+    r.set_player_identity(src,f'bot-seat-{src}','Boş Koltuk',bot=True)
+    if int(m.get('owner_seat',0) or 0)==src:m['owner_seat']=dst
+    _touch(room_id)
+    await _broadcast(room_id)
+    return {'ok':True,'room_id':room_id,'seat':dst,'reconnect_token':token,'state':_state(room_id,dst)}
 
 @router.post('/game/{room_id}/leave')
 async def leave_room(room_id:str,body:LeaveIn):

@@ -2699,7 +2699,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       '${_state['phase']}' != 'finished' &&
       _state['started'] == true;
   bool get _assisted => _state['assisted'] != false;
-  bool get _manualOkeyClose => _isDuz || !_assisted;
+  // Klasik Okey'de okey elle kapatılır; 101'de okey her zaman ters (kapalı) gelir.
+  bool get _manualOkeyClose => _isDuz;
 
   int _rackBreakCount(int rowStart) {
     var count = 0;
@@ -3920,12 +3921,59 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
 
   Future<void> _discardTile(String id) async {
     if (!_canDiscardTile(id)) return;
+    // İşler taş uyarısı: masadaki bir pere eklenebilen taşı atmak 101'de ceza yazar.
+    final penaltyIds = _list(_state['penalty_tile_ids']).map((e) => '$e').toSet();
+    if (penaltyIds.contains(id)) {
+      if (_vibrationEnabled) unawaited(HapticFeedback.heavyImpact());
+      unawaited(GameAudio.sfx('warning', enabled: _soundEnabled, volume: .8));
+      final go = await _confirmUsefulDiscard();
+      if (go != true || !mounted || !_canDiscardTile(id)) return;
+    }
     setState(() => _selectedTileId = null);
     // Physical feedback must happen on the finger gesture, not after a
     // round-trip through the multiplayer server.
     unawaited(GameAudio.sfx(_tileImpactSfx(_viewer), enabled: _soundEnabled, volume: .94));
     await _act('discard', {'tile_id': id});
   }
+
+  Future<bool?> _confirmUsefulDiscard() => showGeneralDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'İşler taş',
+        barrierColor: const Color(0x99000000),
+        transitionDuration: const Duration(milliseconds: 200),
+        transitionBuilder: (context, a, _, child) => Transform.scale(scale: .85 + .15 * Curves.easeOutBack.transform(a.value), child: Opacity(opacity: a.value, child: child)),
+        pageBuilder: (context, _, __) => Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 400,
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF5A1030), Color(0xFF2A0B3D)]),
+                border: Border.all(color: const Color(0xFFFF5470), width: 1.6),
+                boxShadow: const [BoxShadow(color: Color(0x88FF2436), blurRadius: 30)],
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Row(children: [
+                  Icon(Icons.warning_amber_rounded, color: Color(0xFFFFCB45), size: 30),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('Bu taş işler!', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: 21, color: Colors.white))),
+                ]),
+                const SizedBox(height: 8),
+                const Text('Bu taş masadaki bir pere eklenebiliyor. Atarsan ceza (101 puan) yazılır. Yine de atmak istiyor musun?', style: TextStyle(fontSize: 13.5, height: 1.4, fontWeight: FontWeight.w600, color: Color(0xFFFFE3EA))),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: OkxButton.ghost(label: 'VAZGEÇ', height: 46, expand: true, onTap: () => Navigator.of(context).pop(false))),
+                  const SizedBox(width: 10),
+                  Expanded(child: OkxButton(label: 'YİNE DE AT', style: OkxButtonStyle.red, height: 46, expand: true, onTap: () => Navigator.of(context).pop(true))),
+                ]),
+              ]),
+            ),
+          ),
+        ),
+      );
 
   bool _dropIsAfter(int slot, Offset globalOffset) {
     if (slot < 0 || slot >= _rackSlotKeys.length) return false;
@@ -5089,7 +5137,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final connected = player['connected'] == true || bot || mine;
     // Hazır durumu: botlar ve masaya bağlı oyuncular hazır sayılır.
     final (statusText, statusColor) = empty
-        ? (isHost ? ('DAVET ET / BOT', const Color(0x99FFE3A0)) : ('BOŞ', const Color(0x80FFFFFF)))
+        ? (isHost ? ('DAVET / BOT / GEÇ', const Color(0x99FFE3A0)) : ('BURAYA OTUR', OkeyXColors.mint))
         : connected
             ? ('HAZIR ✓', OkeyXColors.mint)
             : ('BAĞLANIYOR…', const Color(0xFFFFB86B));
@@ -5145,9 +5193,31 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final bubble = _chatBubbles[seat];
     final wrapped = Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [card, if (bubble != null && bubble.isNotEmpty) Positioned(top: -39, child: _tableChatBubble(bubble, seat == _viewerSeat ? 0 : 2))]);
     if (empty && isHost && seat >= 0) return InkWell(borderRadius: BorderRadius.circular(18), onTap: () => _openSeatActions(seat), child: wrapped);
+    if (empty && !isHost && !quickMatch && seat >= 0) return InkWell(borderRadius: BorderRadius.circular(18), onTap: () => unawaited(_sitAt(seat)), child: wrapped);
     if (explicitBot && isHost && seat >= 0) return InkWell(borderRadius: BorderRadius.circular(18), onTap: () => _showBotSeatMenu(seat), child: wrapped);
     if (!bot && seat >= 0) return InkWell(borderRadius: BorderRadius.circular(18), onTap: () => _showPlayerCard(player), onLongPress: kickable ? () => _confirmKickPlayer(seat, name) : null, child: wrapped);
     return wrapped;
+  }
+
+  /// Oyuncu (ya da masa sahibi) bekleme odasında boş bir koltuğa geçer.
+  /// Eşli oyunda karşıdaki koltuk eşi olur; böylece kiminle eş olacağını seçer.
+  Future<void> _sitAt(int seat) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final out = await _api.changeSeat(seat);
+      if (out['ok'] == true) {
+        unawaited(GameAudio.sfx('tile_drop', enabled: _soundEnabled, volume: .7));
+        if (_vibrationEnabled) unawaited(HapticFeedback.selectionClick());
+        _tableNotice('${seat + 1}. koltuğa geçtin.');
+      } else {
+        _tableNotice(out['code'] == 'seat_not_free' ? 'Bu koltuk az önce doldu.' : 'Koltuk değiştirilemedi.');
+      }
+    } catch (_) {
+      _tableNotice('Koltuk değiştirilemedi. Bağlantını kontrol et.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _openSeatActions(int seat) async {
@@ -5194,6 +5264,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                           _seatActionCard(dialogContext, value: 'easy', title: 'KOLAY BOT', subtitle: 'Sakin tempo', icon: Icons.sentiment_satisfied_alt_rounded, color: OkeyXColors.mint, width: 134),
                           _seatActionCard(dialogContext, value: 'medium', title: 'NORMAL BOT', subtitle: 'Dengeli oyun', icon: Icons.smart_toy_rounded, color: OkeyXColors.cyan, width: 134),
                           _seatActionCard(dialogContext, value: 'hard', title: 'ZOR BOT', subtitle: 'Daha güçlü', icon: Icons.psychology_alt_rounded, color: OkeyXColors.gold, width: 134),
+                          _seatActionCard(dialogContext, value: 'move', title: 'BURAYA GEÇ', subtitle: 'Kendi yerini değiştir', icon: Icons.event_seat_rounded, color: OkeyXColors.ruby, width: 134),
                           _seatActionCard(dialogContext, value: 'open', title: 'AÇIK BIRAK', subtitle: 'Oyuncu bekle', icon: Icons.public_rounded, color: Colors.white60, width: 134),
                         ],
                       ),
@@ -5208,6 +5279,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       transitionBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween<double>(begin: .96, end: 1).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)), child: child)),
     );
     if (choice == null || choice == 'open') return;
+    if (choice == 'move') {
+      await _sitAt(seat);
+      return;
+    }
     if (choice == 'friend') {
       if (widget.profile.isGuest) {
         _showAccountLinkRequired();

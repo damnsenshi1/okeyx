@@ -5,6 +5,12 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
+    # Yalnızca sunucu kodu değişince yeniden yükle: mobil/APK değişiklikleri
+    # canlı masaları yeniden başlatıp oyuncuları masadan atmasın.
+    buildFilter:
+      paths:
+        - backend/**
+        - Dockerfile
     envVars:
       - key: PORT
         value: 10000

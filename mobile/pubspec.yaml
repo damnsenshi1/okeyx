@@ -1,7 +1,7 @@
 name: okeyx_mobile
 description: OkeyX mobile-only 101 Okey client
 publish_to: none
-version: 20.0.3+203
+version: 20.1.0+210
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:
