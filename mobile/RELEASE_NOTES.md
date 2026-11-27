@@ -1,4 +1,6 @@
-OKEYX 20.3.3
+OKEYX 20.3.4
+
+• Google ile giriş artık uygulamanın içinden: tarayıcıya çıkmaz, ekran yatay kalır.
 
 • İşleme artık elle: ıstakadan taşı sürükleyip yerdeki pere bırak. Yanlış pere bırakırsan taş geri döner, ceza yok.
 • Soldan alıp kullanmadan geri bırakmak cezasız (GERİ BIRAK).

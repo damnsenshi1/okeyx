@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -71,14 +72,30 @@ class AuthService {
       try {
         await google.signOut();
       } catch (_) {}
-      final account = await google.signIn();
+      GoogleSignInAccount? account;
+      try {
+        account = await google.signIn();
+      } catch (e) {
+        // Yerel giriş yapılandırması bozuksa (SHA-1 / istemci) tarayıcı yoluna düş.
+        debugPrint('OKEYX_GOOGLE_NATIVE_FAIL: $e');
+        return _googleBrowser();
+      }
       if (account == null) throw StateError('google_cancelled');
       final auth = await account.authentication;
       final idToken = auth.idToken;
-      if (idToken == null) throw StateError('google_no_id_token');
-      await _client.auth.signInWithIdToken(provider: OAuthProvider.google, idToken: idToken, accessToken: auth.accessToken);
+      if (idToken == null) return _googleBrowser();
+      try {
+        await _client.auth.signInWithIdToken(provider: OAuthProvider.google, idToken: idToken, accessToken: auth.accessToken);
+      } catch (e) {
+        debugPrint('OKEYX_GOOGLE_IDTOKEN_FAIL: $e');
+        return _googleBrowser();
+      }
       return;
     }
+    return _googleBrowser();
+  }
+
+  Future<void> _googleBrowser() async {
     final launched = await _client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: mobileAuthCallback,
