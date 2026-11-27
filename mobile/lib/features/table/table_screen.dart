@@ -3848,7 +3848,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         builder: (context, constraints) {
           final screen = MediaQuery.sizeOf(context);
           final narrow = screen.width <= 900 || screen.height <= 520;
-          final groupGap = compact ? 7.0 : 10.0;
+          var groupGap = compact ? 7.0 : 10.0;
           final canonicalBreakCount = math.max(_rackBreakCount(0), _rackBreakCount(_rackCols));
 
           // 101 Plus tipi fiziksel ıstaka: yan yana yuvalar ekranın tamamına
@@ -3865,17 +3865,21 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           var slotStep = tileWidth * .955;
           var contentWidth = (_rackCols * slotStep) + (canonicalBreakCount * groupGap);
           final rackInset = compact ? 8.0 : 12.0;
-          if (contentWidth > constraints.maxWidth - rackInset) {
-            final factor = (constraints.maxWidth - rackInset) / contentWidth;
+          final startX = compact ? 3.0 : 5.0;
+          if (contentWidth + startX > constraints.maxWidth - rackInset) {
+            final factor = rackContentScale(
+              availableWidth: constraints.maxWidth - rackInset,
+              slotContentWidth: contentWidth,
+              leadingInset: startX,
+            );
             tileWidth *= factor;
             tileHeight *= factor;
             slotStep = tileWidth * .955;
-            contentWidth = (_rackCols * slotStep) + (canonicalBreakCount * groupGap);
+            groupGap *= factor;
           }
           // Physical rack slots never recenter as tiles leave the hand. The
           // player's spatial memory stays intact: five remaining tiles do not
           // suddenly float in the middle of a metre-wide rack.
-          final startX = (compact ? 3.0 : 5.0);
 
           var gapsBefore = 0;
           final lefts = List<double>.filled(_rackCols, 0);
