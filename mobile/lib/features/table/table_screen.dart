@@ -872,9 +872,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final av = f.s(46).clamp(36.0, 66.0).toDouble();
     final sideAv = f.s(40).clamp(34.0, 48.0).toDouble();
     return [
-      Positioned(left: 0, right: 0, top: f.y(5), child: Align(alignment: Alignment.topCenter, child: _opponent(_playerAtSeat(_relativeSeat(2)), f.s(36).clamp(30.0, 50.0).toDouble(), f, side: 0))),
-      Positioned(left: f.x(10), top: f.y(150), child: _opponent(_playerAtSeat(_relativeSeat(3)), sideAv, f, side: -1)),
-      Positioned(right: f.x(4), top: f.y(150), child: _opponent(_playerAtSeat(_relativeSeat(1)), sideAv, f, side: 1)),
+      Positioned(left: 0, right: 0, top: f.y(5) + 6, child: Align(alignment: Alignment.topCenter, child: _opponent(_playerAtSeat(_relativeSeat(2)), f.s(36).clamp(30.0, 50.0).toDouble(), f, side: 0))),
+      // Kenarlardan pay: avatar çerçevesi (%26 taşar) ve süre halkası ekrana sığsın.
+      Positioned(left: f.x(10) + sideAv * .2 + 4, top: f.y(150), child: _opponent(_playerAtSeat(_relativeSeat(3)), sideAv, f, side: -1)),
+      Positioned(right: f.x(4) + sideAv * .2 + 6, top: f.y(150), child: _opponent(_playerAtSeat(_relativeSeat(1)), sideAv, f, side: 1)),
     ];
   }
 
@@ -941,7 +942,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final avatar = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => unawaited(_showPlayerCard(player)),
-      child: _seatAvatar(player, av),
+      child: _seatAvatar(player, av, timerBelow: side == 0),
     );
     final row = Row(
       mainAxisSize: MainAxisSize.min,
@@ -953,7 +954,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         Positioned(
           left: side == 1 ? null : 0,
           right: side == 1 ? 0 : null,
-          top: -14,
+          top: side == 0 ? null : -14,
+          bottom: side == 0 ? -14 : null,
           child: _seatTag('SERİ ×$streak', gold: true),
         ),
       if (_penaltyBadges[seat] != null)
@@ -988,13 +990,13 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _seatAvatar(Map<String, dynamic> player, double size) {
+  Widget _seatAvatar(Map<String, dynamic> player, double size, {bool timerBelow = false}) {
     final seat = _integer(player['seat'], fallback: -9);
-    if (seat < 0 || seat > 3) return _seatAvatarInner(player, size);
-    return KeyedSubtree(key: _avatarKeys.putIfAbsent(seat, () => GlobalKey()), child: _seatAvatarInner(player, size));
+    if (seat < 0 || seat > 3) return _seatAvatarInner(player, size, timerBelow: timerBelow);
+    return KeyedSubtree(key: _avatarKeys.putIfAbsent(seat, () => GlobalKey()), child: _seatAvatarInner(player, size, timerBelow: timerBelow));
   }
 
-  Widget _seatAvatarInner(Map<String, dynamic> player, double size) {
+  Widget _seatAvatarInner(Map<String, dynamic> player, double size, {bool timerBelow = false}) {
     final seat = _integer(player['seat'], fallback: -9);
     final phase = '${_state['phase']}';
     final active = _state['started'] == true && seat == _integer(_state['current_seat']) && !const {'waiting', 'finished'}.contains(phase) && !_introActive;
@@ -1022,7 +1024,15 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               final left = _secondsLeftAt(now);
               return Stack(clipBehavior: Clip.none, children: [
                 avatar(left <= 0 ? 0.0 : left / total),
-                if (left > 0) Positioned(left: -20, right: -20, top: -size * .18 - 8, child: Center(child: _timerChip(left))),
+                // Üstteki oyuncunun sayacı ekranın dışına taşmasın diye avatarın altında.
+                if (left > 0)
+                  Positioned(
+                    left: -20,
+                    right: -20,
+                    top: timerBelow ? null : -size * .18 - 8,
+                    bottom: timerBelow ? -size * .18 - 8 : null,
+                    child: Center(child: _timerChip(left)),
+                  ),
               ]);
             },
           )
