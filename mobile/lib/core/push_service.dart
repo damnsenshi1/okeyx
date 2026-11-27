@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// Push bildirimleri (Firebase Cloud Messaging).
 ///
@@ -42,7 +43,15 @@ abstract final class PushService {
         ),
       );
       FirebaseMessaging.onMessageOpenedApp.listen((m) => _taps.add(Map<String, dynamic>.from(m.data)));
-      FirebaseMessaging.onMessage.listen((m) => _incoming.add(Map<String, dynamic>.from(m.data)));
+      FirebaseMessaging.onMessage.listen((m) {
+        _incoming.add(Map<String, dynamic>.from(m.data));
+        final n = m.notification;
+        if (n != null) {
+          unawaited(const MethodChannel('com.senshilabs.okeyx_mobile/share')
+              .invokeMethod<bool>('showNotification', {'title': n.title ?? 'OKEYX', 'body': n.body ?? ''})
+              .catchError((_) => false));
+        }
+      });
       final initial = await FirebaseMessaging.instance.getInitialMessage();
       if (initial != null) _taps.add(Map<String, dynamic>.from(initial.data));
       _ready = true;

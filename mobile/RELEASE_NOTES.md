@@ -1,4 +1,6 @@
-OKEYX 20.3.9
+OKEYX 20.4.0
+
+• Oyun açıkken gelen anlık bildirimler de telefona düşer (önceden yalnızca oyun kapalıyken görünüyordu).
 
 • Maç bitince özel masada aynı oyuncularla BEKLEME ODASINA dönülür; herkes HAZIRIM deyince masa sahibi başlatır. 20 sn'den uzun kopuk olanın koltuğu boşalır.
 • Bildirimlerde OKEYX simgesi ve altın renk; aynı bildirim iki kez gelmez.

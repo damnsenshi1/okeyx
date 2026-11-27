@@ -27,10 +27,20 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Bildirim kanalı en baştan hazır olsun: Firebase arka plan bildirimleri bu kanala düşer.
+        try { OkxNotifyWorker.ensureChannel(applicationContext) } catch (e: Exception) { }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, shareChannel).setMethodCallHandler { call, result ->
             // Uygulama içi güncelleme: önbellek klasörü, kurulum izni ve APK kurulumu.
             when (call.method) {
                 "cacheDir" -> { result.success(cacheDir.absolutePath); return@setMethodCallHandler }
+                "showNotification" -> {
+                    // Oyun açıkken gelen anlık bildirim: Android bunu kendisi göstermez.
+                    OkxNotifyWorker.ensureChannel(applicationContext)
+                    val title = call.argument<String>("title") ?: "OKEYX"
+                    val body = call.argument<String>("body") ?: ""
+                    OkxNotifyWorker.notify(applicationContext, (title + body).hashCode(), title, body)
+                    result.success(true); return@setMethodCallHandler
+                }
                 "androidId" -> {
                     val id = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID)
                     result.success(id); return@setMethodCallHandler
