@@ -1,3 +1,7 @@
+OKEYX 20.5.1
+
+• Google ile giriş: doğru web istemcisi kullanılıyor (telefon içi giriş düzeltmesi).
+
 OKEYX 20.5.0
 
 • Yeni mağaza: 3D kartlar (parmağınla sürükle, kart döner), nadirlik ışıkları, SENDE / TAKILI rozetleri, indirim etiketi.
