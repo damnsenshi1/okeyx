@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from app.api import game
+from app.api import game, account
 from app.services.account_store import AccountStore, GIFT_CATALOG
 
 
@@ -65,3 +65,22 @@ def test_v1127_table_gifts_are_free_and_target_whole_table(tmp_path, monkeypatch
     assert store.get('p1')['chips'] == before
     assert store.get('p1').get('gifts_received', []) == []
     _reset_runtime()
+
+
+def test_social_block_clears_pending_request_and_rejects_gifts(tmp_path):
+    store = _store(tmp_path)
+    store.ensure('p1', name='One', is_guest=True)
+    store.ensure('p2', name='Two', is_guest=True)
+
+    assert store.request_friend('p1', 'p2')['ok'] is True
+    assert store.request_friend('p1', 'p2')['code'] == 'already_requested'
+    assert len([n for n in store.get('p2')['notifications'] if n['kind'] == 'friend_request']) == 1
+
+    assert store.set_social_safety('p2', 'p1', 'block')['ok'] is True
+    assert store.get('p2')['friend_requests'] == []
+    assert store.get('p1')['sent_friend_requests'] == []
+    assert store.send_gift('p1', 'p2', 'tea')['code'] == 'relationship_blocked'
+    assert store.send_gift('p2', 'p1', 'tea')['code'] == 'relationship_blocked'
+    account._force_local_relationship('p2', 'p1', 'friend')
+    assert store.get('p1')['friends'] == []
+    assert store.get('p2')['friends'] == []
