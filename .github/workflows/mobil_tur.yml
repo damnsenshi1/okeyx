@@ -132,3 +132,16 @@ jobs:
           name: okeyx-ekran-turu
           path: tour_out/
           retention-days: 14
+
+      - name: Sonuçları tur-sonuclari dalına gönder (indirmesi kolay olsun)
+        if: always()
+        run: |
+          mkdir -p /tmp/sonuc && cp -a tour_out/. /tmp/sonuc/ 2>/dev/null || true
+          find /tmp/sonuc -name '*.mp4' -size +40M -delete
+          cd /tmp/sonuc
+          git init -q -b tur-sonuclari
+          git config user.name "OkeyX Deploy Bot"
+          git config user.email "actions@users.noreply.github.com"
+          echo "Çalıştırma: ${{ github.run_id }} • commit ${{ github.sha }}" > README.md
+          git add -A && git commit -q -m "Ekran turu ${{ github.run_id }}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" tur-sonuclari
