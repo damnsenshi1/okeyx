@@ -1,3 +1,6 @@
+• Masa: üst bilgi şeridi ve karşı oyuncu artık üst üste binmiyor, isim hep görünür
+• SIRA SENDE yazısı bilgi çubuğunun üstüne binmiyor; çift alanı desteye binmiyor
+• SERİ DİZ / ÇİFT DİZ / HEDİYE / SOHBET tuşları büyüdü, yazıları tam sığıyor
 • Oyun kapalıyken bildirim: davet, arkadaşlık, altın, hediye ve yeni sürüm (yaklaşık 15 dakikada bir)
 • Klasik Okey: göstergenin aynısı elindeyse ilk turda GÖSTERGE! ile ödül al
 • 101 kuralları: elde kalan okey 101 puan, yandan alıp geri bırakmak 101 ceza

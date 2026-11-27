@@ -354,7 +354,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             children: [
               Positioned.fill(child: RepaintBoundary(child: OkxFelt(theme: widget.preferences.tableTheme, photo: true))),
               // Üst çubuk
-              Positioned(left: f.x(12), top: f.y(10), child: ConstrainedBox(constraints: BoxConstraints(maxWidth: f.x(400)), child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: _stakeHud(f)))),
+              // Üst bilgi şeridi karşıdaki oyuncunun avatarına binmesin: genişlik sınırlı, gerekirse küçülür.
+              Positioned(left: f.x(12), top: f.y(10), child: ConstrainedBox(constraints: BoxConstraints(maxWidth: f.x(330)), child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: _stakeHud(f)))),
               // Turbo: masaya yeni işlenen her yıldızlı taş için bir yıldız,
               // seri alanından çarpana uçar ve ×N rozeti büyüyerek güncellenir.
               if (_turboFxSeq > 0)
@@ -389,7 +390,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               ),
               // Seri ve çift alanları (ıstaka genişliğinde, ıstakaya kadar)
               Positioned(left: f.x(214), top: f.y(60), width: f.x(386), height: f.y(188), child: RepaintBoundary(child: _seriZone(f))),
-              Positioned(left: f.x(608), top: f.y(60), width: f.x(178), height: f.y(188), child: RepaintBoundary(child: _ciftZone(f))),
+              Positioned(left: f.x(608), top: f.y(60), width: f.x(156), height: f.y(188), child: RepaintBoundary(child: _ciftZone(f))),
               // Deste ve gösterge
               Positioned(left: f.x(770), top: f.y(64), width: f.x(46), child: _deckColumn(f)),
               // Turn guidance is conveyed by the active stock/discard hit target;
@@ -421,8 +422,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               Positioned(left: f.x(12), top: f.y(330), width: f.x(116), child: _meBlock(f)),
               if (started && _assisted && !_isDuz)
                 Positioned(
-                  left: f.x(146),
-                  top: f.y(338),
+                  left: f.x(140),
+                  top: f.y(322),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     _squareButton(Icons.view_week_rounded, 'SERİ DİZ', () => _sortRackLocal(true), f),
                     SizedBox(height: gap),
@@ -430,8 +431,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   ]),
                 ),
               Positioned(
-                right: f.x(146),
-                top: f.y(338),
+                right: f.x(140),
+                top: f.y(322),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   _squareButton(Icons.card_giftcard_rounded, 'HEDİYE', _state['gifts_enabled'] == false ? null : () => unawaited(_openGiftPicker()), f),
                   SizedBox(height: gap),
@@ -439,8 +440,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                 ]),
               ),
               Positioned(
-                right: f.x(18),
-                top: f.y(344),
+                right: f.x(14),
+                top: f.y(326),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   _voiceButton(f),
                   SizedBox(height: gap),
@@ -471,7 +472,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         const OkxCoin(size: 14),
         const SizedBox(width: 6),
         Text(_formatNumber(stake), style: _hudText),
-        if (_state['turbo'] == true) ...[sep(), AnimatedSwitcher(duration: const Duration(milliseconds: 280), transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child), child: Text(x > 1 ? 'TURBO • PUAN ×$x' : 'TURBO', key: ValueKey('turbo-$x'), style: _hudText.copyWith(color: OkeyXColors.gold, fontSize: 13, fontWeight: FontWeight.w900)))],
+        if (_state['turbo'] == true) ...[sep(), AnimatedSwitcher(duration: const Duration(milliseconds: 280), transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child), child: Text(x > 1 ? 'TURBO ×$x' : 'TURBO', key: ValueKey('turbo-$x'), style: _hudText.copyWith(color: OkeyXColors.gold, fontSize: 13, fontWeight: FontWeight.w900)))],
         sep(),
         Text(variant, style: _hudText),
         if (maxRounds > 0) ...[sep(), Text('EL ${math.max(1, round)}/$maxRounds', style: _hudText)],
@@ -496,14 +497,15 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   }
 
   Widget _squareButton(IconData icon, String label, VoidCallback? onTap, _Frame f, {bool active = false, bool small = false, bool dot = false}) {
-    final s = f.s(small ? 38 : 42).clamp(34.0, 58.0).toDouble();
+    // Daha büyük ve okunur: yazı tam sığsın diye biraz geniş dikdörtgen.
+    final s = f.s(small ? 44 : 50).clamp(40.0, 64.0).toDouble();
     return GestureDetector(
       onTap: onTap,
       child: Opacity(
         opacity: onTap == null ? .45 : 1,
         child: OkxLeather(
-          radius: 12,
-          width: s,
+          radius: 14,
+          width: label.isEmpty ? s : s * 1.32,
           height: s,
           padding: EdgeInsets.zero,
           borderColor: active ? OkeyXColors.cyan : OkeyXColors.line2,
@@ -511,10 +513,13 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           child: Stack(clipBehavior: Clip.none, children: [
             Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(icon, size: s * (label.isEmpty ? .46 : .38), color: active ? OkeyXColors.cyan : const Color(0xFFFFE9B0)),
+                Icon(icon, size: s * (label.isEmpty ? .5 : .42), color: active ? OkeyXColors.cyan : const Color(0xFFFFE9B0)),
                 if (label.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(label, maxLines: 1, style: TextStyle(fontSize: s * .19, fontWeight: FontWeight.w800, letterSpacing: .4, color: OkeyXColors.cream)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1, style: TextStyle(fontSize: s * .22, fontWeight: FontWeight.w900, letterSpacing: .3, color: OkeyXColors.cream))),
+                  ),
                 ],
               ]),
             ),
@@ -713,7 +718,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       if (!owners.contains(o)) owners.add(o);
     }
     var tw = f.s(20).clamp(14.0, 28.0).toDouble();
-    final zoneW = f.x(178) - 20, zoneH = f.y(188) - 34;
+    final zoneW = f.x(156) - 20, zoneH = f.y(188) - 34;
     double need(double t) {
       var h = 0.0;
       for (final o in owners) {
@@ -903,7 +908,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final hand = _integer(player['hand_count']);
     final nearFinish = hand > 0 && hand <= 1 && opened;
     final plate = ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: side == 1 ? f.s(78).clamp(66.0, 94.0).toDouble() : side == 0 ? f.s(210).clamp(150.0, 280.0).toDouble() : f.s(118).clamp(92.0, 170.0).toDouble(), minWidth: side == 1 ? f.s(64).clamp(58.0, 78.0).toDouble() : f.s(84).clamp(70.0, 130.0).toDouble()),
+      constraints: BoxConstraints(maxWidth: side == 1 ? f.s(78).clamp(66.0, 94.0).toDouble() : side == 0 ? f.s(250).clamp(180.0, 300.0).toDouble() : f.s(118).clamp(92.0, 170.0).toDouble(), minWidth: side == 1 ? f.s(64).clamp(58.0, 78.0).toDouble() : f.s(84).clamp(70.0, 130.0).toDouble()),
       child: OkxLeather(
         radius: 12,
         padding: const EdgeInsets.fromLTRB(10, 5, 10, 6),
@@ -911,11 +916,13 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         child: side == 0
             // Karşıdaki oyuncu: tek satır, seri alanının üstüne binmesin.
             ? Row(mainAxisSize: MainAxisSize.min, children: [
-                if (_state['team_mode'] == 'paired') ...[_seatTag('EŞİN', mint: true), const SizedBox(width: 5)],
-                Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: vip > 0 ? const Color(0xFFFFE3A0) : OkeyXColors.cream))),
+                // İsim her zaman görünür: önce isim, sonra küçük etiketler (LV üstte yok, yer açmak için).
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 40, maxWidth: 110),
+                  child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: vip > 0 ? const Color(0xFFFFE3A0) : OkeyXColors.cream)),
+                ),
                 if (vip > 0) ...[const SizedBox(width: 3), const Icon(Icons.workspace_premium_rounded, size: 11, color: OkeyXColors.gold)],
-                const SizedBox(width: 6),
-                Text('LV ${_integer(player['level'])}', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: OkeyXColors.muted)),
+                if (_state['team_mode'] == 'paired') ...[const SizedBox(width: 5), _seatTag('EŞİN', mint: true)],
                 if (opened) ...[const SizedBox(width: 5), _seatTag(pairs ? 'ÇİFT ${_integer(player['opening_pairs'])}' : 'AÇTI ${_integer(player['opening_score'])}', gold: !pairs, mint: pairs)]
                 else if (_state['started'] == true && hand > 0) ...[const SizedBox(width: 5), Text('$hand taş', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: OkeyXColors.dim))],
                 if (nearFinish) ...[const SizedBox(width: 4), _seatTag('SON TAŞ', danger: true)],
@@ -1920,7 +1927,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         curve: Curves.easeOut,
         builder: (context, value, child) => Opacity(opacity: value.clamp(0, 1), child: child),
         child: Align(
-          alignment: const Alignment(0, .12),
+          // Seri alanının ortasında: alttaki AÇTIN bilgi çubuğuna binmez.
+          alignment: const Alignment(-.12, -.18),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
