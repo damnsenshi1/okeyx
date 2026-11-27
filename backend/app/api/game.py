@@ -308,6 +308,14 @@ def _state(room_id:str,viewer:int)->dict:
         explicit_bot=seat in m.setdefault('bot_seats',set())
         p['empty']=bool(p.get('bot')) and not pid and not explicit_bot
         p['explicit_bot']=explicit_bot
+        p['left']=False
+        if p['empty'] and room.state.started and room.state.phase!='waiting':
+            # Oyun sürerken ayrılan oyuncunun yerine bot oynar: koltuk boş değildir.
+            # Bot olarak başlamış koltuklar (hızlı maç) adlarını korur.
+            if seat in m.setdefault('left_seats',set()):
+                p['left']=True
+                p['name']=f"{p.get('name') or 'Oyuncu'} (ayrıldı)"
+            p['empty']=False
         if p['empty']:
             p['name']='Boş Koltuk'
         acc=STORE.table_view(pid) if pid else None
@@ -1369,6 +1377,7 @@ async def leave_room(room_id:str,body:LeaveIn):
         if not ok:
             return {'ok':False,'code':'leave_forfeit_insufficient_balance'}
     r.takeover_by_bot(body.seat,'medium')
+    m.setdefault('left_seats',set()).add(int(body.seat))
     m['player_ids'].pop(body.seat,None);m['seat_tokens'].pop(body.seat,None);m.setdefault('bot_seats',set()).discard(body.seat)
     m['connected'][body.seat]=False;m['disconnect_at'][body.seat]=_now()
     _touch(room_id)

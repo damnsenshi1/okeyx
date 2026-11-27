@@ -2305,6 +2305,26 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       }
     }
 
+    final prevSeenEvent = _seenEventSequence;
+    if (sequence > _seenEventSequence && '${lastEvent['type'] ?? ''}' != 'opened' && prevSeenEvent > 0) {
+      // Açılıştan hemen sonra taş atılırsa son olay "discard" olur; arada kalan
+      // açılışı da kaçırmadan "Seri/Çift açtı!" olarak göster.
+      final missed = _list(value['events']).map(_map).where((e) => '${e['type']}' == 'opened' && _integer(e['seq']) > prevSeenEvent).toList();
+      if (missed.isNotEmpty) {
+        final ev = missed.last;
+        final data = _map(ev['data']);
+        final mode = '${data['mode'] ?? ''}';
+        _openingSplashKey = '${_integer(ev['seq'])}-$mode-${data['value'] ?? ''}';
+        _openingSplashSeat = _integer(ev['seat']);
+        _openingSplashMode = mode;
+        _openingSplashValue = _integer(data['value']);
+        unawaited(GameAudio.sfx(mode == 'pairs' ? 'pair_open' : 'series_open', enabled: _soundEnabled, volume: .64));
+        final key = _openingSplashKey;
+        Future<void>.delayed(const Duration(milliseconds: 2100), () {
+          if (mounted && _openingSplashKey == key) setState(() => _openingSplashKey = null);
+        });
+      }
+    }
     if (sequence > _seenEventSequence) {
       _seenEventSequence = sequence;
       _eventType = '${lastEvent['type'] ?? ''}';

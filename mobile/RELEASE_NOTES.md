@@ -1,4 +1,7 @@
-OKEYX 20.3.7
+OKEYX 20.3.8
+
+• "Seri açtı / Çift açtı" yazısı her açılışta çıkar (hemen taş atılsa bile).
+• Oyundan ayrılan oyuncunun yerinde "Boş Koltuk" değil, adı ve "(ayrıldı)" yazar; yerine bot oynar.
 
 • Okey yardımlı masalarda her yerde kapalı: ıstakada ve yere açılmış seri/çiftlerde. Yardımsız masada açık gelir, dokunarak kapatırsın.
 • Davetler daha hızlı: 3 sn yoklama + anlık bildirim gelince hemen gösterilir.
