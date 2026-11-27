@@ -1,4 +1,6 @@
-OKEYX 20.3.4
+OKEYX 20.3.5
+
+• Anlık bildirimler: davet, arkadaşlık, hediye ve etkinlik bildirimleri telefona anında düşer.
 
 • Google ile giriş artık uygulamanın içinden: tarayıcıya çıkmaz, ekran yatay kalır.
 
