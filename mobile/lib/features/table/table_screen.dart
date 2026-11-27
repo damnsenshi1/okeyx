@@ -94,6 +94,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   int? _impactSeat;
   final Map<int, GlobalKey> _avatarKeys = {};
   bool _reactionsPrimed = false;
+  int _canakSeenAt = -1;
+  Map<String, dynamic>? _canakBreak;
   final Set<String> _peekJokerIds = <String>{};
   String _impactKind = '';
   String? _impactEventId;
@@ -717,7 +719,86 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       SizedBox(height: f.s(10)),
       if (indicator.isNotEmpty) SizedBox(width: tw, height: th, child: TileWidget(tile: _tile(indicator), bigNumber: _bigNumbers)),
       label('GÖSTERGE'),
+      if (_map(_state['canak'])['enabled'] == true) ...[SizedBox(height: f.s(8)), _canakBadge(tw)],
     ]);
+  }
+
+  /// Masa çanağı: okeyle ya da çiftten biten kırar, kırılmazsa birikir.
+  Widget _canakBadge(double tw) {
+    final c = _map(_state['canak']);
+    final pot = _integer(c['pot']);
+    return Tooltip(
+      message: 'Çanak okey: her el sonunda ${_compactMoney(_integer(c['fee']))} altın çanağa girer. Okey atarak ya da çiftten biten çanağı kırar ve hepsini alır.',
+      triggerMode: TooltipTriggerMode.tap,
+      child: Container(
+        width: tw * 1.7,
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF6B3E14), Color(0xFF3A1F08)]),
+          border: Border.all(color: OkeyXColors.gold.withValues(alpha: .75), width: 1.2),
+          boxShadow: [BoxShadow(color: OkeyXColors.gold.withValues(alpha: pot > 0 ? .35 : .1), blurRadius: 10)],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🏺', style: TextStyle(fontSize: 16, height: 1)),
+          const SizedBox(height: 2),
+          const FittedBox(child: Text('ÇANAK', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1.4, color: Color(0xFFFFE3A0)))),
+          TweenAnimationBuilder<double>(
+            tween: Tween(end: pot.toDouble()),
+            duration: const Duration(milliseconds: 700),
+            builder: (context, v, _) => FittedBox(child: Text(_compactMoney(v.round()), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: OkeyXColors.gold))),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _canakBreakOverlay() {
+    final c = _canakBreak ?? const <String, dynamic>{};
+    final amount = _integer(c['amount']);
+    final how = '${c['kind']}' == 'okey' ? 'OKEY ATARAK BİTİRDİ' : 'ÇİFTTEN BİTİRDİ';
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 3200),
+      builder: (context, t, _) {
+        final pop = Curves.elasticOut.transform((t / .35).clamp(0.0, 1.0));
+        final fade = t > .85 ? (1 - (t - .85) / .15) : 1.0;
+        return Opacity(
+          opacity: fade.clamp(0.0, 1.0),
+          child: Container(
+            color: Colors.black.withValues(alpha: .45 * fade),
+            alignment: Alignment.center,
+            child: Stack(alignment: Alignment.center, children: [
+              // Kırılan çanaktan saçılan altınlar
+              for (var i = 0; i < 18; i++)
+                Transform.translate(
+                  offset: Offset(math.cos(i * 0.349) * 170 * Curves.easeOut.transform(t.clamp(0.0, 1.0)), math.sin(i * 0.349) * 110 * Curves.easeOut.transform(t.clamp(0.0, 1.0)) + 60 * t * t),
+                  child: Opacity(opacity: (1 - t).clamp(0.0, 1.0), child: const Text('🪙', style: TextStyle(fontSize: 22))),
+                ),
+              Transform.scale(
+                scale: .4 + .6 * pop,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF6DC95), Color(0xFFC99440)]),
+                    boxShadow: const [BoxShadow(color: Color(0xAA000000), blurRadius: 24, offset: Offset(0, 10))],
+                  ),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('🏺💥', style: TextStyle(fontSize: 34)),
+                    const Text('ÇANAK KIRILDI!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Color(0xFF2B1906))),
+                    const SizedBox(height: 4),
+                    Text('${c['name'] ?? ''} • $how', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF4A2C0C))),
+                    const SizedBox(height: 6),
+                    Text('+${_compactMoney(amount)} altın', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1F6B2E))),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        );
+      },
+    );
   }
 
   // ───────────── Rakipler ve avatarlar ─────────────
@@ -1912,8 +1993,9 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final chatId = chat.isEmpty ? '' : '${_map(chat.last)['id']}';
     final reactionId = reactions.isEmpty ? '' : '${_map(reactions.last)['id']}';
     final settlement = _map(value['settlement']);
-    final playerPulse=players.map((p)=>'${p['seat']}:${p['afk_bot']}:${p['hand_count']}:${_map(p['public_stats'])['current_streak']}').join('|');
-    return '${value['phase']}:${value['current_seat']}:${value['turn_no']}:${value['stock_count']}:${value['multiplier']}:${value['intro_until_ms']}:${lastEvent['seq'] ?? 0}:$chatId:$reactionId:$hand:$melds:$discards:${value['viewer_afk_bot']}:$playerPulse:${settlement['status'] ?? ''}:${_list(settlement['rankings']).length}';
+    final playerPulse=players.map((p)=>'${p['seat']}:${p['afk_bot']}:${p['hand_count']}:${p['chips']}:${_map(p['public_stats'])['current_streak']}').join('|');
+    final canak = _map(value['canak']);
+    return '${value['viewer_chips']}:${canak['pot']}:${_map(canak['last'])['at']}:${value['phase']}:${value['current_seat']}:${value['turn_no']}:${value['stock_count']}:${value['multiplier']}:${value['intro_until_ms']}:${lastEvent['seq'] ?? 0}:$chatId:$reactionId:$hand:$melds:$discards:${value['viewer_afk_bot']}:$playerPulse:${settlement['status'] ?? ''}:${_list(settlement['rankings']).length}';
   }
 
   Future<void> _start() async {
@@ -2065,6 +2147,19 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final chatRows = _list(value['chat']).map(_map).where((e) => '${e['kind']}' != 'gift').toList();
     if (chatRows.isNotEmpty) {
       _handleChatEvent(chatRows.last, rebuild: false);
+    }
+    final canakLast = _map(_map(value['canak'])['last']);
+    final canakAt = _integer(canakLast['at']);
+    if (_canakSeenAt < 0) {
+      _canakSeenAt = canakAt;
+    } else if (canakAt > _canakSeenAt) {
+      _canakSeenAt = canakAt;
+      _canakBreak = canakLast;
+      unawaited(GameAudio.sfx('coin_shower', enabled: _soundEnabled));
+      if (_vibrationEnabled) unawaited(HapticFeedback.heavyImpact());
+      Future<void>.delayed(const Duration(milliseconds: 3400), () {
+        if (mounted) setState(() => _canakBreak = null);
+      });
     }
     final reactionRows = _list(value['reactions']).map(_map).toList();
     if (!_reactionsPrimed) {
@@ -3106,6 +3201,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   ),
                 if (_bigGift != null)
                   Positioned.fill(child: _bigGiftOverlay()),
+                if (_canakBreak != null)
+                  Positioned.fill(child: IgnorePointer(child: _canakBreakOverlay())),
 
                 if (_showTurnCue && _state['started'] == true && !_introActive && !const {'waiting','finished'}.contains('${_state['phase']}'))
                   Positioned.fill(child: IgnorePointer(child: _turnCueOverlay())),

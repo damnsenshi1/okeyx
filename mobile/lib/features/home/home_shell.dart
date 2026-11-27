@@ -516,7 +516,9 @@ class _HomeShellState extends State<HomeShell> {
         // Supabase profile wallet is durable; a fresh/restarted runtime must
         // not visually reset the player's balance to its in-memory defaults.
         final merged = Map<String,dynamic>.from(account);
-        merged['chips'] = math.max(_profile.coins, _integer(account['chips'], fallback: _profile.coins));
+        // Sunucu cüzdanı tek doğru kaynaktır: altın gönderince/kaybedince
+        // eski (yüksek) Supabase değeri ekranda kalmasın.
+        merged['chips'] = _integer(account['chips'], fallback: _profile.coins);
         merged['diamonds'] = math.max(_profile.diamonds, _integer(account['diamonds'], fallback: _profile.diamonds));
         merged['level'] = math.max(_profile.level, _integer(account['level'], fallback: _profile.level));
         merged['xp'] = math.max(_profile.xp, _integer(account['xp'], fallback: _profile.xp));
@@ -2748,10 +2750,43 @@ class _HomeShellState extends State<HomeShell> {
       if (!mounted) return;
       setState(() => _notifications = data);
       _checkInvites();
+      await _checkWalletEvents();
     } catch (_) {
     } finally {
       _alertBusy = false;
     }
+  }
+
+  /// Biri altın gönderdiğinde ya da çanak kırıldığında bakiyeyi hemen tazele.
+  Future<void> _checkWalletEvents() async {
+    var changed = false;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    for (final n in _notificationRows) {
+      final kind = '${n['kind']}';
+      if (n['read'] == true || !const {'social_transfer', 'canak'}.contains(kind)) continue;
+      final id = 'w-${n['id']}';
+      if (_shownInvites.contains(id)) continue;
+      _shownInvites.add(id);
+      if (now - _integer(n['created_at']) > 300) continue;
+      changed = true;
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF2B1906),
+          content: Row(children: [
+            const Icon(Icons.paid_rounded, color: OkeyXColors.gold),
+            const SizedBox(width: 8),
+            Expanded(child: Text('${n['message'] ?? n['title'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800))),
+          ]),
+        ));
+      }
+    }
+    if (!changed) return;
+    try {
+      final account = await _api.account();
+      if (mounted) setState(() => _account = {..._account, 'chips': _integer(account['chips'], fallback: _chips)});
+      unawaited(GameAudio.sfx('reward'));
+    } catch (_) {}
   }
 
   void _checkInvites() {

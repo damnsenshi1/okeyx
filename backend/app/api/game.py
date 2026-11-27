@@ -334,6 +334,7 @@ def _state(room_id:str,viewer:int)->dict:
     state['viewer_afk_bot']=bool(viewer_player.get('afk_bot'))
     state['viewer_chips']=int(viewer_player.get('chips',0) or 0)
     state['required_balance']=_required_balance(int(state.get('entry_fee',0) or 0),bool(state.get('turbo')))
+    state['canak']={'enabled':bool(m.get('canak_enabled',True)) and not m.get('practice'),'pot':int(m.get('canak_pot',0) or 0),'fee':_canak_fee(room),'last':m.get('canak_last')}
     state['state_version']=int(m.get('state_version',1) or 1)
     state['quick_fill_at_ms']=int(float(m.get('quick_fill_at',0) or 0)*1000) if m.get('quick_match') and not room.state.started else 0
     state['quick_fill_seconds']=max(0,int(float(m.get('quick_fill_at',0) or 0)-_now()+.999)) if m.get('quick_match') and not room.state.started and m.get('quick_fill_at') else 0
@@ -390,6 +391,17 @@ def _spectator_state(room_id:str,player_id:str)->dict:
     state['spectator_events']=list(m.setdefault('spectator_events',[])[-12:])
     state['can_predict']=bool(room.state.started and room.state.phase not in ('waiting','finished') and int(room.state.turn_no)<=2)
     return state
+
+async def refresh_player_rooms(player_ids)->None:
+    """Cüzdan değişince (altın gönderme, hediye) oyuncunun oturduğu masaları
+    yeni sürümle yayınla; aksi halde istemci eski bakiyeyi göstermeye devam eder."""
+    ids={str(x) for x in player_ids if x}
+    for rid in list(ROOMS):
+        m=ROOM_META.get(rid) or {}
+        if ids & {str(v) for v in (m.get('player_ids') or {}).values()}:
+            _touch(rid)
+            try:await _broadcast(rid)
+            except Exception:pass
 
 async def _broadcast(room_id:str,skip_seat:int|None=None):
     """Fan state out concurrently so one slow phone cannot stall every seat."""
@@ -551,6 +563,37 @@ def _record_round_if_finished(room_id:str):
             okey_finish=bool(flags.get('joker_finish')),
             pair_finish=bool(flags.get('pair_finish')),
         )
+    _table_canak(room_id,room,m,flags,winner)
+
+def _canak_fee(room)->int:
+    """Masa çanağı: her el sonunda her gerçek oyuncu giriş bedelinin %10'unu koyar."""
+    fee=max(50,int(room.state.entry_fee or 0)//10)
+    return fee*(2 if room.state.turbo else 1)
+
+def _table_canak(room_id:str,room,m:dict,flags:dict,winner)->None:
+    """Çanak okey: okeyle ya da çiftten biten oyuncu masadaki çanağı kırar ve alır.
+    Kırılmazsa çanak aynı masada bir sonraki ele devreder."""
+    if m.get('practice') or not m.get('canak_enabled',True):return
+    fee=_canak_fee(room)
+    for seat,pid in list(m.get('player_ids',{}).items()):
+        if room.state.players[seat].bot or not STORE.get(pid):continue
+        if STORE.debit(pid,fee,'table_canak',notify=False):
+            m['canak_pot']=int(m.get('canak_pot',0) or 0)+fee
+    if winner is None or not (flags.get('joker_finish') or flags.get('pair_finish')):return
+    pot=int(m.get('canak_pot',0) or 0)
+    if pot<=0:return
+    pid=m.get('player_ids',{}).get(winner)
+    if not pid or room.state.players[winner].bot or not STORE.get(pid):return
+    STORE.credit(pid,pot,'table_canak_win',notify=False)
+    kind='okey' if flags.get('joker_finish') else 'cift'
+    name=room.state.players[winner].name
+    m['canak_pot']=0
+    m['canak_last']={'seat':int(winner),'name':name,'amount':pot,'kind':kind,'at':int(_now()*1000)}
+    try:
+        STORE.add_notification(pid,'Çanağı kırdın!',f'{pot:,} altın masa çanağı senin.'.replace(',','.'),'canak',{'room_id':room_id})
+        room._emit_table_event('canak_break',int(winner),f'{name} ÇANAĞI KIRDI • +{pot:,}'.replace(',','.'),{'amount':pot,'kind':kind})
+    except Exception:
+        pass
 
 def _settle_if_finished(room_id:str):
     room=ROOMS.get(room_id);m=ROOM_META.get(room_id)

@@ -478,14 +478,25 @@ def gifts_catalog():
     return {'gifts':GIFT_CATALOG}
 
 @router.post('/social/gift')
-def gift(body:GiftIn,x_account_token:str|None=Header(None)):
+async def gift(body:GiftIn,x_account_token:str|None=Header(None)):
     _require(body.from_id,x_account_token)
-    return STORE.send_gift(body.from_id,body.to_id,body.gift_type)
+    out=STORE.send_gift(body.from_id,body.to_id,body.gift_type)
+    await _refresh_tables(body.from_id,body.to_id)
+    return out
+
+async def _refresh_tables(*ids:str)->None:
+    try:
+        from app.api.game import refresh_player_rooms
+        await refresh_player_rooms(ids)
+    except Exception:
+        pass
 
 @router.post('/social/transfer-coins')
-def transfer_coins(body:CoinTransferIn,x_account_token:str|None=Header(None)):
+async def transfer_coins(body:CoinTransferIn,x_account_token:str|None=Header(None)):
     _require_social(body.from_id,x_account_token)
-    return STORE.transfer_coins(body.from_id,body.to_id,body.amount)
+    out=STORE.transfer_coins(body.from_id,body.to_id,body.amount)
+    if out.get('ok'):await _refresh_tables(body.from_id,body.to_id)
+    return out
 
 @router.post('/social/invite')
 def invite(body:InviteIn,x_account_token:str|None=Header(None)):
