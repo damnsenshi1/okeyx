@@ -72,7 +72,11 @@ jobs:
           printf 'storeFile=okeyx_release.p12\nstorePassword=%s\nkeyAlias=okeyx\nkeyPassword=%s\n' "$KS_PW" "$KS_PW" > android/key.properties
       - name: Build Android release APK
         working-directory: mobile
-        run: flutter build apk --release --dart-define-from-file=app_config.json
+        shell: bash
+        run: |
+          BUILD=$(grep '^version:' pubspec.yaml | sed 's/.*+//')
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | sed 's/+.*//')
+          flutter build apk --release --dart-define-from-file=app_config.json --dart-define=OKEYX_BUILD="$BUILD" --dart-define=OKEYX_VERSION="$VERSION"
       - uses: actions/upload-artifact@v4
         with:
           name: okeyx-android-release-${{ github.sha }}
