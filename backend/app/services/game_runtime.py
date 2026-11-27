@@ -434,6 +434,7 @@ class Room:
         self.state=fresh.state
         self.service=GameService(self.state)
         self.opponent_interest={}
+        self.gosterge_shown=set()
         self._set_turn_deadline()
         self.state.log.append(f'{self.state.round_index}/{self.state.max_rounds}. el başladı.')
         return ActionResult(True,payload={'round_index':self.state.round_index})
@@ -467,6 +468,7 @@ class Room:
         self.state=fresh.state
         self.service=GameService(self.state)
         self.opponent_interest={}
+        self.gosterge_shown=set()
         self._assist_cache_key=None
         self._assist_cache_value=(0,0,[],[])
         self.intro_until_ms=fresh.intro_until_ms
@@ -615,6 +617,29 @@ class Room:
         else:
             self._emit_table_event('return_left',seat,f'{p.name} soldan aldığı taşı geri bıraktı')
         return ActionResult(True,payload={'tile':tile.id,'penalty':101 if penalize else 0})
+
+    def _indicator_tile_in_hand(self,seat:int):
+        ind=self.state.indicator
+        if ind is None:return None
+        return next((t for t in self.state.player(seat).hand if not t.fake_joker and t.color==ind.color and t.number==ind.number),None)
+
+    def can_show_indicator(self,seat:int)->bool:
+        """Klasik Okey: göstergenin aynısını elinde tutan oyuncu ilk turunda gösterebilir."""
+        s=self.state
+        if s.variant!='duz' or not s.started or s.phase not in ('draw','discard'):return False
+        # turn_no 1'den başlar: ilk tur 1..4 hamledir.
+        if seat in getattr(self,'gosterge_shown',set()) or s.turn_no>4 or s.current_seat!=seat:return False
+        p=s.player(seat)
+        if s.phase=='discard' and not (seat==s.starter_seat and s.turn_no<=1):return False
+        return self._indicator_tile_in_hand(seat) is not None
+
+    def show_indicator(self,seat:int)->ActionResult:
+        if not self.can_show_indicator(seat):return ActionResult(False,'cannot_show_indicator')
+        if not hasattr(self,'gosterge_shown'):self.gosterge_shown=set()
+        self.gosterge_shown.add(seat)
+        p=self.state.player(seat);t=self._indicator_tile_in_hand(seat)
+        self._emit_table_event('gosterge',seat,f'{p.name} GÖSTERGEYİ GÖSTERDİ!',{'tile_id':t.id if t else None})
+        return ActionResult(True,'indicator_shown',{'tile_id':t.id if t else None})
 
     def team_of(self,seat:int)->int:
         return seat%2
@@ -1019,6 +1044,7 @@ class Room:
         try:
             if kind=='finish':
                 r=self.duz_finish(seat,payload.get('tile_id','')) if self.state.variant=='duz' else ActionResult(False,'finish_only_duz')
+            elif kind=='show_indicator':r=self.show_indicator(seat)
             elif kind=='draw_stock':r=self.draw(seat,'stock')
             elif kind=='take_left':r=self.draw(seat,'left')
             elif kind=='return_left':r=self.return_left(seat,penalize=True)
@@ -1201,7 +1227,7 @@ class Room:
 
     def available_actions(self,viewer:int)->dict[str,bool]:
         """Viewer-specific contextual controls backed by the real rule engine."""
-        result={'open_series':False,'open_pairs':False,'add_pairs':False,'return_left':False,'undo_opening':False,'undo_layoff':False,'auto_layoff':False}
+        result={'open_series':False,'open_pairs':False,'add_pairs':False,'return_left':False,'undo_opening':False,'undo_layoff':False,'auto_layoff':False,'show_indicator':self.can_show_indicator(viewer)}
         s=self.state
         if s.variant=='duz':
             result['finish']=bool(s.started and s.phase=='discard' and s.current_seat==viewer and self.duz_options(viewer))

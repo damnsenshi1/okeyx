@@ -1440,6 +1440,17 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final handCount = _integer(_viewer['hand_count'], fallback: _serverHand.length);
 
     final buttons = <Widget>[];
+    // Klasik Okey: göstergenin aynısı eldeyse ilk turda GÖSTERGE (ödül).
+    if (_isDuz && _actions['show_indicator'] == true) {
+      buttons.add(_barButton('GÖSTERGE!', Icons.visibility_rounded, true, () async {
+        final out = await _act('show_indicator');
+        if (out?['ok'] == true) {
+          unawaited(GameAudio.sfx('coin_shower', enabled: _soundEnabled, volume: .8));
+          final bonus = _integer(_map(out?['payload'])['bonus']);
+          if (bonus > 0) _tableNotice('Göstergeyi gösterdin • +${_compactMoney(bonus)} altın');
+        }
+      }, primary: true));
+    }
     if (_myTurn && phase == 'discard') {
       if (_isDuz) {
         buttons.add(_barButton('BİTİR', Icons.emoji_events_rounded, _actions['finish'] == true, () => unawaited(_duzFinish()), primary: true));

@@ -1,3 +1,4 @@
+• Klasik Okey: göstergenin aynısı elindeyse ilk turda GÖSTERGE! ile ödül al
 • 101 kuralları: elde kalan okey 101 puan, yandan alıp geri bırakmak 101 ceza
 • Bekleme odasında HAZIRIM sistemi: hazır olanın avatarında yeşil tik
 • El dağıtılınca taşlar otomatik en iyi seri dizilimine girer, istediğin yere sürükleyebilirsin

@@ -1181,6 +1181,13 @@ async def _execute_action(room_id:str,body:ActionIn):
         task=QUICK_FILL_TASKS.pop(room_id,None)
         if task and task is not asyncio.current_task():
             task.cancel()
+    if result.ok and body.kind=='show_indicator':
+        # Klasik Okey göstergesi: gösteren oyuncuya küçük bir ödül (giriş bedelinin %10'u).
+        pid=m['player_ids'].get(body.seat)
+        if pid and not m.get('practice') and STORE.get(pid):
+            bonus=max(100,int(r.state.entry_fee or 0)//10)*(2 if r.state.turbo else 1)
+            STORE.credit(pid,bonus,'Klasik Okey • gösterge',notify=False)
+            result.payload=dict(result.payload or {},bonus=bonus)
     if result.ok and body.kind=='rematch':
         # Same room, fresh match: allow a new settlement/stat cycle.
         m['match_seq']=int(m.get('match_seq',0) or 0)+1
