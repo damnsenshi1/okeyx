@@ -251,14 +251,31 @@ class FcmSender:
 
 
 _FCM: FcmSender | None = None
+FCM_ERROR = ''
+
+
+def _fcm_raw() -> str:
+    import os
+    raw = settings.fcm_service_account_json or os.environ.get('FCM_SERVICE_ACCOUNT_JSON', '') or os.environ.get('FIREBASE_SERVICE_ACCOUNT', '')
+    raw = raw.strip()
+    # Render'a yapıştırırken başa/sona tırnak eklenmiş olabilir.
+    if len(raw) > 1 and raw[0] == raw[-1] and raw[0] in '\'"' and raw[1] == '{':
+        raw = raw[1:-1]
+    return raw
 
 
 def fcm() -> FcmSender | None:
-    global _FCM
-    if _FCM is None and settings.fcm_service_account_json:
+    global _FCM, FCM_ERROR
+    if _FCM is None:
+        raw = _fcm_raw()
+        if not raw:
+            FCM_ERROR = 'env_missing'
+            return None
         try:
-            _FCM = FcmSender(settings.fcm_service_account_json, settings.fcm_project_id)
-        except Exception:
+            _FCM = FcmSender(raw, settings.fcm_project_id)
+            FCM_ERROR = ''
+        except Exception as exc:
+            FCM_ERROR = f'{type(exc).__name__}: {str(exc)[:80]}'
             return None
     return _FCM
 

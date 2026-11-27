@@ -15,9 +15,9 @@ def healthz():
                'active_rooms': sum(1 for r in _g.ROOMS.values() if r.state.started and r.state.phase not in ('waiting', 'finished')),
                'restore': dict(_g.RUNTIME_RESTORE_INFO)}
     try:
-        from app.api.ops_extra import fcm as _fcm
-        _s = _fcm()
-        runtime['push'] = {'configured': _s is not None, 'project': getattr(_s, 'project', '') if _s else ''}
+        from app.api import ops_extra as _ox
+        _s = _ox.fcm()
+        runtime['push'] = {'configured': _s is not None, 'project': getattr(_s, 'project', '') if _s else '', 'reason': '' if _s else _ox.FCM_ERROR}
     except Exception as exc:  # pragma: no cover
         runtime['push'] = {'configured': False, 'error': type(exc).__name__}
     return {'ok': True, 'service': 'okeyx-v20', 'runtime': runtime, 'storage': {
