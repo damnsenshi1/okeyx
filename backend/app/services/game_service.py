@@ -339,6 +339,8 @@ class GameService:
         p=self.state.player(seat)
         if not p.opened or len(p.hand)<=1:return False
         for tile in p.hand:
+            # Elindeki okeyi İŞLE asla yere koymaz; okeyi oyuncu kendisi sürükler.
+            if self.rules._is_joker(tile):continue
             if self._matching_open_pair(tile) is not None:return True
             if self._pair_area_open() and self._find_exact_pair_mate(p,tile) is not None:return True
             for meld in self.state.melds:
@@ -428,6 +430,8 @@ class GameService:
                 if not current:
                     return ActionResult(False,'left_tile_missing_from_hand')
             for tile in current:
+                # Okeyi (yerden geri alınan dahil) otomatik işleme; elde kalsın.
+                if self.rules._is_joker(tile) and tile.id!=pending:continue
                 pair_move=self.layoff_pair(seat,tile.id) if self._matching_open_pair(tile) is not None else None
                 if pair_move is not None and pair_move.ok:
                     count+=1;progress=True;break
