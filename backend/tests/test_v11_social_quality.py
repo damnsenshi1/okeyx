@@ -67,10 +67,11 @@ def test_v1127_table_gifts_are_free_and_target_whole_table(tmp_path, monkeypatch
     _reset_runtime()
 
 
-def test_social_block_clears_pending_request_and_rejects_gifts(tmp_path):
+def test_social_block_clears_pending_request_and_rejects_gifts(tmp_path, monkeypatch):
     store = _store(tmp_path)
     store.ensure('p1', name='One', is_guest=True)
     store.ensure('p2', name='Two', is_guest=True)
+    monkeypatch.setattr(account, 'STORE', store)
 
     assert store.request_friend('p1', 'p2')['ok'] is True
     assert store.request_friend('p1', 'p2')['code'] == 'already_requested'
