@@ -95,6 +95,8 @@ SOCKETS:dict[str,dict[int,list[WebSocket]]]={}
 # Sunucu her açılışta yeni kimlik alır; istemci yeniden başlatmayı anlayıp
 # sürüm sayacını sıfırlar (yoksa eski sayaçtan küçük yeni durumları yok sayar).
 SERVER_BOOT_ID=uuid.uuid4().hex[:8]
+SERVER_BOOT_AT=time.time()
+RUNTIME_RESTORE_INFO:dict={'mirror':None,'fetched_remote':None,'restored_rooms':0,'error':None}
 ROOM_META:dict[str,dict]={}
 WATCHDOG_TASK:asyncio.Task|None=None
 QUICK_FILL_TASKS:dict[str,asyncio.Task]={}
@@ -174,11 +176,13 @@ def _restore_runtime_once()->None:
     _RUNTIME_LOADED=True
     try:
         m=_mirror()
-        if m:restore_from_remote(m.kv,settings.runtime_snapshot_path)
+        fetched=restore_from_remote(m.kv,settings.runtime_snapshot_path) if m else False
         rooms,meta=load_runtime(settings.runtime_snapshot_path,settings.effective_runtime_secret)
         ROOMS.update(rooms);ROOM_META.update(meta)
-    except Exception:
-        pass
+        RUNTIME_RESTORE_INFO.update({'mirror':bool(m),'fetched_remote':bool(fetched),'restored_rooms':len(rooms),'error':None})
+    except Exception as exc:
+        RUNTIME_RESTORE_INFO.update({'error':str(exc)[:200]})
+        print(f'OKEYX_RUNTIME_RESTORE_FAIL {exc}',flush=True)
 
 
 def _touch(room_id:str)->int:
