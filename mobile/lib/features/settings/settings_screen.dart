@@ -132,7 +132,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       widget.onProfileChanged(_profile);
       _snack('Profil fotoğrafın uygulandı.');
     } catch (e) {
-      _snack('$e'.contains('too_large') ? 'Fotoğraf en fazla 3 MB olabilir.' : 'Fotoğraf yüklenemedi.', error: true);
+      final t = '$e';
+      _snack(
+        t.contains('too_large')
+            ? 'Fotoğraf en fazla 3 MB olabilir.'
+            : t.contains('auth_session_missing')
+                ? 'Profil fotoğrafı için Google ile giriş yapmalısın (misafir hesapta yüklenemez).'
+                : 'Fotoğraf yüklenemedi: ${t.length > 90 ? t.substring(0, 90) : t}',
+        error: true,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }

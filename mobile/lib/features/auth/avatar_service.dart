@@ -60,7 +60,7 @@ class AvatarService {
       await client.storage.from(bucket).uploadBinary(
             path,
             Uint8List.fromList(bytes),
-            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true, cacheControl: '3600'),
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: false, cacheControl: '3600'),
           );
       final url = client.storage.from(bucket).getPublicUrl(path);
       debugPrint('OKEYX_AVATAR_UPLOAD_OK bytes=${bytes.length} path=$path');

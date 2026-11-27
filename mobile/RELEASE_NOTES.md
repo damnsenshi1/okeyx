@@ -1,4 +1,6 @@
-OKEYX 20.4.0
+OKEYX 20.4.1
+
+• Profil fotoğrafı yükleme düzeltildi; yüklenemezse nedeni yazar.
 
 • Oyun açıkken gelen anlık bildirimler de telefona düşer (önceden yalnızca oyun kapalıyken görünüyordu).
 
