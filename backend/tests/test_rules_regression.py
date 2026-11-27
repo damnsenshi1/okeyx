@@ -148,12 +148,15 @@ def test_contextual_pair_action_only_for_pair_opening_mode():
     assert room.available_actions(0)['open_pairs'] is False
     assert room.available_actions(0)['add_pairs'] is True
 
-    # A series opener must never receive ÇİFT AÇ just because a pair exists on
-    # the table. That button would only produce wrong_opening_mode.
+    # Seriyle açan oyuncu ÇİFT AÇ alamaz ama masada çift alanı açıksa
+    # elindeki tam çifti ÇİFT EKLE ile işleyebilir (kullanıcı kuralı).
     p.opening_mode = 'series'
     room.state.melds = [Meld('pair-other', 1, MeldType.PAIR, [tile('a', Color.YELLOW, 4), tile('b', Color.YELLOW, 4)])]
     assert room.available_actions(0)['open_pairs'] is False
-    assert room.available_actions(0)['add_pairs'] is False
+    assert room.available_actions(0)['add_pairs'] is True
+    r = room.auto_add_pairs(0)
+    assert r.ok, r.code
+    assert [t.id for t in p.hand] == ['loose']
 
 
 def test_left_discard_obligation_blocks_processing_another_tile():

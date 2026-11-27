@@ -1,3 +1,4 @@
+• Seriyle açan oyuncu, masada çift varsa ÇİFT EKLE ile çift işleyebilir
 • SERİ DİZ artık en yüksek puanlı dizilimi buluyor (okey, alt seriler, renk perleri)
 • Masadan atılma sorunu giderildi (sunucu güncellenirken masalar korunur)
 • Hediyeler ve hamleler sunucu yeniden başladıktan sonra da anında görünür

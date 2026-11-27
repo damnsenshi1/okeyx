@@ -1449,11 +1449,14 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           final seriesLabel = canOpenSeries ? 'SERİ AÇ' : score < threshold ? 'SERİ AÇ −${threshold - score}' : 'DİZİMİ DÜZENLE';
           buttons.add(_barButton(seriesLabel, Icons.layers_rounded, canOpenSeries, () => unawaited(_openSeriesRespectingRack()), primary: true));
         }
+        // Seriyle açan oyuncu, masada çift alanı varsa ÇİFT EKLE ile çift işler.
+        final pairArea = _list(_state['melds']).any((m) => '${_map(m)['kind']}' == 'pair');
+        final addMode = pairOpened || (opened && pairArea);
         buttons.add(_barButton(
-          pairOpened ? 'ÇİFT EKLE' : 'ÇİFT AÇ $pairs/$pairThreshold',
+          addMode ? 'ÇİFT EKLE' : 'ÇİFT AÇ $pairs/$pairThreshold',
           Icons.copy_all_rounded,
-          pairOpened ? _actions['add_pairs'] == true : _actions['open_pairs'] == true,
-          () => _act(pairOpened ? 'add_pairs' : 'open_pairs'),
+          addMode ? _actions['add_pairs'] == true : _actions['open_pairs'] == true,
+          () => _act(addMode ? 'add_pairs' : 'open_pairs'),
         ));
       }
     } else if (_myTurn && phase == 'draw') {

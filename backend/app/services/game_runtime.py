@@ -766,7 +766,7 @@ class Room:
     def auto_add_pairs(self,seat:int)->ActionResult:
         p=self.state.player(seat)
         if not p.opened:return ActionResult(False,'must_open_first')
-        if p.opening_mode!='pairs':return ActionResult(False,'wrong_opening_mode')
+        # Seriyle açan oyuncu da çift alanı açıksa tam çift ekleyebilir.
         if not any(m.meld_type==MeldType.PAIR for m in self.state.melds):return ActionResult(False,'pair_area_not_open')
         processed=0;guard=0
         while len(p.hand)>2 and guard<12:
@@ -1218,9 +1218,11 @@ class Room:
                     result['open_series']=bool(cached_preview and cached_preview[2])
                 else:
                     result['open_series']=bool(find_series_groups(self.service.rules,p.hand,0,required,max_used))
-            # Initial opening and later pair additions are intentionally separate.
+            # Masada çift alanı açıksa seriyle açan oyuncu da çift ekleyebilir.
             if p.opening_mode=='pairs':
                 result['add_pairs']=bool(pair_plan_including(self.service.rules,p.hand,1,required))
+            elif any(m.meld_type==MeldType.PAIR for m in s.melds):
+                result['add_pairs']=bool(len(p.hand)>2 and pair_plan_including(self.service.rules,p.hand,1,required))
             result['auto_layoff']=self.service.can_auto_layoff(viewer)
         result['return_left']=bool(required and any(t.id==required for t in p.hand))
         result['undo_opening']=p.turn_table_snapshot is not None or p.last_open_batch is not None
