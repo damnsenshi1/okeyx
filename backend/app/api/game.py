@@ -16,7 +16,7 @@ class ActionIn(BaseModel):
     kind:str
     payload:dict=Field(default_factory=dict)
     reconnect_token:str|None=None
-    request_id:str|None=None
+    request_id:str|None=Field(default=None,max_length=80)
 
 class CreateRoomIn(BaseModel):
     name:str='OkeyX Masası'
@@ -1137,8 +1137,9 @@ async def _execute_action(room_id:str,body:ActionIn):
     if not r:raise HTTPException(404,'room_not_found')
     m=_auth(room_id,body.seat,body.reconnect_token)
     _rate_limit(m,body.reconnect_token)
-    if body.request_id and body.request_id in m['dedupe']:
-        return m['dedupe'][body.request_id]
+    dedupe_key=f"{body.seat}:{body.request_id}" if body.request_id else None
+    if dedupe_key and dedupe_key in m['dedupe']:
+        return m['dedupe'][dedupe_key]
 
     # A valid reconnect token restores a human seat if a disconnect bot had taken it.
     if body.seat in m['player_ids'] and r.state.player(body.seat).bot:
@@ -1153,7 +1154,7 @@ async def _execute_action(room_id:str,body:ActionIn):
         owner=int(m.get('owner_seat',0) or 0)
         if not m.get('quick_match') and body.seat!=owner:
             response={'ok':False,'code':'host_only','payload':{},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-            if body.request_id:m['dedupe'][body.request_id]=response
+            if dedupe_key:m['dedupe'][dedupe_key]=response
             return response
         if not m.get('quick_match'):
             # Özel masada Hazır sistemi yok. Dört koltuk gerçek oyuncu veya
@@ -1161,12 +1162,12 @@ async def _execute_action(room_id:str,body:ActionIn):
             open_seats=[seat for seat in range(4) if seat not in m.get('player_ids',{}) and not (seat in m.setdefault('bot_seats',set()) and r.state.player(seat).bot)]
             if open_seats:
                 response={'ok':False,'code':'empty_seats','payload':{'seats':open_seats},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-                if body.request_id:m['dedupe'][body.request_id]=response
+                if dedupe_key:m['dedupe'][dedupe_key]=response
                 return response
             not_ready=[seat for seat in m.get('player_ids',{}) if seat!=owner and seat not in m.setdefault('ready_seats',set())]
             if not_ready and not bool((body.payload or {}).get('force')):
                 response={'ok':False,'code':'players_not_ready','payload':{'seats':not_ready},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-                if body.request_id:m['dedupe'][body.request_id]=response
+                if dedupe_key:m['dedupe'][dedupe_key]=response
                 return response
         # Hızlı eşleşmede varsayılan akış 15 sn gerçek oyuncu arar. Ancak
         # masa sahibi boş koltuklara BOT EKLE ile bot koyduysa bu botlar da
@@ -1181,11 +1182,11 @@ async def _execute_action(room_id:str,body:ActionIn):
                         'humans':humans,'bots':bots,'occupied':occupied,'empty':4-occupied,'required':4,
                     },'request_id':body.request_id,'state':_state(room_id,body.seat),
                 }
-                if body.request_id:m['dedupe'][body.request_id]=response
+                if dedupe_key:m['dedupe'][dedupe_key]=response
                 return response
             if body.seat != int(m.get('owner_seat',0) or 0):
                 response={'ok':False,'code':'host_only','payload':{},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-                if body.request_id:m['dedupe'][body.request_id]=response
+                if dedupe_key:m['dedupe'][dedupe_key]=response
                 return response
         ok,code=_charge_entries(room_id)
         if not ok:
@@ -1222,8 +1223,8 @@ async def _execute_action(room_id:str,body:ActionIn):
     # state, so every processed action advances a monotonic revision.
     _touch(room_id)
     response={'ok':result.ok,'code':result.code,'payload':result.payload or {},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-    if body.request_id:
-        m['dedupe'][body.request_id]=response
+    if dedupe_key:
+        m['dedupe'][dedupe_key]=response
         if len(m['dedupe'])>80:
             for k in list(m['dedupe'])[:-60]:m['dedupe'].pop(k,None)
     # Acting client receives the canonical state in the action result. Peers
