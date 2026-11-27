@@ -597,8 +597,9 @@ class Room:
             self._emit_table_event('draw_stock',seat,f'{p.name} taş çekti')
         p.hand.append(tile);self.state.phase='discard';return ActionResult(True,payload={'tile':tile.id,'must_use':source=='left'})
 
-    def return_left(self,seat:int)->ActionResult:
-        """GERİ BIRAK: soldan alınan taş kullanılmadan önce eski ıskartaya döner."""
+    def return_left(self,seat:int,penalize:bool=False)->ActionResult:
+        """GERİ BIRAK: soldan alınan taş kullanılmadan önce eski ıskartaya döner.
+        101 kuralı: yandan alıp kullanamayan oyuncuya 101 ceza yazılır."""
         if seat!=self.state.current_seat:return ActionResult(False,'not_your_turn')
         if self.state.phase!='discard':return ActionResult(False,'bad_phase')
         p=self.state.player(seat);tile_id=p.pending_left_tile_id;from_seat=p.pending_left_from_seat
@@ -608,8 +609,12 @@ class Room:
         p.hand.remove(tile);self.state.discard_piles[from_seat].append(tile)
         p.pending_left_tile_id=None;p.pending_left_from_seat=None
         self.state.phase='draw';self.state.log.append(f'{p.name}, soldan aldığı taşı geri bıraktı.')
-        self._emit_table_event('return_left',seat,f'{p.name} soldan aldığı taşı geri bıraktı')
-        return ActionResult(True,payload={'tile':tile.id})
+        if penalize:
+            p.penalty+=101
+            self._emit_table_event('penalty',seat,f'{p.name} yandan aldığı taşı kullanamadı • +101 ceza',{'penalty':101,'reason':'return_left'})
+        else:
+            self._emit_table_event('return_left',seat,f'{p.name} soldan aldığı taşı geri bıraktı')
+        return ActionResult(True,payload={'tile':tile.id,'penalty':101 if penalize else 0})
 
     def team_of(self,seat:int)->int:
         return seat%2
@@ -623,7 +628,8 @@ class Room:
 
     def _rack_value(self,seat:int)->int:
         p=self.state.player(seat);rules=self.service.rules
-        return sum(25 if rules._is_joker(t) else int(rules._norm(t).number or 0) for t in p.hand)
+        # 101 kuralı: açmış oyuncunun elinde kalan okey 101 puan yazar.
+        return sum(101 if rules._is_joker(t) else int(rules._norm(t).number or 0) for t in p.hand)
 
     def _finish_stock(self):
         if self.state.variant=='duz':
@@ -1015,7 +1021,7 @@ class Room:
                 r=self.duz_finish(seat,payload.get('tile_id','')) if self.state.variant=='duz' else ActionResult(False,'finish_only_duz')
             elif kind=='draw_stock':r=self.draw(seat,'stock')
             elif kind=='take_left':r=self.draw(seat,'left')
-            elif kind=='return_left':r=self.return_left(seat)
+            elif kind=='return_left':r=self.return_left(seat,penalize=True)
             elif kind=='discard':r=self.discard(seat,payload.get('tile_id',''))
             elif kind=='open_series':
                 manual=payload.get('groups')

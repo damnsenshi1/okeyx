@@ -1445,7 +1445,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         buttons.add(_barButton('BİTİR', Icons.emoji_events_rounded, _actions['finish'] == true, () => unawaited(_duzFinish()), primary: true));
       } else {
         if (_actions['return_left'] == true) {
-          buttons.add(_barButton('GERİ BIRAK', Icons.keyboard_return_rounded, true, () => _act('return_left')));
+          buttons.add(_barButton('GERİ BIRAK −101', Icons.keyboard_return_rounded, true, () => _act('return_left')));
         } else if (_actions['undo_opening'] == true || _actions['undo_layoff'] == true) {
           buttons.add(_barButton('GERİ TOPLA', Icons.restore_rounded, true, () => _act(_actions['undo_opening'] == true ? 'undo_opening' : 'undo_layoff')));
         }
