@@ -8,6 +8,21 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    companion object {
+        @Volatile var inForeground = false
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        try { OkxNotifyWorker.schedule(this) } catch (e: Exception) { }
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4401)
+        }
+    }
+
+    override fun onResume() { super.onResume(); inForeground = true }
+    override fun onPause() { inForeground = false; super.onPause() }
+
     private val shareChannel = "com.senshilabs.okeyx_mobile/share"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

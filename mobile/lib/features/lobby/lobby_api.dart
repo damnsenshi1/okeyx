@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -90,6 +91,13 @@ class LobbyApiClient {
     final token = '${out['session_token'] ?? ''}';
     if (token.isEmpty) throw const LobbyApiException('account_session_missing');
     accountToken = token;
+    // Oyun kapalıyken bildirim denetimi (Android arka plan işi) bu bilgileri okur.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('okx_bg_pid', profile.userId);
+      await prefs.setString('okx_bg_token', token);
+      await prefs.setString('okx_bg_api', ApiEndpoint.baseUrl);
+    } catch (_) {}
     return out;
   }
 
