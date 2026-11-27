@@ -145,7 +145,11 @@ class OkxRuleSwitches extends StatelessWidget {
     required this.onAssisted,
     this.height = 36,
     this.gap = 8,
+    this.vertical = false,
   });
+
+  /// true: her seçim kendi satırında, tam genişlikte (masa kur paneli).
+  final bool vertical;
 
   /// 'non_fold' | 'fold' | 'duz'
   final String variant;
@@ -187,6 +191,14 @@ class OkxRuleSwitches extends StatelessWidget {
         onChanged: (r) => onAssisted(!r),
       ),
     ];
+    if (vertical) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) SizedBox(height: gap),
+          items[i],
+        ],
+      ]);
+    }
     return Row(children: [
       for (var i = 0; i < items.length; i++) ...[
         if (i > 0) SizedBox(width: gap),
@@ -206,4 +218,40 @@ String okxRuleSummary({required String variant, required bool turbo, required bo
     assisted ? 'Yardımlı' : 'Yardımsız',
   ];
   return parts.join(' • ');
+}
+
+
+/// Dar alanlar için: seçili değeri gösteren, dokununca diğerine geçen çip.
+/// Örn. "Katlamalı ⇄". Yazı hiçbir zaman küçülüp okunmaz hale gelmez.
+class OkxToggleChip extends StatelessWidget {
+  const OkxToggleChip({super.key, required this.label, required this.onTap, this.icon, this.active = false, this.height = 34});
+
+  final String label;
+  final VoidCallback onTap;
+  final IconData? icon;
+  final bool active;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: height,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(height / 2),
+            gradient: active ? const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF6DC95), Color(0xFFC99440)]) : null,
+            color: active ? null : const Color(0x59000000),
+            border: Border.all(color: active ? const Color(0x00000000) : const Color(0x40E8C478)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (icon != null) ...[Icon(icon, size: 15, color: active ? okxTextDarkMode : const Color(0xFFE9DDC2)), const SizedBox(width: 5)],
+            Text(label, maxLines: 1, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: active ? okxTextDarkMode : const Color(0xFFE9DDC2))),
+            const SizedBox(width: 6),
+            Icon(Icons.swap_horiz_rounded, size: 14, color: active ? okxTextDarkMode.withValues(alpha: .7) : const Color(0x99E9DDC2)),
+          ]),
+        ),
+      );
 }

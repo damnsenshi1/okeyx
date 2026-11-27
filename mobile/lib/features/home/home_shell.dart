@@ -1017,36 +1017,49 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                     const Spacer(),
                     SizedBox(
-                      height: compact ? 36 : 40,
+                      height: compact ? 32 : 36,
+                      width: compact ? 250 : 300,
+                      child: OkxModeTabs(
+                        height: compact ? 32 : 36,
+                        classic: _variant == 'duz',
+                        onChanged: (classic) => setState(() {
+                          if (classic) {
+                            if (_variant != 'duz') _lastRuleVariant = _variant;
+                            _variant = 'duz';
+                            _turbo = false;
+                          } else if (_variant == 'duz') {
+                            _variant = _lastRuleVariant;
+                          }
+                        }),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
                       child: Row(children: [
-                        Expanded(
-                          flex: 5,
-                          child: OkxModeTabs(
-                            height: compact ? 36 : 40,
-                            classic: _variant == 'duz',
-                            onChanged: (classic) => setState(() {
-                              if (classic) {
-                                if (_variant != 'duz') _lastRuleVariant = _variant;
-                                _variant = 'duz';
-                                _turbo = false;
-                              } else if (_variant == 'duz') {
-                                _variant = _lastRuleVariant;
-                              }
-                            }),
+                        if (_variant != 'duz') ...[
+                          OkxToggleChip(
+                            height: compact ? 30 : 34,
+                            label: _variant == 'fold' ? 'Katlamalı' : 'Katlamasız',
+                            active: _variant == 'fold',
+                            onTap: () => setState(() => _variant = _variant == 'fold' ? 'non_fold' : 'fold'),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 11,
-                          child: OkxRuleSwitches(
-                            height: compact ? 36 : 40,
-                            variant: _variant,
-                            turbo: _turbo,
-                            assisted: _assisted,
-                            onVariant: (v) => setState(() => _variant = v),
-                            onTurbo: (v) => setState(() => _turbo = v),
-                            onAssisted: (v) => setState(() => _assisted = v),
+                          const SizedBox(width: 7),
+                          OkxToggleChip(
+                            height: compact ? 30 : 34,
+                            label: _turbo ? 'Turbo' : 'Normal',
+                            icon: _turbo ? Icons.bolt_rounded : null,
+                            active: _turbo,
+                            onTap: () => setState(() => _turbo = !_turbo),
                           ),
+                          const SizedBox(width: 7),
+                        ],
+                        OkxToggleChip(
+                          height: compact ? 30 : 34,
+                          label: _assisted ? 'Yardımlı' : 'Yardımsız',
+                          icon: _assisted ? Icons.auto_fix_high_rounded : null,
+                          active: _assisted,
+                          onTap: () => setState(() => _assisted = !_assisted),
                         ),
                       ]),
                     ),
@@ -3197,7 +3210,8 @@ class _HomeShellState extends State<HomeShell> {
                                   label('MASA AYARLARI'),
                                   label(variant == 'duz' ? 'KLASİK OKEY KURALLARI' : '101 OKEY KURALLARI'),
                                   OkxRuleSwitches(
-                                    height: 38,
+                                    height: 40,
+                                    vertical: true,
                                     variant: variant,
                                     turbo: turbo,
                                     assisted: assisted,
@@ -3213,12 +3227,12 @@ class _HomeShellState extends State<HomeShell> {
                                         left: 'Tekli',
                                         right: 'Eşli',
                                         rightIcon: Icons.groups_2_rounded,
-                                        height: 38,
+                                        height: 40,
                                         rightSelected: teamMode == 'paired',
                                         onChanged: (r) => localSet(() => teamMode = r ? 'paired' : 'solo'),
                                       ),
                                     ),
-                                    const Expanded(flex: 2, child: SizedBox()),
+                                    const Expanded(child: SizedBox()),
                                   ]),
                                   const SizedBox(height: 10),
                                   Row(children: [
