@@ -973,17 +973,18 @@ async def quick_room(body:JoinRoomIn):
     account=_account(body.player_id,body.account_token)
     requested_fee=body.entry_fee if body.entry_fee in ALLOWED_ENTRY_FEES else 5000
     requested_turbo=bool(body.turbo) if body.turbo is not None else False
-    _preflight_balance(account,requested_fee,requested_turbo)
 
-    # If the same player already owns a live waiting quick room, restore it
-    # instead of creating duplicates on repeated taps/network retries.
+    # Reuse the player's active quick room, including a match that started
+    # after the first request. A retry must not create a second paid session.
     for rid,r in list(ROOMS.items()):
         meta=_ensure_meta(rid,legacy=True)
         seat=next((s for s,pid in meta.get('player_ids',{}).items() if pid==body.player_id),None)
-        if seat is not None and r.state.phase=='waiting' and meta.get('quick_match'):
-            _schedule_quick_fill(rid)
+        if seat is not None and not r.state.match_finished and meta.get('quick_match'):
+            if r.state.phase=='waiting':_schedule_quick_fill(rid)
             token=meta['seat_tokens'].get(seat) or _token();meta['seat_tokens'][seat]=token
             return {'room_id':rid,'seat':seat,'reconnect_token':token,'state':_state(rid,seat)}
+
+    _preflight_balance(account,requested_fee,requested_turbo)
 
     my_level=int(account.get('level',1) or 1)
     for rid,r in list(ROOMS.items()):
@@ -1068,19 +1069,19 @@ async def practice_room(body:JoinRoomIn):
 async def join_room(room_id:str,body:JoinRoomIn):
     r=ROOMS.get(room_id)
     if not r:raise HTTPException(404,'room_not_found')
-    if r.state.phase!='waiting':raise HTTPException(409,'room_already_started')
     account=_account(body.player_id,body.account_token)
-    _preflight_balance(account,r.state.entry_fee,r.state.turbo)
     m=_ensure_meta(room_id)
+    if body.player_id in m.get('player_ids',{}).values():
+        # Authenticated retry/rejoin of the same room, including after start.
+        seat=next(s for s,pid in m['player_ids'].items() if pid==body.player_id)
+        return {'room_id':room_id,'seat':seat,'reconnect_token':m['seat_tokens'][seat],'state':_state(room_id,seat)}
+    if r.state.phase!='waiting':raise HTTPException(409,'room_already_started')
+    _preflight_balance(account,r.state.entry_fee,r.state.turbo)
     password_hash=m.get('password_hash')
     invited=body.player_id in m.get('invited_player_ids',set())
     if password_hash and not invited:
         given=hashlib.sha256((body.password or '').encode('utf-8')).hexdigest()
         if not secrets.compare_digest(password_hash,given):raise HTTPException(401,'room_password_required')
-    if body.player_id in m.get('player_ids',{}).values():
-        # Authenticated rejoin of the same waiting room.
-        seat=next(s for s,pid in m['player_ids'].items() if pid==body.player_id)
-        return {'room_id':room_id,'seat':seat,'reconnect_token':m['seat_tokens'][seat],'state':_state(room_id,seat)}
     seat=body.seat if body.seat is not None and _seat_is_open(room_id,body.seat) else _free_human_seat(room_id)
     if seat is None:raise HTTPException(409,'room_full')
     token=_bind_human(room_id,seat,body.player_id,account['name'])
