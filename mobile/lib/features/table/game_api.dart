@@ -155,6 +155,16 @@ class GameApiClient {
   }
 
 
+  Future<Map<String, dynamic>> setReady(bool ready) async {
+    final id = roomId;
+    final token = reconnectToken;
+    if (id == null || token == null) throw const GameApiException('game_session_missing');
+    final out = await _post('/api/game/$id/ready', {'seat': seat, 'reconnect_token': token, 'ready': ready});
+    final st = _map(out['state']);
+    if (st.isNotEmpty) _acceptState(st);
+    return out;
+  }
+
   /// Bekleme odasında boş bir koltuğa geç (koltuk ve bağlantı anahtarı değişir).
   Future<Map<String, dynamic>> changeSeat(int toSeat) async {
     final id = roomId;

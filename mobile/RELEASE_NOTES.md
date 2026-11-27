@@ -1,3 +1,6 @@
+• Bekleme odasında HAZIRIM sistemi: hazır olanın avatarında yeşil tik
+• El dağıtılınca taşlar otomatik en iyi seri dizilimine girer, istediğin yere sürükleyebilirsin
+• Boş/hayalet odalar artık listede görünmez
 • Güncelleme kontrolü: açılışta, uygulamaya dönünce ve 30 dakikada bir
 • Hoş geldin altını cihaz başına bir kez; karşılama ekranı her girişte tekrar çıkmaz
 • Rakiplerin süre sayacı ve avatarları artık ekrana sığıyor

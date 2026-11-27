@@ -3216,9 +3216,11 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       }
     }
 
-    // El ilk dağıtıldığında oyuncunun ıstakasını kendiliğinden SERİ DİZ yapma.
-    // Yardımlı mod yalnızca butona basıldığında otomatik dizilim uygular; böylece
-    // manuel dizilim ve dağıtım sırası oyuncunun kontrolünde kalır.
+    // El dağıtılınca taşlar kendiliğinden en yüksek puanlı seri dizilimine
+    // girer; oyuncu sonra istediği taşı istediği yere sürükleyebilir.
+    if (newHand && hand.isNotEmpty && !_isDuz) {
+      _applyRackArrangement(_seriesArrangementForRack(hand));
+    }
   }
 
   void _applyRackArrangement((List<String>, Set<String>, int) result) {
@@ -4993,7 +4995,9 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final occupiedCount = _integer(_state['occupied_count'], fallback: derivedOccupied).clamp(0, 4).toInt();
     final emptyCount = _integer(_state['empty_count'], fallback: 4 - occupiedCount).clamp(0, 4).toInt();
     final botCount = _integer(_state['bot_count'], fallback: players.where((p) => p['explicit_bot'] == true).length).clamp(0, 4).toInt();
-    final tableReady = occupiedCount == 4;
+    final notReadyCount = _list(_state['players']).map(_map).where((p) => p['ready'] != true && p['bot'] != true && '${p['player_id'] ?? ''}'.isNotEmpty).length;
+    final myReady = _viewer['ready'] == true;
+    final tableReady = occupiedCount == 4 && notReadyCount == 0;
     final humanCount = _integer(
       _state['human_count'],
       fallback: players.where((p) => p['bot'] != true).length,
@@ -5101,8 +5105,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                 const SizedBox(height:5),
                                 Text(
                                   isHost
-                                      ? (tableReady ? 'Masa hazır • başlatma sende.' : '$emptyCount boş koltuk')
-                                      : 'Masa sahibi başlatacak.',
+                                      ? (tableReady ? 'Herkes hazır • başlatma sende.' : emptyCount > 0 ? '$emptyCount boş koltuk' : '$notReadyCount oyuncu hazır değil')
+                                      : (myReady ? 'Hazırsın • masa sahibi başlatacak.' : 'Hazırsan HAZIRIM\'a bas.'),
                                   maxLines:1,
                                   overflow:TextOverflow.ellipsis,
                                   style:const TextStyle(fontSize:9,color:Colors.white54,fontWeight:FontWeight.w800),
@@ -5128,9 +5132,9 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                                   const SizedBox(width:6),
                                   Expanded(flex:7,child:FilledButton.icon(
                                     style:FilledButton.styleFrom(backgroundColor:current<required?const Color(0xFF9A6A2F):tableReady?const Color(0xFF8A5A1C):const Color(0xFF231665),foregroundColor:Colors.white,shadowColor:tableReady?OkeyXColors.gold:Colors.transparent,elevation:tableReady?14:2,padding:EdgeInsets.symmetric(vertical:shortViewport?9:11),side:BorderSide(color:tableReady?OkeyXColors.gold.withValues(alpha:.75):Colors.white12,width:tableReady?1.4:1)),
-                                    onPressed:isHost&&!_busy?(current<required?_leaveForStore:(tableReady?()=>_startMatchFromWaiting(required,current):null)):null,
-                                    icon:Icon(current<required?Icons.shopping_bag_rounded:(tableReady?Icons.play_arrow_rounded:Icons.hourglass_bottom_rounded),size:16),
-                                    label:FittedBox(child:Text(current<required?'ALTIN AL':tableReady?'OYUNU BAŞLAT':'$emptyCount KOLTUK BOŞ',style:const TextStyle(fontWeight:FontWeight.w900))),
+                                    onPressed:_busy?null:(current<required?_leaveForStore:(isHost?(tableReady?()=>_startMatchFromWaiting(required,current):null):()=>unawaited(_toggleReady(!myReady)))),
+                                    icon:Icon(current<required?Icons.shopping_bag_rounded:(isHost?(tableReady?Icons.play_arrow_rounded:Icons.hourglass_bottom_rounded):(myReady?Icons.check_circle_rounded:Icons.front_hand_rounded)),size:16),
+                                    label:FittedBox(child:Text(current<required?'ALTIN AL':isHost?(tableReady?'OYUNU BAŞLAT':emptyCount>0?'$emptyCount KOLTUK BOŞ':'$notReadyCount HAZIR DEĞİL'):(myReady?'HAZIRIM ✓ (İPTAL)':'HAZIRIM'),style:const TextStyle(fontWeight:FontWeight.w900))),
                                   )),
                                 ]),
                               ] else ...[
@@ -5242,12 +5246,15 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final rival = paired && (rel == 1 || rel == 3);
     final teamColor = partner || (paired && mine) ? OkeyXColors.gold : rival ? const Color(0xFF6FA8FF) : OkeyXColors.gold;
     final connected = player['connected'] == true || bot || mine;
-    // Hazır durumu: botlar ve masaya bağlı oyuncular hazır sayılır.
+    // Hazır durumu: oyuncu HAZIRIM'a basar; masa sahibi ve botlar hep hazırdır.
+    final ready = player['ready'] == true || bot;
     final (statusText, statusColor) = empty
         ? (isHost ? ('DAVET / BOT / GEÇ', const Color(0x99FFE3A0)) : ('BURAYA OTUR', OkeyXColors.mint))
-        : connected
-            ? ('HAZIR ✓', OkeyXColors.mint)
-            : ('BAĞLANIYOR…', const Color(0xFFFFB86B));
+        : !connected
+            ? ('BAĞLANIYOR…', const Color(0xFFFFB86B))
+            : ready
+                ? ('HAZIR ✓', OkeyXColors.mint)
+                : ('HAZIR DEĞİL', const Color(0xFFFFB86B));
     final roleText = empty
         ? ''
         : mine
@@ -5283,7 +5290,23 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
           avatar,
           if (seat == ownerSeat && !empty) const Positioned(top: -10, child: Icon(Icons.workspace_premium_rounded, size: 18, color: OkeyXColors.gold)),
-          if (!empty) Positioned(right: -2, bottom: -2, child: Container(width: 14, height: 14, decoration: BoxDecoration(shape: BoxShape.circle, color: connected ? OkeyXColors.mint : const Color(0xFFFFB86B), border: Border.all(color: const Color(0xFF0B071E), width: 2)))),
+          if (!empty)
+            Positioned(
+              right: -4,
+              bottom: -4,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: ready && connected ? OkeyXColors.mint : const Color(0xFFFFB86B),
+                  border: Border.all(color: const Color(0xFF0B071E), width: 2),
+                  boxShadow: ready && connected ? [BoxShadow(color: OkeyXColors.mint.withValues(alpha: .6), blurRadius: 10)] : null,
+                ),
+                child: Icon(ready && connected ? Icons.check_rounded : Icons.hourglass_top_rounded, size: 13, color: const Color(0xFF0B071E)),
+              ),
+            ),
         ]),
         const SizedBox(height: 5),
         Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: empty ? const Color(0xCCE8C478) : OkeyXColors.cream)),
@@ -5304,6 +5327,18 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     if (explicitBot && isHost && seat >= 0) return InkWell(borderRadius: BorderRadius.circular(18), onTap: () => _showBotSeatMenu(seat), child: wrapped);
     if (!bot && seat >= 0) return InkWell(borderRadius: BorderRadius.circular(18), onTap: () => _showPlayerCard(player), onLongPress: kickable ? () => _confirmKickPlayer(seat, name) : null, child: wrapped);
     return wrapped;
+  }
+
+  Future<void> _toggleReady(bool ready) async {
+    try {
+      final out = await _api.setReady(ready);
+      if (out['ok'] == true) {
+        unawaited(GameAudio.sfx(ready ? 'reward' : 'ui_tap', enabled: _soundEnabled, volume: .7));
+        if (_vibrationEnabled) unawaited(HapticFeedback.mediumImpact());
+      }
+    } catch (_) {
+      _tableNotice('Hazır durumu gönderilemedi.');
+    }
   }
 
   /// Oyuncu (ya da masa sahibi) bekleme odasında boş bir koltuğa geçer.
@@ -6492,6 +6527,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       'room_not_found': 'Masa artık mevcut değil. Lobiye dönüp başka bir masaya katılabilirsin.',
       'host_only': 'Bu işlemi yalnızca masa sahibi yapabilir.',
       'empty_seats': 'Başlatmak için 4 koltuğun da dolu olması gerekiyor.',
+      'players_not_ready': 'Herkes HAZIRIM demeden masa başlatılamaz.',
       'seat_has_player': 'Bu koltukta zaten bir oyuncu var.',
       'invalid_seat': 'Bu koltuk seçilemiyor.',
       'room_player_insufficient_balance': 'Masadaki bir oyuncunun bakiyesi bu masa için yetersiz.',

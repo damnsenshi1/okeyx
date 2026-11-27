@@ -297,6 +297,8 @@ def _state(room_id:str,viewer:int)->dict:
         afk_bot=bool(p['bot'] and pid)
         p['afk_bot']=afk_bot
         p['connected']=bool(m['connected'].get(seat,False)) if pid else bool(p['bot'])
+        # Hazır: masa sahibi ve botlar hep hazır; diğer oyuncular HAZIRIM'a basar.
+        p['ready']=bool(p['bot']) or (pid is not None and (seat==int(m.get('owner_seat',0) or 0) or seat in m.setdefault('ready_seats',set())))
         p['afk_strikes']=int(m['afk_strikes'].get(seat,0))
         p['player_id']=pid
         explicit_bot=seat in m.setdefault('bot_seats',set())
@@ -836,6 +838,13 @@ def list_rooms():
         bot_count=_bot_count(rid)
         occupied=_occupied_count(rid)
         if st.phase!='waiting':continue
+        # Hayalet oda: içinde gerçek oyuncu kalmamış ya da herkesin bağlantısı
+        # 2 dakikadan uzun süredir kopuk olan bekleme odası listede görünmez.
+        if human<=0:continue
+        seats=list((m.get('player_ids') or {}).keys())
+        if seats and not any(m.get('connected',{}).get(sx) for sx in seats):
+            gone=[m.get('disconnect_at',{}).get(sx) for sx in seats]
+            if all(g and _now()-float(g)>120 for g in gone):continue
         out.append({
             'room_id':rid,'name':st.room_name,'variant':st.variant,'entry_fee':st.entry_fee,
             'assisted':st.assisted,'turbo':st.turbo,'rounds':st.max_rounds,'players':occupied,'human_players':human,'bot_players':bot_count,
@@ -1136,6 +1145,11 @@ async def _execute_action(room_id:str,body:ActionIn):
                 response={'ok':False,'code':'empty_seats','payload':{'seats':open_seats},'request_id':body.request_id,'state':_state(room_id,body.seat)}
                 if body.request_id:m['dedupe'][body.request_id]=response
                 return response
+            not_ready=[seat for seat in m.get('player_ids',{}) if seat!=owner and seat not in m.setdefault('ready_seats',set())]
+            if not_ready:
+                response={'ok':False,'code':'players_not_ready','payload':{'seats':not_ready},'request_id':body.request_id,'state':_state(room_id,body.seat)}
+                if body.request_id:m['dedupe'][body.request_id]=response
+                return response
         # Hızlı eşleşmede varsayılan akış 15 sn gerçek oyuncu arar. Ancak
         # masa sahibi boş koltuklara BOT EKLE ile bot koyduysa bu botlar da
         # koltuk doldurur; 1 insan + 3 bot gibi masalar başlatılabilmelidir.
@@ -1210,7 +1224,7 @@ async def manage_room(room_id:str,body:ManageRoomIn):
         if not pid:raise HTTPException(404,'player_not_found')
         p=r.state.player(target)
         p.bot=True;p.user_id=f'bot-seat-{target}';p.name=['Sen','Deniz','Mert','Eylül'][target]
-        m['player_ids'].pop(target,None);m['seat_tokens'].pop(target,None);m.setdefault('bot_seats',set()).discard(target);m['connected'][target]=False;m['disconnect_at'][target]=_now()
+        m['player_ids'].pop(target,None);m['seat_tokens'].pop(target,None);m.setdefault('bot_seats',set()).discard(target);m.setdefault('ready_seats',set()).discard(target);m['connected'][target]=False;m['disconnect_at'][target]=_now()
         _touch(room_id)
         await _broadcast(room_id)
         return {'ok':True,'code':'player_kicked','seat':target}
@@ -1261,6 +1275,24 @@ async def manage_room(room_id:str,body:ManageRoomIn):
         return {'ok':True,'code':'settings_updated','state':_state(room_id,body.seat)}
     raise HTTPException(400,'bad_manage_action')
 
+class ReadyIn(BaseModel):
+    seat:int
+    reconnect_token:str
+    ready:bool=True
+
+@router.post('/game/{room_id}/ready')
+async def set_ready(room_id:str,body:ReadyIn):
+    """Bekleme odasında HAZIRIM / HAZIR DEĞİLİM."""
+    r=ROOMS.get(room_id)
+    if not r:raise HTTPException(404,'room_not_found')
+    m=_auth(room_id,body.seat,body.reconnect_token)
+    if r.state.phase!='waiting' or r.state.started:return {'ok':False,'code':'waiting_only'}
+    rs=m.setdefault('ready_seats',set())
+    if body.ready:rs.add(int(body.seat))
+    else:rs.discard(int(body.seat))
+    _touch(room_id);await _broadcast(room_id)
+    return {'ok':True,'ready':bool(body.ready),'state':_state(room_id,body.seat)}
+
 @router.post('/game/{room_id}/sit')
 async def change_seat(room_id:str,body:SitIn):
     """Bekleme odasında oyuncu istediği boş koltuğa geçer (eşli oyunda eşini seçer)."""
@@ -1282,6 +1314,8 @@ async def change_seat(room_id:str,body:SitIn):
     r.set_player_identity(dst,pid,name,bot=False)
     r.set_player_identity(src,f'bot-seat-{src}','Boş Koltuk',bot=True)
     if int(m.get('owner_seat',0) or 0)==src:m['owner_seat']=dst
+    rs=m.setdefault('ready_seats',set());was=src in rs;rs.discard(src)
+    if was:rs.add(dst)
     _touch(room_id)
     await _broadcast(room_id)
     return {'ok':True,'room_id':room_id,'seat':dst,'reconnect_token':token,'state':_state(room_id,dst)}
@@ -1299,7 +1333,7 @@ async def leave_room(room_id:str,body:LeaveIn):
         if r.state.phase=='waiting' or intro_active:
             p=r.state.player(body.seat)
             p.bot=True;p.user_id=f'bot-seat-{body.seat}';p.name=['Sen','Deniz','Mert','Eylül'][body.seat]
-            m['player_ids'].pop(body.seat,None);m['seat_tokens'].pop(body.seat,None);m.setdefault('bot_seats',set()).discard(body.seat)
+            m['player_ids'].pop(body.seat,None);m['seat_tokens'].pop(body.seat,None);m.setdefault('bot_seats',set()).discard(body.seat);m.setdefault('ready_seats',set()).discard(body.seat)
             if int(m.get('owner_seat',0))==int(body.seat):
                 remaining=sorted(int(seat) for seat,pid in m.get('player_ids',{}).items() if pid)
                 if remaining:m['owner_seat']=remaining[0]
