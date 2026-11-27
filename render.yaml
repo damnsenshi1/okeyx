@@ -2,7 +2,7 @@ services:
   - type: web
     name: okeyx-mp
     runtime: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
     # Yalnızca sunucu kodu değişince yeniden yükle: mobil/APK değişiklikleri
