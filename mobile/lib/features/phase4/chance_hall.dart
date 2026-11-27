@@ -1742,6 +1742,7 @@ String _errorText(String code) => switch (code) {
       'invalid_paylines' => 'En az bir taş deseni seç.',
       'invalid_total_wager' => 'Toplam bahis sınırı aşıldı.',
       'insufficient_coins' => 'Yeterli altının yok.',
+      'account_banned' => 'Hesabın yönetim tarafından askıya alındı.',
       'slot_voucher_unavailable' => 'Bu tutarda oyun biletin yok.',
       'circus_challenge_expired' => 'Turun süresi doldu.',
       _ => 'Oyun şu anda tamamlanamadı.',

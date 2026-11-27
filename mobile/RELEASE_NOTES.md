@@ -1,3 +1,7 @@
+OKEYX 20.5.2
+
+• Yönetim cezası alan oyuncuya ne olduğu açıkça yazılır (askı, davet/hediye kilidi).
+
 OKEYX 20.5.1
 
 • Google ile giriş: doğru web istemcisi kullanılıyor (telefon içi giriş düzeltmesi).

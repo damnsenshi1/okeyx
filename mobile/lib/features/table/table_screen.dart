@@ -6710,6 +6710,9 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       'state_invariant_error': 'Masa durumu yenilendi. Hamleni tekrar yapabilirsin.',
       'cannot_gift_self': 'Kendine hediye gönderemezsin.',
       'insufficient_coins': 'Bu işlem için yeterli altının yok.',
+      'account_banned': 'Hesabın yönetim tarafından askıya alındı.',
+      'invite_locked': 'Davet gönderme yetkin yönetim tarafından kapatıldı.',
+      'gift_locked': 'Hediye gönderme yetkin yönetim tarafından kapatıldı.',
       'active_game_not_found': 'Aktif masa bulunamadı. Lobiye dön.',
       'SUPABASE_URL is not configured':
           'Backend Supabase bağlantısı yapılandırılmamış.',
