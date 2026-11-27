@@ -122,6 +122,10 @@ class VoiceChatService {
     }
     for (final track in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
       track.enabled = on;
+      // Bazı Android cihazlarda yalnızca enabled=false yetmiyor: mikrofonu da sustur.
+      try {
+        await Helper.setMicrophoneMute(!on, track);
+      } catch (_) {}
     }
     _micOn = on;
   }
@@ -163,6 +167,16 @@ class VoiceChatService {
     onSpeakingChanged(Set.unmodifiable(_speaking));
   }
 
+  final Map<String, List<MediaStreamTrack>> _remoteTracks = {};
+
+  /// Uzak oyuncuyu sustur: izi kapat ve çalma sesini sıfırla (iki yolla da).
+  Future<void> _applyRemoteMute(MediaStreamTrack track, bool muted) async {
+    track.enabled = !muted;
+    try {
+      await Helper.setVolume(muted ? 0.0 : 1.0, track);
+    } catch (_) {}
+  }
+
   Future<void> setMuted(String targetPlayerId, bool muted) async {
     if (muted) {
       _muted.add(targetPlayerId);
@@ -173,8 +187,11 @@ class VoiceChatService {
     if (pc != null) {
       for (final receiver in await pc.getReceivers()) {
         final track = receiver.track;
-        if (track?.kind == 'audio') track?.enabled = !muted;
+        if (track != null && track.kind == 'audio') await _applyRemoteMute(track, muted);
       }
+    }
+    for (final track in _remoteTracks[targetPlayerId] ?? const <MediaStreamTrack>[]) {
+      await _applyRemoteMute(track, muted);
     }
   }
 
@@ -255,7 +272,9 @@ class VoiceChatService {
     };
     pc.onTrack = (event) {
       final track = event.track;
-      if (track.kind == 'audio') track.enabled = !_muted.contains(remoteId);
+      if (track.kind != 'audio') return;
+      _remoteTracks.putIfAbsent(remoteId, () => <MediaStreamTrack>[]).add(track);
+      unawaited(_applyRemoteMute(track, _muted.contains(remoteId)));
     };
     pc.onConnectionState = (state) {
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {

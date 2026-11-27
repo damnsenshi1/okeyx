@@ -187,6 +187,9 @@ jobs:
           VER=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}')
           NAME=${VER%%+*}; BUILD=${VER##*+}
           TAG="v${NAME}-b${BUILD}"
+          # Aynı anda biten eski bir derleme yeni sürümün önüne geçmesin.
+          LATEST=$(gh release view -R "${{ github.repository }}" --json tagName -q .tagName 2>/dev/null | sed -n 's/.*-b\([0-9]*\)$/\1/p')
+          if [ -n "$LATEST" ] && [ "$BUILD" -lt "$LATEST" ]; then echo "Daha yeni sürüm (b$LATEST) zaten yayında; atlanıyor."; exit 0; fi
           cp mobile/build/app/outputs/flutter-apk/app-release.apk okeyx.apk
           NOTES=mobile/RELEASE_NOTES.md; [ -f "$NOTES" ] || { echo "Yeni sürüm" > /tmp/notes.md; NOTES=/tmp/notes.md; }
           if gh release view "$TAG" -R "${{ github.repository }}" >/dev/null 2>&1; then
