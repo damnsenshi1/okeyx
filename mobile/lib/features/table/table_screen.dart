@@ -20,6 +20,7 @@ import '../../widgets/real_rack.dart';
 import '../auth/profile_repository.dart';
 import '../lobby/lobby_api.dart';
 import 'game_api.dart';
+import 'gift_fx.dart';
 import 'table_fx.dart';
 
 class TableScreen extends StatefulWidget {
@@ -1789,7 +1790,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       child: TweenAnimationBuilder<double>(
         key: ValueKey(big.key),
         tween: Tween(begin: 0, end: 1),
-        duration: _reducedFx ? const Duration(milliseconds: 1) : const Duration(milliseconds: 2600),
+        duration: _reducedFx ? const Duration(milliseconds: 1) : const Duration(milliseconds: 2800),
         builder: (context, v, _) {
           final appear = Curves.easeOutBack.transform((v / .22).clamp(0.0, 1.0));
           final fade = v < .82 ? 1.0 : (1 - (v - .82) / .18).clamp(0.0, 1.0);
@@ -1797,19 +1798,12 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             opacity: fade,
             child: Stack(alignment: Alignment.center, children: [
               Positioned.fill(child: ColoredBox(color: Color.fromRGBO(0, 0, 0, .45 * appear.clamp(0.0, 1.0)))),
-              Transform.rotate(
-                angle: v * math.pi * .6,
-                child: CustomPaint(size: const Size(520, 520), painter: _RaysPainter(alpha: .22 * appear.clamp(0.0, 1.0))),
-              ),
-              Column(mainAxisSize: MainAxisSize.min, children: [
-                Transform.scale(
-                  scale: .3 + .7 * appear,
-                  child: Transform.translate(
-                    offset: Offset(0, -8 * math.sin(v * math.pi * 4)),
-                    child: Text(big.emoji, style: const TextStyle(fontSize: 120, shadows: [Shadow(color: Color(0xAAFFC864), blurRadius: 40)])),
-                  ),
-                ),
-                const SizedBox(height: 6),
+              Positioned.fill(child: GiftShow(key: ValueKey('show-${big.key}'), id: big.id, emoji: big.emoji, reduced: _reducedFx)),
+              Positioned(
+                bottom: 40,
+                left: 0,
+                right: 0,
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Opacity(
                   opacity: ((v - .12) / .2).clamp(0.0, 1.0),
                   child: OkxLeather(
@@ -1829,6 +1823,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ]),
+              ),
             ]),
           );
         },
@@ -2327,9 +2322,22 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     if (!_reactionsPrimed) {
       // Masaya ilk girişte eski hediyeleri yeniden oynatma.
       _reactionsPrimed = true;
-      if (reactionRows.isNotEmpty) _seenReactionId = '${reactionRows.last['id'] ?? ''}';
+      if (reactionRows.isNotEmpty) {
+        _seenReactionId = '${reactionRows.last['id'] ?? ''}';
+        _lastQueuedGiftId = _seenReactionId ?? '';
+      }
     } else if (reactionRows.isNotEmpty) {
-      _handleChatEvent(reactionRows.last, rebuild: false);
+      // Aynı anda birden çok hediye gelebilir: hepsi sırayla oynar, kaybolmaz.
+      final ids = reactionRows.map((r) => '${r['id'] ?? ''}').toList();
+      final seenAt = ids.lastIndexOf(_lastQueuedGiftId);
+      final fresh = seenAt >= 0 ? reactionRows.sublist(seenAt + 1) : reactionRows.sublist(math.max(0, reactionRows.length - 3));
+      for (final r in fresh) {
+        final id = '${r['id'] ?? ''}';
+        if (id.isEmpty || id == _seenReactionId) continue;
+        _giftQueue.add(r);
+        _lastQueuedGiftId = id;
+      }
+      if (fresh.isNotEmpty) Future<void>.microtask(_pumpGiftQueue);
     }
     for(final next in _list(value['players']).map(_map)){
       final seat=_integer(next['seat']);
@@ -2526,6 +2534,24 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     } else {_autoRematchScheduled=false;}
   }
 
+  final List<Map<String, dynamic>> _giftQueue = <Map<String, dynamic>>[];
+  String _lastQueuedGiftId = '';
+  bool _giftPlaying = false;
+
+  /// Hediye kuyruğu: biri bitmeden diğeri başlamaz (büyükler 2,9 sn, diğerleri 1,1 sn).
+  void _pumpGiftQueue() {
+    if (_giftPlaying || _giftQueue.isEmpty || !mounted) return;
+    final next = _giftQueue.removeAt(0);
+    _giftPlaying = true;
+    _handleChatEvent(next);
+    final def = _giftByIdOrName('${next['gift_id'] ?? ''}', '${next['value'] ?? ''}');
+    final wait = def?.style == 'big' ? 2900 : 1100;
+    Future<void>.delayed(Duration(milliseconds: _reducedFx ? 200 : wait), () {
+      _giftPlaying = false;
+      _pumpGiftQueue();
+    });
+  }
+
   void _handleChatEvent(Map<String, dynamic> newest, {bool rebuild = true}) {
     final chatId = '${newest['id'] ?? ''}';
     final kind = '${newest['kind'] ?? ''}';
@@ -2550,8 +2576,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         _giftKind = giftName;
         if (def != null && def.style == 'big') {
           final toName = toSeatRaw == null || toSeatRaw < 0 ? '' : '${newest['to_name'] ?? ''}';
-          _bigGift = _BigGift(def.emoji, def.name, '${newest['name'] ?? 'Oyuncu'}', toName, chatId);
-          Future<void>.delayed(const Duration(milliseconds: 2700), () {
+          _bigGift = _BigGift(def.emoji, def.name, '${newest['name'] ?? 'Oyuncu'}', toName, chatId, def.id);
+          Future<void>.delayed(const Duration(milliseconds: 2900), () {
             if (mounted && _bigGift?.key == chatId) setState(() => _bigGift = null);
           });
         } else if (def != null && def.style == 'stick' && toSeatRaw != null && toSeatRaw >= 0) {
@@ -3773,14 +3799,16 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           var tileWidth = (tileHeight * .68)
               .clamp(narrow ? 24.0 : 30.0, narrow ? 51.0 : 55.0)
               .toDouble();
-          var slotStep = tileWidth + (compact ? .35 : .55);
+          // Taş görselinin iki yanında ~%4 şeffaf pay var; yuvalar bu payı
+          // örtecek kadar sık dizilir, ıstakadaki taşlar gerçek gibi bitişik durur.
+          var slotStep = tileWidth * .955;
           var contentWidth = (_rackCols * slotStep) + (canonicalBreakCount * groupGap);
           final rackInset = compact ? 8.0 : 12.0;
           if (contentWidth > constraints.maxWidth - rackInset) {
             final factor = (constraints.maxWidth - rackInset) / contentWidth;
             tileWidth *= factor;
             tileHeight *= factor;
-            slotStep = tileWidth + (compact ? .25 : .4);
+            slotStep = tileWidth * .955;
             contentWidth = (_rackCols * slotStep) + (canonicalBreakCount * groupGap);
           }
           // Physical rack slots never recenter as tiles leave the hand. The
@@ -3885,7 +3913,12 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   duration: const Duration(milliseconds: 95),
                   curve: Curves.easeOutCubic,
                   offset: shift,
-                  child: SizedBox(
+                  // Taş, yuvadan biraz geniş: görselin şeffaf kenarları komşu
+                  // yuvaya taşar, taşlar arasında boşluk kalmaz.
+                  child: OverflowBox(
+                    minWidth: tileWidth,
+                    maxWidth: tileWidth,
+                    child: SizedBox(
                     width: tileWidth,
                     height: tileHeight.clamp(1.0, rowHeight).toDouble(),
                     child: AnimatedSwitcher(
@@ -3898,6 +3931,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                         child: _rackTile(json, tileWidth, tileHeight.clamp(1.0, rowHeight).toDouble(), slot),
                       ),
                     ),
+                  ),
                   ),
                 ),
         );
@@ -7509,24 +7543,48 @@ class _GiftDef {
 }
 
 const _kGifts = <_GiftDef>[
+  // Fırlatmalık (avatara yapışır)
   _GiftDef('slipper', 'Terlik', '🩴', 'stick'),
   _GiftDef('tomato', 'Domates', '🍅', 'stick'),
   _GiftDef('egg', 'Yumurta', '🥚', 'stick'),
+  _GiftDef('pie', 'Yüze Pasta', '🥧', 'stick'),
+  _GiftDef('water', 'Su Balonu', '💦', 'stick'),
   _GiftDef('fish', 'Balık Tokadı', '🐟', 'stick'),
   _GiftDef('rubber_chicken', 'Lastik Tavuk', '🐔', 'stick'),
+  _GiftDef('punch', 'Yumruk', '👊', 'stick'),
+  _GiftDef('clown', 'Palyaço Burnu', '🤡', 'stick'),
+  _GiftDef('bomb', 'Bomba', '💣', 'stick'),
+  _GiftDef('plunger', 'Pompa', '🪠', 'stick'),
+  _GiftDef('censored_banana', 'Sansürlü Muz', '🍌', 'stick'),
+  // İkramlık (süzülür)
   _GiftDef('tea', 'Çay', '🫖', 'float'),
   _GiftDef('coffee', 'Türk Kahvesi', '☕', 'float'),
-  _GiftDef('rose', 'Gül', '🌹', 'float'),
-  _GiftDef('nazar', 'Nazar Boncuğu', '🧿', 'float'),
   _GiftDef('simit', 'Simit', '🥨', 'float'),
+  _GiftDef('lokum', 'Lokum', '🍬', 'float'),
+  _GiftDef('doner', 'Döner', '🥙', 'float'),
+  _GiftDef('ayran', 'Ayran', '🥛', 'float'),
+  _GiftDef('rose', 'Gül', '🌹', 'float'),
   _GiftDef('heart', 'Kalp', '❤️', 'float'),
+  _GiftDef('kiss', 'Öpücük', '💋', 'float'),
+  _GiftDef('nazar', 'Nazar Boncuğu', '🧿', 'float'),
+  _GiftDef('balloon', 'Balon', '🎈', 'float'),
+  _GiftDef('ghost', 'Hayalet', '👻', 'float'),
+  _GiftDef('fire', 'Ateş', '🔥', 'float'),
   _GiftDef('applause', 'Alkış', '👏', 'float'),
+  // Gösteri (tam ekran)
   _GiftDef('crown', 'Altın Taç', '👑', 'big'),
+  _GiftDef('trophy', 'Altın Kupa', '🏆', 'big'),
+  _GiftDef('diamond_ring', 'Pırlanta Yüzük', '💍', 'big'),
   _GiftDef('money_rain', 'Para Yağmuru', '💸', 'big'),
+  _GiftDef('gold_rain', 'Altın Yağmuru', '🪙', 'big'),
+  _GiftDef('confetti', 'Konfeti', '🎉', 'big'),
+  _GiftDef('fireworks', 'Havai Fişek', '🎆', 'big'),
+  _GiftDef('cake', 'Pasta', '🎂', 'big'),
   _GiftDef('rocket', 'Roket', '🚀', 'big'),
   _GiftDef('sports_car', 'Spor Araba', '🏎️', 'big'),
+  _GiftDef('unicorn', 'Unicorn', '🦄', 'big'),
+  _GiftDef('lightning', 'Şimşek', '⚡', 'big'),
   _GiftDef('dragon', 'Ejderha', '🐉', 'big'),
-  _GiftDef('fireworks', 'Havai Fişek', '🎆', 'big'),
 ];
 
 const _kExtraGiftEmoji = <String, String>{
@@ -7562,7 +7620,8 @@ class _BigGift {
   final String from;
   final String to;
   final String key;
-  const _BigGift(this.emoji, this.name, this.from, this.to, this.key);
+  final String id;
+  const _BigGift(this.emoji, this.name, this.from, this.to, this.key, [this.id = '']);
 }
 
 /// Avatara "tak" diye yapışan hediye: büyük gelir, çarpar, hafif sallanır.
@@ -7887,11 +7946,11 @@ class _PlayerCardBodyState extends State<_PlayerCardBody> {
       ],
       const SizedBox(height: 10),
       ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 196),
+        constraints: const BoxConstraints(maxHeight: 250),
         child: ValueListenableBuilder<int>(
           valueListenable: t._nowMsNotifier,
           builder: (context, now, _) => GridView.count(
-            crossAxisCount: 3,
+            crossAxisCount: 4,
             shrinkWrap: true,
             mainAxisSpacing: 7,
             crossAxisSpacing: 7,

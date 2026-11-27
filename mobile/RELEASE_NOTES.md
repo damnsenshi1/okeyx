@@ -1,3 +1,12 @@
+OKEYX 20.6.0
+
+• Hediyeler: 40 hediye (yeni: Lokum, Döner, Ayran, Balon, Öpücük, Hayalet, Palyaço Burnu, Su Balonu, Yüze Pasta, Bomba, Altın Yağmuru, Konfeti, Unicorn, Şimşek, Pırlanta Yüzük).
+• Büyük hediyelerin her birinin kendi gösterisi var: araba ekranı geçer, roket fırlayıp patlar, ejderha ateş saçar, havai fişek, para/altın yağmuru, taç iner, unicorn gökkuşağı bırakır.
+• Aynı anda atılan hediyeler artık kaybolmaz, sırayla oynar.
+• Yumruk, Ateş, Pompa, Sansürlü Muz, Pasta, Kupa artık animasyonlu.
+• Istakadaki taşlar arası boşluk azaltıldı.
+• Açılışta altın/elmas/seviye doğrudan sunucudan.
+
 OKEYX 20.5.4
 
 • Altın, elmas, seviye artık açılışta doğrudan sunucudan gelir; eski değer bir an görünüp sonra değişmez.

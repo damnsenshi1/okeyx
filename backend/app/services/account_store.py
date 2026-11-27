@@ -35,11 +35,27 @@ GIFT_CATALOG={
     'rocket': {'name':'Roket','cost':0,'emoji':'🚀','reaction':False,'persistent':False,'hidden':False},
     'sports_car': {'name':'Spor Araba','cost':0,'emoji':'🏎️','reaction':False,'persistent':False,'hidden':False},
     'dragon': {'name':'Ejderha','cost':0,'emoji':'🐉','reaction':False,'persistent':False,'hidden':False},
+    # Yeni hediyeler
+    'lokum': {'name':'Lokum','cost':0,'emoji':'🍬','reaction':False,'persistent':False,'hidden':False},
+    'doner': {'name':'Döner','cost':0,'emoji':'🥙','reaction':False,'persistent':False,'hidden':False},
+    'ayran': {'name':'Ayran','cost':0,'emoji':'🥛','reaction':False,'persistent':False,'hidden':False},
+    'balloon': {'name':'Balon','cost':0,'emoji':'🎈','reaction':False,'persistent':False,'hidden':False},
+    'kiss': {'name':'Öpücük','cost':0,'emoji':'💋','reaction':False,'persistent':False,'hidden':False},
+    'ghost': {'name':'Hayalet','cost':0,'emoji':'👻','reaction':False,'persistent':False,'hidden':False},
+    'clown': {'name':'Palyaço Burnu','cost':0,'emoji':'🤡','reaction':True,'persistent':False,'hidden':False},
+    'water': {'name':'Su Balonu','cost':0,'emoji':'💦','reaction':True,'persistent':False,'hidden':False},
+    'pie': {'name':'Yüze Pasta','cost':0,'emoji':'🥧','reaction':True,'persistent':False,'hidden':False},
+    'bomb': {'name':'Bomba','cost':0,'emoji':'💣','reaction':True,'persistent':False,'hidden':False},
+    'gold_rain': {'name':'Altın Yağmuru','cost':0,'emoji':'🪙','reaction':False,'persistent':False,'hidden':False},
+    'confetti': {'name':'Konfeti','cost':0,'emoji':'🎉','reaction':False,'persistent':False,'hidden':False},
+    'unicorn': {'name':'Unicorn','cost':0,'emoji':'🦄','reaction':False,'persistent':False,'hidden':False},
+    'lightning': {'name':'Şimşek','cost':0,'emoji':'⚡','reaction':False,'persistent':False,'hidden':False},
+    'diamond_ring': {'name':'Pırlanta Yüzük','cost':0,'emoji':'💍','reaction':False,'persistent':False,'hidden':False},
 }
 # Masadaki gösterim biçimi: 'stick' = avatara "tak" diye yapışır,
 # 'big' = tüm ekranı kaplayan kısa gösteri, 'float' = avatarın üstünde süzülür.
-GIFT_STICK={'tomato','egg','punch','slipper','fish','rubber_chicken','plunger','censored_banana'}
-GIFT_BIG={'dragon','sports_car','rocket','money_rain','crown','fireworks','trophy','cake'}
+GIFT_STICK={'tomato','egg','punch','slipper','fish','rubber_chicken','plunger','censored_banana','clown','water','pie','bomb'}
+GIFT_BIG={'dragon','sports_car','rocket','money_rain','crown','fireworks','trophy','cake','gold_rain','confetti','unicorn','lightning','diamond_ring'}
 GIFT_COOLDOWN_S=10.0
 for _gid,_row in GIFT_CATALOG.items():
     _row.setdefault('style','stick' if _gid in GIFT_STICK else ('big' if _gid in GIFT_BIG else 'float'))
