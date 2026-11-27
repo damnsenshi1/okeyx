@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/config.dart';
+import '../../core/app_updater.dart';
 import '../../core/game_audio.dart';
 import '../../core/live_features.dart';
 import '../../core/remote_config.dart';
@@ -852,6 +853,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 18),
           ],
+          _panel(
+            title: 'Uygulama güncellemesi',
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Yüklü sürüm: v${AppConfig.versionName} (derleme ${AppUpdater.currentBuild})', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  const Text('Yeni sürüm çıktığında oyun açılışta sorar. İstersen buradan hemen denetleyebilirsin.', style: TextStyle(fontSize: 12, color: OkeyXColors.muted)),
+                ]),
+              ),
+              const SizedBox(width: 12),
+              OkxButton(label: 'GÜNCELLEMELERİ DENETLE', icon: Icons.system_update_rounded, height: 44, onTap: () => AppUpdater.checkAndPrompt(context, force: true)),
+            ]),
+          ),
+          const SizedBox(height: 18),
           _panel(
             title: 'Yasal ve gizlilik',
             child: Column(

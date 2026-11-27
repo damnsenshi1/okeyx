@@ -20,16 +20,21 @@ class AppUpdater {
   static const currentBuild = int.fromEnvironment('OKEYX_BUILD', defaultValue: 0);
   static const _channel = MethodChannel('com.senshilabs.okeyx_mobile/share');
   static bool _checkedThisSession = false;
+  static bool _lastCheckFailed = false;
 
   static Future<AppUpdateInfo?> fetchLatest() async {
     if (kIsWeb || !Platform.isAndroid || currentBuild <= 0) return null;
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    _lastCheckFailed = false;
     try {
       final req = await client.getUrl(Uri.parse('https://api.github.com/repos/$_repo/releases/latest'));
       req.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
       req.headers.set(HttpHeaders.userAgentHeader, 'okeyx-app');
       final res = await req.close().timeout(const Duration(seconds: 10));
-      if (res.statusCode != 200) return null;
+      if (res.statusCode != 200) {
+        _lastCheckFailed = true;
+        return null;
+      }
       final body = jsonDecode(await res.transform(utf8.decoder).join()) as Map<String, dynamic>;
       final tag = '${body['tag_name'] ?? ''}';
       final build = int.tryParse(RegExp(r'-b(\d+)$').firstMatch(tag)?.group(1) ?? '') ?? 0;
@@ -48,6 +53,7 @@ class AppUpdater {
       );
     } catch (e) {
       debugPrint('OKEYX_UPDATE_CHECK $e');
+      _lastCheckFailed = true;
       return null;
     } finally {
       client.close(force: true);
@@ -58,10 +64,13 @@ class AppUpdater {
   static Future<void> checkAndPrompt(BuildContext context, {bool force = false}) async {
     if (_checkedThisSession && !force) return;
     _checkedThisSession = true;
+    if (force && context.mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(duration: Duration(seconds: 2), content: Text('Güncellemeler denetleniyor…')));
+    }
     final info = await fetchLatest();
     if (info == null) {
       if (force && context.mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(content: Text('Oyun güncel. En son sürümü kullanıyorsun.')));
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(_lastCheckFailed ? 'Güncelleme sunucusuna ulaşılamadı. İnternetini kontrol edip tekrar dene.' : 'Oyun güncel. En son sürümü kullanıyorsun.')));
       }
       return;
     }
