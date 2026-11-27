@@ -901,7 +901,7 @@ class Phase4Service:
         self.require_staff(actor,"rtp")
         # Oran sınırlı aralıkta değişir ve oyunculara gösterilen oran her zaman
         # gerçekte kullanılan orandır (katalogda active_rtp_percent).
-        if game not in {"slot","horse","circus","drop"}:return {"ok":False,"code":"invalid_game"}
+        if game not in {"slot","horse","circus","drop","tower"}:return {"ok":False,"code":"invalid_game"}
         p=round(max(RTP_MIN,min(RTP_MAX,float(percent))),2);cfg=self._global()["config"]["side_games"][game];before=float(cfg.get("rtp_percent",90));cfg["rtp_percent"]=p;self._global()["config"]["version"]=int(self._global()["config"].get("version",1))+1;self._global()["admin_audit"].append({"actor":actor,"action":"rtp_update","game":game,"before":before,"after":p,"event_title":event_title[:80],"created_at":_now()});self.store._save();return {"ok":True,"rtp_percent":p}
     # ───────── Yönetici paneli: market, ekonomi, RTP raporu, kayıt ─────────
     def _audit(self,actor,action,**data):

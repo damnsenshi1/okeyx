@@ -214,10 +214,21 @@ def _require(player_id:str,token:str|None):
     if not STORE.get(player_id):raise HTTPException(404,'account_not_found')
     if not STORE.verify(player_id,token):raise HTTPException(401,'invalid_account_token')
 
-def _require_social(player_id:str,token:str|None):
+def _sanctions(player_id:str)->dict:
+    try:
+        from app.services.phase4_service import Phase4Service
+        return Phase4Service(STORE).active_sanctions(player_id)
+    except Exception:
+        return {}
+
+def _require_social(player_id:str,token:str|None,lock:str|None=None):
     # Supabase anonymous sessions are real auth identities too. Guests can use
     # friends/invites immediately; linking Google/e-mail only protects recovery.
     _require(player_id,token)
+    # Yönetici cezaları: ban her sosyal işlemi, kilitler ilgili işlemi kapatır.
+    san=_sanctions(player_id)
+    if san.get('banned'):raise HTTPException(403,'account_banned')
+    if lock and san.get(lock):raise HTTPException(403,lock)
 
 @router.post('/account/bootstrap')
 def bootstrap(body:BootstrapIn):
@@ -483,7 +494,7 @@ def gifts_catalog():
 
 @router.post('/social/gift')
 async def gift(body:GiftIn,x_account_token:str|None=Header(None)):
-    _require(body.from_id,x_account_token)
+    _require_social(body.from_id,x_account_token,'gift_locked')
     out=STORE.send_gift(body.from_id,body.to_id,body.gift_type)
     await _refresh_tables(body.from_id,body.to_id)
     return out
@@ -504,7 +515,7 @@ async def transfer_coins(body:CoinTransferIn,x_account_token:str|None=Header(Non
 
 @router.post('/social/invite')
 def invite(body:InviteIn,x_account_token:str|None=Header(None)):
-    _require_social(body.from_id,x_account_token)
+    _require_social(body.from_id,x_account_token,'invite_locked')
     a=STORE.get(body.from_id);b=STORE.get(body.to_id)
     if not a or not b:return {'ok':False,'code':'user_not_found'}
     room_info={}

@@ -24,6 +24,13 @@ def _require(player_id: str, token: str | None) -> None:
         raise HTTPException(401, "invalid_account_token")
 
 
+def _require_active(player_id: str, token: str | None) -> None:
+    """Banlı hesap mağaza ve şans salonunu kullanamaz."""
+    _require(player_id, token)
+    if _svc().active_sanctions(player_id).get("banned"):
+        raise HTTPException(403, "account_banned")
+
+
 def _admin(key: str | None) -> None:
     if not settings.admin_enabled:
         raise HTTPException(503, "admin_disabled")
@@ -131,7 +138,7 @@ def phase4_hub(player_id: str, x_account_token: str | None = Header(None)):
 
 @router.post("/phase4/store/buy")
 def phase4_buy(body: ItemIn, x_account_token: str | None = Header(None)):
-    _require(body.player_id, x_account_token)
+    _require_active(body.player_id, x_account_token)
     return _svc().buy_cosmetic(body.player_id, body.item_id)
 
 
@@ -171,7 +178,7 @@ def phase4_side_catalog():
 
 @router.post("/phase4/side-games/play")
 def phase4_side_play(body: SideGameIn, x_account_token: str | None = Header(None)):
-    _require(body.player_id, x_account_token)
+    _require_active(body.player_id, x_account_token)
     return _svc().play_side_game(body.player_id,body.game,body.choice,body.wager,body.use_voucher,body.action,body.challenge_id,body.active_lines)
 
 
