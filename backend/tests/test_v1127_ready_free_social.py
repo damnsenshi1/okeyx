@@ -38,10 +38,25 @@ def test_private_host_start_requires_filled_seats_and_ready(tmp_path,monkeypatch
     st=game._state(c['room_id'],j); assert [p for p in st['players'] if p['seat']==j][0]['ready'] is True
     start.request_id='c'; out=asyncio.run(game._execute_action(c['room_id'],start)); assert out['ok'] is True
 
-def test_direct_gifts_are_free(tmp_path,monkeypatch):
+def test_direct_gifts_are_free_and_retry_safe(tmp_path,monkeypatch):
     _reset(); store=_store(tmp_path); monkeypatch.setattr(game,'STORE',store); monkeypatch.setattr(game,'_persist_runtime',lambda force=False:None)
     a=store.get('p1'); c=game.create_room(game.CreateRoomIn(player_id='p1',account_token=a['session_token'],owner_name='Bir')); j=asyncio.run(game.join_room(c['room_id'],_join(store,'p2'))); before=store.get('p1')['chips']
-    out=asyncio.run(game.table_chat(c['room_id'],game.ChatIn(seat=c['seat'],reconnect_token=c['reconnect_token'],kind='gift',value='dragon',to_seat=j['seat']))); assert out['ok'] is True; assert store.get('p1')['chips']==before; assert store.get('p2')['gifts_received'][0]['cost']==0
+    body=game.ChatIn(seat=c['seat'],reconnect_token=c['reconnect_token'],kind='gift',value='dragon',to_seat=j['seat'],request_id='gift-once')
+    out=asyncio.run(game.table_chat(c['room_id'],body)); assert out['ok'] is True
+    retry=asyncio.run(game.table_chat(c['room_id'],body)); assert retry==out
+    assert store.get('p1')['chips']==before
+    recipient=store.get('p2')
+    assert len(recipient['gifts_received'])==1 and recipient['gifts_received'][0]['cost']==0
+    assert len([n for n in recipient['notifications'] if n['kind']=='gift_received'])==1
+
+def test_gift_store_request_id_is_idempotent_and_bound_to_payload(tmp_path):
+    store=_store(tmp_path)
+    first=store.send_gift('p1','p2','dragon','same-request')
+    retry=store.send_gift('p1','p2','dragon','same-request')
+    conflict=store.send_gift('p1','p2','coffee','same-request')
+    assert first==retry
+    assert conflict['ok'] is False and conflict['code']=='idempotency_conflict'
+    assert len(store.get('p2')['gifts_received'])==1
 
 def test_reconnect_same_seat_after_takeover(tmp_path,monkeypatch):
     _reset(); store=_store(tmp_path); monkeypatch.setattr(game,'STORE',store); monkeypatch.setattr(game,'_persist_runtime',lambda force=False:None)
