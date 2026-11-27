@@ -145,7 +145,12 @@ jobs:
         if: always()
         run: |
           mkdir -p /tmp/sonuc && cp -a tour_out/. /tmp/sonuc/ 2>/dev/null || true
-          cp mobile/build/app/outputs/flutter-apk/app-release.apk /tmp/sonuc/okeyx_v18_telefon.apk 2>/dev/null || true
+          # GitHub 100 MB dosya sınırı: APK'yı 45 MB parçalara böl (cat ile birleşir).
+          if [ -f mobile/build/app/outputs/flutter-apk/app-release.apk ]; then
+            mkdir -p /tmp/sonuc/apk
+            split -b 45m -d mobile/build/app/outputs/flutter-apk/app-release.apk /tmp/sonuc/apk/okeyx_v18_telefon.apk.part
+            sha256sum mobile/build/app/outputs/flutter-apk/app-release.apk > /tmp/sonuc/apk/sha256.txt
+          fi
           rm -f /tmp/sonuc/logcat.txt
           find /tmp/sonuc -name '*.mp4' -size +45M -delete
           cd /tmp/sonuc
