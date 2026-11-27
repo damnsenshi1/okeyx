@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -92,6 +93,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   String? _giftEventId;
   int? _impactSeat;
   final Map<int, GlobalKey> _avatarKeys = {};
+  bool _reactionsPrimed = false;
+  final Set<String> _peekJokerIds = <String>{};
   String _impactKind = '';
   String? _impactEventId;
   int? _rageSeat;
@@ -1519,7 +1522,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           return TweenAnimationBuilder<double>(
             key: ValueKey('${_giftEventId ?? ''}-$_giftKind'),
             tween: Tween(begin: 0.0, end: 1.0),
-            duration: _reducedFx ? Duration.zero : const Duration(milliseconds: 2600),
+            // Hediye animasyonu "azaltılmış efekt" modunda da oynar (hediyenin kendisi bu).
+            duration: const Duration(milliseconds: 2600),
             builder: (context, value, _) {
               final from = _giftAnchor(_giftFromSeat, size, context);
               final to = tableGift ? Offset(size.width * .5, size.height * .40) : _giftAnchor(_giftToSeat, size, context);
@@ -2063,7 +2067,11 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       _handleChatEvent(chatRows.last, rebuild: false);
     }
     final reactionRows = _list(value['reactions']).map(_map).toList();
-    if (reactionRows.isNotEmpty) {
+    if (!_reactionsPrimed) {
+      // Masaya ilk girişte eski hediyeleri yeniden oynatma.
+      _reactionsPrimed = true;
+      if (reactionRows.isNotEmpty) _seenReactionId = '${reactionRows.last['id'] ?? ''}';
+    } else if (reactionRows.isNotEmpty) {
       _handleChatEvent(reactionRows.last, rebuild: false);
     }
     for(final next in _list(value['players']).map(_map)){
@@ -2234,7 +2242,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       final isOwner=_viewerSeat==_integer(value['owner_seat']);
       if(value['match_finished']==true&&value['auto_rematch']==true&&isOwner&&!_autoRematchScheduled){
         _autoRematchScheduled=true;
-        Future<void>.delayed(const Duration(seconds:5),()async{if(!mounted)return;try{await _act('rematch');}finally{_autoRematchScheduled=false;}});
+        Future<void>.delayed(const Duration(seconds:5),()async{if(!mounted)return;try{await _requestRematch();}finally{_autoRematchScheduled=false;}});
       }
     } else {_autoRematchScheduled=false;}
   }
@@ -2311,7 +2319,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       final sound = switch (giftDef?.id ?? _giftKind.toLowerCase()) {
         'tea' || 'coffee' || 'çay' || 'türk kahvesi' => 'gift_coffee',
         'rose' || 'gül' => 'gift_rose',
-        'slipper' || 'tomato' || 'egg' || 'fish' || 'rubber_chicken' || 'terlik' || 'domates' || 'yumurta' || 'balık tokadı' || 'yumruk' => 'slap',
+        'tomato' || 'egg' || 'domates' || 'yumurta' => 'splat',
+        'slipper' || 'fish' || 'rubber_chicken' || 'terlik' || 'balık tokadı' || 'yumruk' => 'slap',
         'nazar' || 'nazar boncuğu' => 'gift_glass',
         'money_rain' || 'para yağmuru' => 'coin_shower',
         'rocket' || 'roket' => 'spawn_lightning',
@@ -2355,6 +2364,35 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           _chatBubbleIds.remove(seat);
         });
       });
+    }
+  }
+
+  /// Rövanş: başarısız olsa bile oyuncuyu masadan ATMAZ. Başka bir oyuncu
+  /// (ya da otomatik rövanş) maçı zaten yeniden başlattıysa yeni maça devam
+  /// eder; gerçekten masa kapandıysa lobiye dönülür.
+  Future<void> _requestRematch() async {
+    for (var i = 0; i < 20 && _busy; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    if (!mounted) return;
+    if (_state['match_finished'] != true) return; // yeni maç zaten başladı
+    try {
+      _busy = true;
+      await _api.action('rematch');
+    } catch (error) {
+      final text = '$error';
+      if (text.contains('room_not_found') || text.contains('active_game_not_found')) {
+        _busy = false;
+        if (mounted) await _closeTable();
+        return;
+      }
+      // match_not_finished: başka biri rövanşı başlattı; durum yayını gelecek.
+      if (!text.contains('match_not_finished') && mounted) {
+        setState(() => _error = _friendlyCode(text));
+      }
+    } finally {
+      _busy = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -2485,6 +2523,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       '${_state['phase']}' != 'finished' &&
       _state['started'] == true;
   bool get _assisted => _state['assisted'] != false;
+  bool get _manualOkeyClose => _isDuz || !_assisted;
 
   int _rackBreakCount(int rowStart) {
     var count = 0;
@@ -3067,6 +3106,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   ),
                 if (_bigGift != null)
                   Positioned.fill(child: _bigGiftOverlay()),
+
                 if (_showTurnCue && _state['started'] == true && !_introActive && !const {'waiting','finished'}.contains('${_state['phase']}'))
                   Positioned.fill(child: IgnorePointer(child: _turnCueOverlay())),
                 if ('${_state['phase']}' == 'finished' &&
@@ -3507,25 +3547,45 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final renderJson = <String, dynamic>{
       ...json,
       'useful': penaltyIds.contains(id),
-      'face_down': !_assisted && _revealedJokerIds.contains(id),
+      // Okeyi kapatma: Klasik ve yardımsız masada oyuncu basılı tutarak
+      // elle kapatır; diğer masalarda okey ıstakaya kapalı (ters) gelir,
+      // basılı tutunca kısa süre açılıp tekrar kapanır.
+      'face_down': json['joker'] == true && (_manualOkeyClose ? _revealedJokerIds.contains(id) : !_peekJokerIds.contains(id)),
     };
     final groupDelta = _longPressRackGroupIds.contains(id) ? _longPressRackGroupDelta : Offset.zero;
     Widget tile = AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       curve: Curves.easeOutCubic,
-      transform: Matrix4.translationValues(groupDelta.dx, ((selected || pendingCanOpen) ? -3 : 0) + groupDelta.dy, 0),
+      transform: Matrix4.translationValues(groupDelta.dx, ((selected || pendingCanOpen) ? -3 : 0) + groupDelta.dy - (_longPressRackGroupIds.contains(id) ? 6 : 0), 0),
       padding: (selected || pendingLeft) ? const EdgeInsets.all(1.5) : EdgeInsets.zero,
       decoration: (selected || pendingLeft)
           ? BoxDecoration(
-              border: Border.all(color: pendingLeft ? OkeyXColors.gold : OkeyXColors.ruby, width: pendingCanOpen ? 2.8 : 2),
+              border: Border.all(color: pendingLeft || _longPressRackGroupIds.contains(id) ? OkeyXColors.gold : const Color(0xFF3CCF8E), width: pendingCanOpen ? 2.8 : 2),
+              boxShadow: _longPressRackGroupIds.contains(id) ? const [BoxShadow(color: Color(0x80000000), blurRadius: 12, offset: Offset(0, 8))] : (pendingCanOpen ? [BoxShadow(color: OkeyXColors.gold.withValues(alpha: .48), blurRadius: 14, spreadRadius: 1)] : null),
               borderRadius: BorderRadius.circular(8),
-              boxShadow: pendingCanOpen ? [BoxShadow(color: OkeyXColors.gold.withValues(alpha: .48), blurRadius: 14, spreadRadius: 1)] : null,
             )
           : null,
       width: width,
       height: height,
       child: Stack(clipBehavior: Clip.none, children:[
-        Positioned.fill(child: TileWidget(tile: _tile(renderJson), skinId: _viewerTileSkin, bigNumber: _bigNumbers)),
+        Positioned.fill(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 360),
+            transitionBuilder: (child, animation) => AnimatedBuilder(
+              animation: animation,
+              child: child,
+              builder: (context, c) {
+                // Taş kendi ekseninde döner: yarıya kadar eski yüz, sonra yeni yüz.
+                final angle = (1 - animation.value) * math.pi / 2;
+                return Transform(alignment: Alignment.center, transform: Matrix4.identity()..setEntry(3, 2, .002)..rotateY(angle), child: c);
+              },
+            ),
+            child: KeyedSubtree(
+              key: ValueKey('face-$id-${renderJson['face_down']}'),
+              child: TileWidget(tile: _tile(renderJson), skinId: _viewerTileSkin, bigNumber: _bigNumbers),
+            ),
+          ),
+        ),
         if (pendingLeft) Positioned(right:-3,top:-5,child:Container(padding:const EdgeInsets.symmetric(horizontal:3,vertical:1),decoration:BoxDecoration(color:OkeyXColors.gold,borderRadius:BorderRadius.circular(6)),child:Text(pendingCanOpen?'AÇ':'KULLAN',style:const TextStyle(fontSize:9,color:Color(0xFF2C1900),fontWeight:FontWeight.w900)))),
       ]),
     );
@@ -3571,8 +3631,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         _handleRackDragEnd(id, details, width, height);
         if (mounted) setState(() { _draggingRackId = null; _rackHoverSlot = -1; _rackHoverInsertAfter = false; });
       },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      child: _QuickLongPress(
         onTap: () => _handleRackTap(id),
         onLongPressStart: (details) {
           final group = _rackGroupForTile(id);
@@ -3609,11 +3668,18 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             if (target >= 0) _moveRackGroupToSlot(group, target);
             return;
           }
-          // Yardımsız mod: gerçek okeye basılı tutup bırakınca taş arka yüzüne döner.
-          if (!_assisted && json['joker'] == true) {
-            setState(() {
-              if (!_revealedJokerIds.add(id)) _revealedJokerIds.remove(id);
-            });
+          if (json['joker'] == true) {
+            if (_manualOkeyClose) {
+              setState(() {
+                if (!_revealedJokerIds.add(id)) _revealedJokerIds.remove(id);
+              });
+            } else {
+              setState(() => _peekJokerIds.add(id));
+              Future<void>.delayed(const Duration(milliseconds: 1600), () {
+                if (mounted) setState(() => _peekJokerIds.remove(id));
+              });
+            }
+            unawaited(GameAudio.sfx('tile_pick', enabled: _soundEnabled, volume: .7));
             if (_vibrationEnabled) unawaited(HapticFeedback.selectionClick());
           }
         },
@@ -4507,6 +4573,11 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   Future<bool> _sendChat(String kind, String value, {int? toSeat}) async {
     try {
       final out = await _api.chat(kind, value, toSeat: toSeat);
+      if (out['ok'] == false) {
+        final code = '${out['code'] ?? 'gift_failed'}';
+        _tableNotice(code == 'insufficient_coins' ? 'Bu hediye için yeterli altının yok.' : _friendlyCode(code).isEmpty ? 'Hediye gönderilemedi.' : _friendlyCode(code));
+        return false;
+      }
       final event = _map(out['event']);
       if (event.isNotEmpty && mounted) {
         final id = '${event['id'] ?? ''}';
@@ -5634,8 +5705,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     }
     if (choice == 'rematch') {
       _shownRoundKey = null;
-      final out = await _act('rematch');
-      if (out == null && mounted) await _closeTable();
+      await _requestRematch();
     } else {
       await _closeTable();
     }
@@ -7488,4 +7558,36 @@ class _GiftFxPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GiftFxPainter old) => old.t != t || old.kind != kind || old.unit != unit;
+}
+
+
+/// Istakada per taşıma için hızlı (280 ms) basılı tutma algılayıcı.
+/// Varsayılan 500 ms çok uzun geldiği için perler zor yakalanıyordu.
+class _QuickLongPress extends StatelessWidget {
+  const _QuickLongPress({required this.child, required this.onTap, required this.onLongPressStart, required this.onLongPressMoveUpdate, required this.onLongPressEnd});
+
+  final Widget child;
+  final VoidCallback onTap;
+  final GestureLongPressStartCallback onLongPressStart;
+  final GestureLongPressMoveUpdateCallback onLongPressMoveUpdate;
+  final GestureLongPressEndCallback onLongPressEnd;
+
+  @override
+  Widget build(BuildContext context) => RawGestureDetector(
+        behavior: HitTestBehavior.opaque,
+        gestures: <Type, GestureRecognizerFactory>{
+          TapGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+            () => TapGestureRecognizer(),
+            (r) => r.onTap = onTap,
+          ),
+          LongPressGestureRecognizer: GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+            () => LongPressGestureRecognizer(duration: const Duration(milliseconds: 280)),
+            (r) => r
+              ..onLongPressStart = onLongPressStart
+              ..onLongPressMoveUpdate = onLongPressMoveUpdate
+              ..onLongPressEnd = onLongPressEnd,
+          ),
+        },
+        child: child,
+      );
 }

@@ -492,14 +492,17 @@ def invite(body:InviteIn,x_account_token:str|None=Header(None)):
     _require_social(body.from_id,x_account_token)
     a=STORE.get(body.from_id);b=STORE.get(body.to_id)
     if not a or not b:return {'ok':False,'code':'user_not_found'}
+    room_info={}
     try:
         from app.api.game import ROOM_META,ROOMS
         if body.room_id not in ROOMS:return {'ok':False,'code':'room_not_found'}
         meta=ROOM_META.get(body.room_id)
         if meta is not None:meta.setdefault('invited_player_ids',set()).add(body.to_id)
+        st=ROOMS[body.room_id].state
+        room_info={'room_name':st.room_name,'variant':st.variant,'entry_fee':st.entry_fee,'turbo':st.turbo,'assisted':st.assisted}
     except Exception:
         pass
-    STORE.add_notification(body.to_id,'Masa daveti',f'{a["name"]} seni masaya çağırıyor.','invite',{'room_id':body.room_id,'from_id':body.from_id})
+    STORE.add_notification(body.to_id,'Masa daveti',f'{a["name"]} seni masaya çağırıyor.','invite',{'room_id':body.room_id,'from_id':body.from_id,'from_name':a['name'],'from_avatar':a.get('avatar_url'),**room_info})
     return {'ok':True}
 
 

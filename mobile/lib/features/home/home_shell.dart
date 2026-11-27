@@ -56,6 +56,8 @@ class _HomeShellState extends State<HomeShell> {
   late LobbyApiClient _api;
   Timer? _roomTimer;
   Timer? _socialTimer;
+  Timer? _alertTimer;
+  bool _alertBusy = false;
   Timer? _activityTimer;
   final TextEditingController _playerSearchController = TextEditingController();
 
@@ -151,6 +153,10 @@ class _HomeShellState extends State<HomeShell> {
     _roomTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (mounted && !_busy && _selected == 1) unawaited(_refreshRooms());
     });
+    // Davet / arkadaşlık bildirimleri için hızlı ve hafif yoklama (6 sn).
+    _alertTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (mounted) unawaited(_pollAlerts());
+    });
     _socialTimer = Timer.periodic(const Duration(seconds: 25), (_) {
       if (mounted && !_busy) unawaited(_refreshLiveHub());
       if (mounted) unawaited(_api.presencePing());
@@ -165,6 +171,7 @@ class _HomeShellState extends State<HomeShell> {
   void dispose() {
     _roomTimer?.cancel();
     _socialTimer?.cancel();
+    _alertTimer?.cancel();
     _activityTimer?.cancel();
     _nowPlayingTimer?.cancel();
     _pushTapSub?.cancel();
@@ -2733,34 +2740,63 @@ class _HomeShellState extends State<HomeShell> {
   final Set<String> _shownInvites = <String>{};
   OverlayEntry? _inviteEntry;
 
+  Future<void> _pollAlerts() async {
+    if (_alertBusy) return;
+    _alertBusy = true;
+    try {
+      final data = await _api.notifications();
+      if (!mounted) return;
+      setState(() => _notifications = data);
+      _checkInvites();
+    } catch (_) {
+    } finally {
+      _alertBusy = false;
+    }
+  }
+
   void _checkInvites() {
     if (!mounted || _inviteEntry != null) return;
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     for (final n in _notificationRows) {
-      if ('${n['kind']}' != 'invite' || n['read'] == true) continue;
+      final kind = '${n['kind']}';
+      if (n['read'] == true || !const {'invite', 'friend_request', 'friend'}.contains(kind)) continue;
       final id = '${n['id']}';
       if (_shownInvites.contains(id)) continue;
       _shownInvites.add(id);
-      if (now - _integer(n['created_at']) > 75) continue;
-      _showInviteToast(n);
+      if (now - _integer(n['created_at']) > 120) continue;
+      if (kind == 'invite') {
+        _showInviteToast(n);
+      } else {
+        _showSocialToast(n);
+      }
       break;
     }
   }
 
+  /// Masa daveti: tam ekran duyuru (splash). Ses + titreşim + 30 sn süre.
   void _showInviteToast(Map<String, dynamic> n) {
     final data = _map(n['data']);
     final roomId = '${data['room_id'] ?? ''}';
     if (roomId.isEmpty) return;
-    unawaited(GameAudio.sfx('reveal', enabled: _preferences.soundEnabled, volume: .8));
-    if (_preferences.vibrationEnabled) unawaited(HapticFeedback.mediumImpact());
+    unawaited(GameAudio.sfx('reveal', enabled: _preferences.soundEnabled, volume: .9));
+    if (_preferences.vibrationEnabled) {
+      unawaited(HapticFeedback.heavyImpact());
+      Future<void>.delayed(const Duration(milliseconds: 220), () => HapticFeedback.heavyImpact());
+    }
     late OverlayEntry entry;
     void close() {
       if (_inviteEntry == entry) _inviteEntry = null;
       entry.remove();
     }
+    final variant = '${data['variant'] ?? ''}';
+    final details = data['room_name'] == null
+        ? ''
+        : '${data['room_name']} • ${okxRuleSummary(variant: variant.isEmpty ? 'non_fold' : variant, turbo: data['turbo'] == true, assisted: data['assisted'] != false)} • ${okxShort(_integer(data['entry_fee']))} giriş';
     entry = OverlayEntry(
-      builder: (_) => _InviteToast(
-        title: '${n['message'] ?? 'Seni masaya çağırıyor'}',
+      builder: (_) => _InviteSplash(
+        from: '${data['from_name'] ?? ''}'.trim().isEmpty ? 'Bir arkadaşın' : '${data['from_name']}',
+        avatarUrl: data['from_avatar'] == null ? null : '${data['from_avatar']}',
+        details: details,
         onJoin: () {
           close();
           unawaited(_runBusy(() async {
@@ -2770,6 +2806,41 @@ class _HomeShellState extends State<HomeShell> {
           }));
         },
         onDecline: close,
+        onTimeout: close,
+      ),
+    );
+    _inviteEntry = entry;
+    Overlay.of(context).insert(entry);
+  }
+
+  /// Arkadaşlık isteği / kabul: üstten kayan bildirim.
+  void _showSocialToast(Map<String, dynamic> n) {
+    final kind = '${n['kind']}';
+    final data = _map(n['data']);
+    final fromId = '${data['from_id'] ?? ''}';
+    unawaited(GameAudio.sfx('chat', enabled: _preferences.soundEnabled, volume: .8));
+    if (_preferences.vibrationEnabled) unawaited(HapticFeedback.mediumImpact());
+    late OverlayEntry entry;
+    void close() {
+      if (_inviteEntry == entry) _inviteEntry = null;
+      entry.remove();
+    }
+    entry = OverlayEntry(
+      builder: (_) => _InviteToast(
+        label: kind == 'friend_request' ? 'ARKADAŞLIK İSTEĞİ' : 'ARKADAŞ',
+        icon: kind == 'friend_request' ? Icons.person_add_alt_1_rounded : Icons.handshake_rounded,
+        title: '${n['message'] ?? n['title'] ?? ''}',
+        acceptLabel: kind == 'friend_request' && fromId.isNotEmpty ? 'KABUL ET' : null,
+        declineLabel: kind == 'friend_request' && fromId.isNotEmpty ? 'REDDET' : 'TAMAM',
+        seconds: 12,
+        onJoin: () {
+          close();
+          if (fromId.isNotEmpty) unawaited(_acceptFriend(fromId));
+        },
+        onDecline: () {
+          close();
+          if (kind == 'friend_request' && fromId.isNotEmpty) unawaited(_declineFriend(fromId));
+        },
         onTimeout: close,
       ),
     );
@@ -4428,17 +4499,22 @@ class _LobbyShortcutEntry {
 /// Üstten düşen "masaya davet" kartı: 60 sn süre çubuğu, KATIL / REDDET.
 class _InviteToast extends StatefulWidget {
   final String title;
+  final String label;
+  final IconData icon;
+  final String? acceptLabel;
+  final String declineLabel;
+  final int seconds;
   final VoidCallback onJoin;
   final VoidCallback onDecline;
   final VoidCallback onTimeout;
-  const _InviteToast({required this.title, required this.onJoin, required this.onDecline, required this.onTimeout});
+  const _InviteToast({required this.title, required this.onJoin, required this.onDecline, required this.onTimeout, this.label = 'MASA DAVETİ', this.icon = Icons.mail_rounded, this.acceptLabel = 'KATIL', this.declineLabel = 'REDDET', this.seconds = 60});
 
   @override
   State<_InviteToast> createState() => _InviteToastState();
 }
 
 class _InviteToastState extends State<_InviteToast> with TickerProviderStateMixin {
-  late final AnimationController _life = AnimationController(vsync: this, duration: const Duration(seconds: 60))..forward();
+  late final AnimationController _life = AnimationController(vsync: this, duration: Duration(seconds: widget.seconds))..forward();
   late final AnimationController _drop = AnimationController(vsync: this, duration: const Duration(milliseconds: 420))..forward();
 
   @override
@@ -4482,19 +4558,21 @@ class _InviteToastState extends State<_InviteToast> with TickerProviderStateMixi
                 ),
                 child: Stack(clipBehavior: Clip.none, children: [
                   Row(children: [
-                    const OkxAvatar(name: 'D', size: 44, child: Icon(Icons.mail_rounded, color: OkeyXColors.cream)),
+                    OkxAvatar(name: 'D', size: 44, child: Icon(widget.icon, color: OkeyXColors.cream)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        const Text('MASA DAVETİ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4, color: OkeyXColors.gold)),
+                        Text(widget.label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4, color: OkeyXColors.gold)),
                         const SizedBox(height: 3),
                         Text(widget.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: OkeyXColors.cream)),
                       ]),
                     ),
                     const SizedBox(width: 8),
-                    OkxButton.ghost(label: 'REDDET', height: 36, fontSize: 11, padding: const EdgeInsets.symmetric(horizontal: 12), onTap: widget.onDecline),
-                    const SizedBox(width: 8),
-                    OkxButton.green(label: 'KATIL', height: 40, fontSize: 13, padding: const EdgeInsets.symmetric(horizontal: 18), onTap: widget.onJoin),
+                    OkxButton.ghost(label: widget.declineLabel, height: 36, fontSize: 11, padding: const EdgeInsets.symmetric(horizontal: 12), onTap: widget.onDecline),
+                    if (widget.acceptLabel != null) ...[
+                      const SizedBox(width: 8),
+                      OkxButton.green(label: widget.acceptLabel!, height: 40, fontSize: 13, padding: const EdgeInsets.symmetric(horizontal: 18), onTap: widget.onJoin),
+                    ],
                   ]),
                   Positioned(
                     left: 2,
@@ -4512,6 +4590,126 @@ class _InviteToastState extends State<_InviteToast> with TickerProviderStateMixi
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+
+/// Masa daveti tam ekran duyurusu: karartılmış arka plan, büyüyerek gelen
+/// pirinç çerçeveli kart, davet edenin avatarı, büyük KATIL butonu ve 30 sn
+/// geri sayım halkası.
+class _InviteSplash extends StatefulWidget {
+  const _InviteSplash({required this.from, required this.details, required this.onJoin, required this.onDecline, required this.onTimeout, this.avatarUrl});
+
+  final String from;
+  final String details;
+  final String? avatarUrl;
+  final VoidCallback onJoin;
+  final VoidCallback onDecline;
+  final VoidCallback onTimeout;
+
+  @override
+  State<_InviteSplash> createState() => _InviteSplashState();
+}
+
+class _InviteSplashState extends State<_InviteSplash> with TickerProviderStateMixin {
+  late final AnimationController _life = AnimationController(vsync: this, duration: const Duration(seconds: 30))..forward();
+  late final AnimationController _in = AnimationController(vsync: this, duration: const Duration(milliseconds: 520))..forward();
+  late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+
+  @override
+  void initState() {
+    super.initState();
+    _life.addStatusListener((s) {
+      if (s == AnimationStatus.completed) widget.onTimeout();
+    });
+  }
+
+  @override
+  void dispose() {
+    _life.dispose();
+    _in.dispose();
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appear = CurvedAnimation(parent: _in, curve: Curves.easeOutBack);
+    return Positioned.fill(
+      child: Material(
+        color: Colors.transparent,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_in, _pulse, _life]),
+          builder: (context, _) => Stack(alignment: Alignment.center, children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () {},
+                child: ColoredBox(color: Color.fromRGBO(0, 0, 0, .62 * _in.value)),
+              ),
+            ),
+            Transform.scale(
+              scale: .6 + .4 * appear.value,
+              child: Opacity(
+                opacity: _in.value,
+                child: Container(
+                  width: 440,
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(26),
+                    gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF2B2016), Color(0xFF140E09)]),
+                    border: Border.all(color: const Color(0xFFE8C478), width: 1.8),
+                    boxShadow: [
+                      const BoxShadow(color: Color(0xCC000000), blurRadius: 40, offset: Offset(0, 20)),
+                      BoxShadow(color: const Color(0xFFFFC24A).withValues(alpha: .25 + .25 * _pulse.value), blurRadius: 30, spreadRadius: 2),
+                    ],
+                  ),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('MASA DAVETİ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2, color: OkeyXColors.gold)),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: 92,
+                      height: 92,
+                      child: Stack(alignment: Alignment.center, children: [
+                        SizedBox.expand(
+                          child: CircularProgressIndicator(
+                            value: 1 - _life.value,
+                            strokeWidth: 4,
+                            backgroundColor: const Color(0x22FFFFFF),
+                            color: const Color(0xFF3CCF8E),
+                          ),
+                        ),
+                        OkxAvatar(name: widget.from, imageUrl: widget.avatarUrl, size: 70),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(widget.from, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: OkeyXFonts.serif, fontSize: 24, fontWeight: FontWeight.w700, color: OkeyXColors.cream)),
+                    const SizedBox(height: 4),
+                    const Text('seni masasına çağırıyor', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: OkeyXColors.muted)),
+                    if (widget.details.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(widget.details, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: OkeyXColors.mint)),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(children: [
+                      Expanded(child: OkxButton.ghost(label: 'REDDET', height: 46, expand: true, onTap: widget.onDecline)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: Transform.scale(
+                          scale: 1 + .03 * _pulse.value,
+                          child: OkxButton.green(label: 'KATIL  (${(30 * (1 - _life.value)).ceil()})', icon: Icons.login_rounded, height: 50, fontSize: 15, expand: true, onTap: widget.onJoin),
+                        ),
+                      ),
+                    ]),
+                  ]),
+                ),
+              ),
+            ),
+          ]),
         ),
       ),
     );
