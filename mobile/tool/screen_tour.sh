@@ -26,7 +26,7 @@ tap(){ # tap "METİN" ["ALTERNATİF" ...] → bulursa dokunur
 dismiss(){ # açılış pencerelerini kapat (ödül, öğretici, izinler)
   for k in 1 2 3 4; do
     dump
-    if xy=$(python3 "$HERE/ui_find.py" "$OUT/ui/son.xml" "KAPAT" "ŞİMDİ DEĞİL" "SONRA" "ATLA" "TAMAM" "Allow" "İzin ver" "Don't allow" "İzin verme"); then
+    if xy=$(python3 "$HERE/ui_find.py" "$OUT/ui/son.xml" "Got it" "Anladım" "KAPAT" "ŞİMDİ DEĞİL" "SONRA" "ATLA" "TAMAM" "Allow" "İzin ver" "Don't allow" "İzin verme"); then
       log "pencere kapatıldı → $xy"; adb shell input tap $xy; sleep 2
     else
       return 0
@@ -37,6 +37,7 @@ dismiss(){ # açılış pencerelerini kapat (ödül, öğretici, izinler)
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1
 adb shell svc power stayon true
+adb shell settings put secure immersive_mode_confirmations confirmed
 adb logcat -c
 ( adb logcat -v time > "$OUT/logcat.txt" 2>&1 & echo $! > "$OUT/.logcat.pid" )
 
@@ -45,7 +46,7 @@ rec 1
 log "uygulama başlatılıyor"
 adb shell monkey -p $APP -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 sleep 12; shot acilis
-sleep 10; shot giris
+sleep 10; dismiss; shot giris
 
 tap "MİSAFİR OYNA" "MISAFIR" && sleep 25
 dismiss; shot ana_sayfa
