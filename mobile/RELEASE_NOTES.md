@@ -1,23 +1,7 @@
-• Eski sunucuyla uyum: masa sahibi arkadaşlarla oyunu başlatabilir
-• Masa: üst bilgi şeridi ve karşı oyuncu artık üst üste binmiyor, isim hep görünür
-• SIRA SENDE yazısı bilgi çubuğunun üstüne binmiyor; çift alanı desteye binmiyor
-• SERİ DİZ / ÇİFT DİZ / HEDİYE / SOHBET tuşları büyüdü, yazıları tam sığıyor
-• Oyun kapalıyken bildirim: davet, arkadaşlık, altın, hediye ve yeni sürüm (yaklaşık 15 dakikada bir)
-• Klasik Okey: göstergenin aynısı elindeyse ilk turda GÖSTERGE! ile ödül al
-• 101 kuralları: elde kalan okey 101 puan, yandan alıp geri bırakmak 101 ceza
-• Bekleme odasında HAZIRIM sistemi: hazır olanın avatarında yeşil tik
-• El dağıtılınca taşlar otomatik en iyi seri dizilimine girer, istediğin yere sürükleyebilirsin
-• Boş/hayalet odalar artık listede görünmez
-• Güncelleme kontrolü: açılışta, uygulamaya dönünce ve 30 dakikada bir
-• Hoş geldin altını cihaz başına bir kez; karşılama ekranı her girişte tekrar çıkmaz
-• Rakiplerin süre sayacı ve avatarları artık ekrana sığıyor
-• Sesli sohbette oyuncu susturma ve mikrofon kapatma düzeltildi
-• Oyun arka plana atılınca müzik ve radyo durur, dönünce devam eder
-• Seriyle açan oyuncu, masada çift varsa ÇİFT EKLE ile çift işleyebilir
-• SERİ DİZ artık en yüksek puanlı dizilimi buluyor (okey, alt seriler, renk perleri)
-• Masadan atılma sorunu giderildi (sunucu güncellenirken masalar korunur)
-• Hediyeler ve hamleler sunucu yeniden başladıktan sonra da anında görünür
-• Odaya giren oyuncu istediği boş koltuğa oturabilir ("BURAYA OTUR")
-• Yepyeni, ışıklı masa daveti ekranı
-• Yeni deste/taş sırtı tasarımı
-• Ayarlar > Güncellemeleri denetle
+OKEYX 20.3.3
+
+• İşleme artık elle: ıstakadan taşı sürükleyip yerdeki pere bırak. Yanlış pere bırakırsan taş geri döner, ceza yok.
+• Soldan alıp kullanmadan geri bırakmak cezasız (GERİ BIRAK).
+• Okey geri alma: yerdeki okeyin yerine taşını koyunca okey, ıstakada o taşın boşalttığı yere gelir; rastgele yere düşmez.
+• Okeyi pere koyan rakipse 101 ceza ona yazılır (kendin ya da eşin koyduysa ceza yok). Gruptaki okey için 4 renk tamamlanmalı.
+• Wi‑Fi simgesinde gecikme (ms) ve renk: yeşil iyi, sarı orta, kırmızı zayıf. Dokununca açıklama çıkar.

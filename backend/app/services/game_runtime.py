@@ -1047,7 +1047,8 @@ class Room:
             elif kind=='show_indicator':r=self.show_indicator(seat)
             elif kind=='draw_stock':r=self.draw(seat,'stock')
             elif kind=='take_left':r=self.draw(seat,'left')
-            elif kind=='return_left':r=self.return_left(seat,penalize=True)
+            # Kural: alıp ıstakada deneyip yere bir şey koymadan geri bırakmak cezasızdır.
+            elif kind=='return_left':r=self.return_left(seat)
             elif kind=='discard':r=self.discard(seat,payload.get('tile_id',''))
             elif kind=='open_series':
                 manual=payload.get('groups')
@@ -1085,7 +1086,8 @@ class Room:
             self.service=GameService(self.state)
             self._assist_cache_key=None
             return ActionResult(False,'must_keep_finish_tile')
-        if not r.ok and kind in ('open_series','open_pairs','add_pairs','layoff','layoff_pair') and r.code in penalty_codes:
+        # Elle işleme yumuşaktır: yanlış pere bırakılan taş ıstakaya döner, ceza yazılmaz.
+        if not r.ok and kind in ('open_series','open_pairs','add_pairs') and r.code in penalty_codes:
             p=self.state.player(seat)
             p.penalty+=101
             payload_out=dict(r.payload or {})

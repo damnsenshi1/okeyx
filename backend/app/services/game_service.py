@@ -226,6 +226,10 @@ class GameService:
         return ActionResult(True,payload=payload)
 
 
+    def _same_team(self,a:int,b:int)->bool:
+        mode=getattr(self.state,'team_mode','solo')
+        return mode=='paired' and (a%2)==(b%2)
+
     def replace_table_okey(self,seat:int,tile_id:str,meld_id:str)->ActionResult:
         """Masadaki gerçek okeyi, temsil ettiği gerçek taşla değiştirip okeyi ele alma."""
         self._assert_turn(seat)
@@ -245,6 +249,8 @@ class GameService:
         for i in joker_positions:
             candidate=list(meld.tiles);reclaimed=candidate[i];candidate[i]=tile
             vr=self.rules.validate_meld(candidate)
+            # Gruplarda okey ancak dört renk tamamlanınca alınır (ör. 12'lerde okey varsa grup 4'lü olmalı).
+            if meld.meld_type==MeldType.SET and len(candidate)<4:continue
             if vr.valid and (vr.meld_type==meld.meld_type or meld.meld_type in (MeldType.RUN,MeldType.SET)):
                 # Sıra korunur: taş tam okeyin bulunduğu yuvaya girer.
                 self._begin_table_transaction(p)
@@ -254,7 +260,12 @@ class GameService:
                 self._clear_left_if_used(p,{tile_id})
                 p.last_layoff=None
                 p.last_open_batch=None
-                return ActionResult(True,'okey_reclaimed',{'reclaimed_okey_id':reclaimed.id,'meld_id':meld_id,'replacement_tile_id':tile_id,'position':i})
+                # Okeyi yere koyan rakip 101 ceza yer (kendi ya da eşinin okeyi cezasız).
+                owner=getattr(meld,'owner_seat',None)
+                penalized=None
+                if owner is not None and owner!=seat and not self._same_team(owner,seat):
+                    self.state.player(owner).penalty+=101;penalized=owner
+                return ActionResult(True,'okey_reclaimed',{'reclaimed_okey_id':reclaimed.id,'meld_id':meld_id,'replacement_tile_id':tile_id,'position':i,'penalized_seat':penalized})
         return ActionResult(False,'tile_does_not_replace_okey')
 
     def _pair_area_open(self)->bool:

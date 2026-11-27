@@ -381,7 +381,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                 right: f.x(12),
                 top: f.y(10),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  _roundIcon(_online ? Icons.wifi_rounded : Icons.wifi_off_rounded, () => _tableNotice(_connection), f, color: _online ? const Color(0xFFFFE9B0) : OkeyXColors.danger),
+                  _pingIcon(f),
                   SizedBox(width: gap),
                   _roundIcon(Icons.settings_rounded, () => unawaited(_showTableMenu()), f),
                   SizedBox(width: gap),
@@ -638,6 +638,22 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final owner = _integer(meld['owner_seat']);
     final tiles = _list(meld['tiles']).map(_map).toList();
     final meldKey = '${meld['id'] ?? tiles.map((t) => t['id']).join('-')}';
+    final meldId = '${meld['id'] ?? ''}';
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (d) => meldId.isNotEmpty && !d.data.startsWith('__') && _myTurn && !_busy && _viewer['opened'] == true && '${_state['phase']}' == 'discard',
+      onAcceptWithDetails: (d) {
+        if (_vibrationEnabled) unawaited(HapticFeedback.selectionClick());
+        unawaited(_act('layoff', {'tile_id': d.data, 'meld_id': meldId}));
+      },
+      builder: (context, cand, _) => AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        decoration: cand.isNotEmpty ? BoxDecoration(borderRadius: BorderRadius.circular(9), boxShadow: const [BoxShadow(color: Color(0xAAFFD45A), blurRadius: 14, spreadRadius: 1)]) : null,
+        child: _meldChipBody(meld, tiles, owner, meldKey, tw),
+      ),
+    );
+  }
+
+  Widget _meldChipBody(Map<String, dynamic> meld, List<Map<String, dynamic>> tiles, int owner, String meldKey, double tw) {
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 3, 3, 4),
       decoration: BoxDecoration(color: const Color(0x2E000000), borderRadius: BorderRadius.circular(8)),
@@ -1463,7 +1479,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         buttons.add(_barButton('BİTİR', Icons.emoji_events_rounded, _actions['finish'] == true, () => unawaited(_duzFinish()), primary: true));
       } else {
         if (_actions['return_left'] == true) {
-          buttons.add(_barButton('GERİ BIRAK −101', Icons.keyboard_return_rounded, true, () => _act('return_left')));
+          buttons.add(_barButton('GERİ BIRAK', Icons.keyboard_return_rounded, true, () => _act('return_left')));
         } else if (_actions['undo_opening'] == true || _actions['undo_layoff'] == true) {
           buttons.add(_barButton('GERİ TOPLA', Icons.restore_rounded, true, () => _act(_actions['undo_opening'] == true ? 'undo_opening' : 'undo_layoff')));
         }
@@ -2605,6 +2621,45 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     }
   }
 
+  int? get _pingMs {
+    final m = RegExp(r'(\d+)ms').firstMatch(_connection);
+    return m == null ? null : int.tryParse(m.group(1)!);
+  }
+
+  Widget _pingIcon(_Frame f) {
+    final ms = _pingMs;
+    final color = !_online
+        ? OkeyXColors.danger
+        : ms == null
+            ? const Color(0xFFFFE9B0)
+            : ms <= 120
+                ? const Color(0xFF4CE38A)
+                : ms <= 260
+                    ? const Color(0xFFFFC845)
+                    : const Color(0xFFFF5A5A);
+    final hint = !_online
+        ? 'Bağlantı yok. İnternetini kontrol et; oyun otomatik yeniden bağlanır.'
+        : ms == null
+            ? _connection
+            : 'Sunucuya gidiş-dönüş: ${ms}ms. ${ms <= 120 ? 'Bağlantın iyi.' : ms <= 260 ? 'Orta: hafif gecikme olabilir.' : 'Zayıf: gecikme büyük ihtimalle internetinden ya da sunucu yoğunluğundan.'}';
+    return Stack(clipBehavior: Clip.none, children: [
+      _roundIcon(_online ? Icons.wifi_rounded : Icons.wifi_off_rounded, () => _tableNotice(hint), f, color: color),
+      if (_online && ms != null)
+        Positioned(
+          bottom: -f.s(6),
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: f.s(4), vertical: f.s(1)),
+              decoration: BoxDecoration(color: const Color(0xDD0B0820), borderRadius: BorderRadius.circular(6), border: Border.all(color: color.withValues(alpha: .8), width: 1)),
+              child: Text('$ms', style: TextStyle(fontSize: f.s(9), fontWeight: FontWeight.w900, color: color, height: 1.1)),
+            ),
+          ),
+        ),
+    ]);
+  }
+
   Future<Map<String, dynamic>?> _act(String kind, [Map<String, dynamic>? payload]) async {
     if (_busy) return null;
     final fastGesture = const {'draw_stock', 'discard', 'take_left', 'return_left'}.contains(kind);
@@ -3213,11 +3268,19 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     } else {
       // Sunucudan çıkan taş sadece bulunduğu fiziksel yuvadan silinir.
       // Kullanıcının bıraktığı boşluklar ve per araları asla sıkıştırılmaz.
+      final vacated = <int>[];
       for (var i = 0; i < _rackSlotCount; i++) {
         final id = _rackSlots[i];
         if (id != null && !serverSet.contains(id)) {
           _rackSlots[i] = null;
+          vacated.add(i);
         }
+      }
+      // Okey değiştirme: masadaki okeyi kendi taşınla alınca okey, verdiğin
+      // taşın boşalttığı yuvaya oturur (ıstakada rastgele bir yere düşmez).
+      final incoming = serverIds.where((id) => !_rackSlots.contains(id)).toList();
+      if (vacated.length == 1 && incoming.length == 1) {
+        _rackSlots[vacated.first] = incoming.first;
       }
 
       // Yeni çekilen taş per aralarındaki ilk boşluğa sokulmaz.
@@ -6537,7 +6600,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           'Soldan aldığın taşı kullanmalı veya geri bırakmalısın.',
       'left_tile_must_be_in_opening':
           'Soldan alınan taş açılışta kullanılmalı.',
-      'illegal_layoff': 'Bu taş o pere işlenemez. +101 ceza.',
+      'illegal_layoff': 'Bu taş o pere işlenemez, ıstakana geri döndü.',
       'must_keep_finish_tile': 'Bitmek için son taşı elde bırakıp atmalısın.',
       'must_discard_first': 'Eli 22 taşla başlattın; çekmeden bir taş at.',
       'not_your_turn': 'Sıra sende değil.',
