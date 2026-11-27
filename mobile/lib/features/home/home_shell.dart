@@ -4816,6 +4816,17 @@ class _ShineSweepState extends State<_ShineSweep> with SingleTickerProviderState
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Telefonda "animasyonları kaldır" açıksa süs animasyonlarını durdur.
+    if (MediaQuery.of(context).disableAnimations) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat(reverse: _c.duration!.inMilliseconds == 2600);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: _c,
         builder: (context, _) {

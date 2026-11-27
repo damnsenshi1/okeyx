@@ -99,8 +99,8 @@ jobs:
           # Maven Central ara sıra 429 (çok istek) dönebiliyor: bekleyip yeniden dene.
           set -o pipefail
           for i in 1 2 3 4; do
-            BUILD=$(grep '^version:' pubspec.yaml | sed 's/.*+//')
-            flutter build apk --release --dart-define-from-file=app_config.json --dart-define=OKEYX_BUILD=$BUILD 2>&1 | tee ../tour_out/derleme.txt && exit 0
+            BUILD=$(grep '^version:' pubspec.yaml | sed 's/.*+//'); VNAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | sed 's/+.*//')
+            flutter build apk --release --dart-define-from-file=app_config.json --dart-define=OKEYX_BUILD=$BUILD --dart-define=OKEYX_VERSION=$VNAME 2>&1 | tee ../tour_out/derleme.txt && exit 0
             echo "Derleme denemesi $i başarısız, $((i*60)) sn sonra tekrar"; sleep $((i*60))
           done
           exit 1 2>&1 | tee ../tour_out/derleme.txt

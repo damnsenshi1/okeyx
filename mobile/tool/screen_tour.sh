@@ -38,6 +38,9 @@ adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1
 adb shell svc power stayon true
 adb shell settings put secure immersive_mode_confirmations confirmed
+# Sürekli dönen süs animasyonları emülatörü (yazılım GPU) boğmasın, uiautomator boşta kalabilsin.
+adb shell settings put global transition_animation_scale 0
+adb shell settings put global animator_duration_scale 0
 adb logcat -c
 ( adb logcat -v time > "$OUT/logcat.txt" 2>&1 & echo $! > "$OUT/.logcat.pid" )
 

@@ -1,3 +1,4 @@
+• Daha neşeli yeni lobi müziği (çiftetelli)
 • Yepyeni renkli tasarım ve yeni OKEYX logosu
 • Google ile giriş artık uygulama içinde (ekran yatay kalır)
 • Yeni oyunculara karşılama ve 1.000.000 altın hoş geldin hediyesi

@@ -462,6 +462,17 @@ class _PulseHaloState extends State<_PulseHalo> with SingleTickerProviderStateMi
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Telefonda "animasyonları kaldır" açıksa süs animasyonlarını durdur.
+    if (MediaQuery.of(context).disableAnimations) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat(reverse: _c.duration!.inMilliseconds == 2600);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: _c,
         child: widget.child,
@@ -500,6 +511,17 @@ class _FloatingTilesState extends State<_FloatingTiles> with SingleTickerProvide
   void dispose() {
     _c.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Telefonda "animasyonları kaldır" açıksa süs animasyonlarını durdur.
+    if (MediaQuery.of(context).disableAnimations) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat(reverse: _c.duration!.inMilliseconds == 2600);
+    }
   }
 
   @override

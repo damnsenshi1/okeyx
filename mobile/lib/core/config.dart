@@ -1,6 +1,6 @@
 class AppConfig {
   static const appName = 'OkeyX';
-  static const versionName = '18.0.0';
+  static const versionName = String.fromEnvironment('OKEYX_VERSION', defaultValue: '20.0.0');
   static const buildNumber = 170;
   static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   static const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
