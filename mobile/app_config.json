@@ -1,0 +1,14 @@
+{
+  "SUPABASE_URL": "https://ofajtgacffxfdaylcgex.supabase.co",
+  "SUPABASE_ANON_KEY": "sb_publishable_7DI7vp9jfRBprYG-4rmdJw_bp6lq2s8",
+  "ADMOB_REWARDED_ID": "ca-app-pub-3940256099942544/5224354917",
+  "ADMOB_INTERSTITIAL_ID": "ca-app-pub-3940256099942544/1033173712",
+  "API_BASE_URL": "https://okeyx-mp-eu.onrender.com",
+  "BUILD_CHANNEL": "render-frankfurt-mp-final-quality",
+  "APP_VERSION": "13.0.0",
+  "BUILD_NUMBER": 149,
+  "FCM_API_KEY": "",
+  "FCM_APP_ID": "",
+  "FCM_SENDER_ID": "",
+  "FCM_PROJECT_ID": ""
+}

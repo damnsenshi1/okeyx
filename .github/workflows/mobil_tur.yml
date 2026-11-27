@@ -1,0 +1,134 @@
+name: OKEYX mobil kur + APK + gerçek ekran turu
+
+# Kullanım: depo ana dizinine okeyx_mobil_yukle*.zip yükle (Add file → Upload files).
+# Bu iş akışı:
+#   1) zip'i mobile/ klasörüne açar ve depoya kaydeder,
+#   2) flutter analyze çalıştırır, APK derler,
+#   3) APK'yı Android emülatöründe açıp gerçek ekran turu çeker (misafir giriş →
+#      ana sayfa → Masalar → Masa kur → Hızlı oyna → oyun masası).
+# Sonuçlar: Actions → bu çalıştırma → Artifacts:
+#   okeyx-apk         : telefona kurulabilir APK
+#   okeyx-ekran-turu  : okeyx_gercek_tur.mp4, okeyx_ekranlar.mp4, ekran/*.png, hatalar.txt
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'okeyx_mobil_yukle*.zip'
+      - '.github/workflows/mobil_tur.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mobil:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zip'i mobile/ klasörüne aç
+        run: |
+          ZIP=$(ls -1 okeyx_mobil_yukle*.zip 2>/dev/null | tail -n 1 || true)
+          if [ -z "$ZIP" ]; then
+            echo "Zip yok; depodaki mobile/ kullanılacak."
+            test -f mobile/pubspec.yaml || { echo "HATA: ne zip ne mobile/ var"; exit 1; }
+            exit 0
+          fi
+          echo "Kullanılan zip: $ZIP"
+          rm -rf /tmp/mb && mkdir -p /tmp/mb && unzip -q "$ZIP" -d /tmp/mb
+          SRC=/tmp/mb; [ -f /tmp/mb/pubspec.yaml ] || SRC=$(dirname "$(find /tmp/mb -maxdepth 3 -name pubspec.yaml | head -n 1)")
+          test -f "$SRC/pubspec.yaml" || { echo "HATA: zip içinde pubspec.yaml yok"; exit 1; }
+          git rm -r -q --cached mobile 2>/dev/null || true
+          rm -rf mobile && mkdir mobile && cp -a "$SRC/." mobile/
+          git rm -q -f --ignore-unmatch okeyx_mobil_yukle*.zip; rm -f okeyx_mobil_yukle*.zip
+          git config user.name "OkeyX Deploy Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A mobile
+          git commit -q -m "Mobil V18 kuruldu" || echo "Değişiklik yok"
+          for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done || echo "UYARI: push yapılamadı, derleme yine de devam ediyor"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Paketler ve analiz
+        working-directory: mobile
+        shell: bash
+        continue-on-error: true
+        run: |
+          mkdir -p ../tour_out
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee ../tour_out/analiz.txt
+
+      - name: Testler
+        working-directory: mobile
+        shell: bash
+        continue-on-error: true
+        run: flutter test --reporter expanded 2>&1 | tee ../tour_out/testler.txt
+
+      - name: APK derle
+        working-directory: mobile
+        shell: bash
+        run: |
+          mkdir -p ../tour_out
+          flutter pub get >/dev/null
+          flutter build apk --release 2>&1 | tee ../tour_out/derleme.txt
+
+      - name: Derleme kayıtlarını sakla (hata olursa da)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: okeyx-derleme-kayitlari
+          path: tour_out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: okeyx-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+      - name: KVM aç (emülatör hızı için)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Emülatörde gerçek ekran turu
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: adb install -r mobile/build/app/outputs/flutter-apk/app-release.apk && OUT=$GITHUB_WORKSPACE/tour_out bash mobile/tool/screen_tour.sh
+
+      - name: Videoları hazırla
+        if: always()
+        run: |
+          cd tour_out || exit 0
+          : > liste.txt
+          for f in tur_1.mp4 tur_2.mp4; do [ -s "$f" ] && echo "file '$f'" >> liste.txt; done
+          if [ -s liste.txt ]; then
+            ffmpeg -loglevel error -y -f concat -safe 0 -i liste.txt -vf "scale=1280:-2,fps=30" -c:v libx264 -crf 23 -preset veryfast -pix_fmt yuv420p okeyx_gercek_tur.mp4 || true
+          fi
+          if ls ekran/*.png >/dev/null 2>&1; then
+            ffmpeg -loglevel error -y -framerate 1/2.5 -pattern_type glob -i 'ekran/*.png' -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p" -c:v libx264 -crf 20 -preset veryfast okeyx_ekranlar.mp4 || true
+          fi
+          rm -f liste.txt tur_1.mp4 tur_2.mp4 .rec.pid .logcat.pid
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: okeyx-ekran-turu
+          path: tour_out/
+          retention-days: 14
