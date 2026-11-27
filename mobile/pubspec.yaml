@@ -31,6 +31,8 @@ flutter:
     - assets/textures/
     - assets/rack/
     - assets/tiles/
+    - assets/table/
+    - assets/ui/
     - assets/music/
   fonts:
     - family: Lora

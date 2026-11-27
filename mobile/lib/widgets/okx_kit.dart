@@ -87,16 +87,28 @@ class OkxFelt extends StatelessWidget {
   final Color? tint;
   /// Ayarlardaki çuha teması: green | bordo | navy | anthracite
   final String theme;
-  const OkxFelt({super.key, this.child, this.borderRadius = BorderRadius.zero, this.tint, this.theme = 'green'});
+  /// true: Blender ile işlenmiş, lamba ışıklı ve ahşap kenarlı tam masa
+  /// görseli (oyun masası arka planı). Üstüne ince kumaş dokusu eklenir.
+  final bool photo;
+  const OkxFelt({super.key, this.child, this.borderRadius = BorderRadius.zero, this.tint, this.theme = 'green', this.photo = false});
 
   @override
   Widget build(BuildContext context) {
-    Widget base = const DecoratedBox(
-      decoration: BoxDecoration(
-        color: OkeyXColors.felt,
-        image: DecorationImage(image: _felt, repeat: ImageRepeat.repeat, scale: 1.4),
-      ),
-    );
+    Widget base = photo
+        ? Stack(fit: StackFit.expand, children: [
+            Image.asset('assets/table/felt.webp', fit: BoxFit.cover, filterQuality: FilterQuality.medium, gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => const ColoredBox(color: OkeyXColors.felt)),
+            const Opacity(
+              opacity: .22,
+              child: DecoratedBox(decoration: BoxDecoration(image: DecorationImage(image: _felt, repeat: ImageRepeat.repeat, scale: 1.4, opacity: 1, colorFilter: ColorFilter.mode(Color(0xFF808080), BlendMode.overlay)))),
+            ),
+          ])
+        : const DecoratedBox(
+            decoration: BoxDecoration(
+              color: OkeyXColors.felt,
+              image: DecorationImage(image: _felt, repeat: ImageRepeat.repeat, scale: 1.4),
+            ),
+          );
     final filter = tint != null ? ColorFilter.mode(tint!, BlendMode.hue) : okxFeltFilter(theme);
     if (filter != null) {
       base = ColorFiltered(colorFilter: filter, child: base);
@@ -107,7 +119,7 @@ class OkxFelt extends StatelessWidget {
         fit: StackFit.passthrough,
         children: [
           Positioned.fill(child: base),
-          const Positioned.fill(
+          if (!photo) const Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -120,7 +132,7 @@ class OkxFelt extends StatelessWidget {
               ),
             ),
           ),
-          const Positioned.fill(
+          if (!photo) const Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -548,10 +560,8 @@ class OkxAvatar extends StatelessWidget {
         gradient: RadialGradient(center: const Alignment(-.3, -.4), colors: colors),
         image: url != null && url.isNotEmpty ? DecorationImage(image: NetworkImage(url), fit: BoxFit.cover) : null,
         boxShadow: [
-          const BoxShadow(color: Color(0xFF2A1D10), spreadRadius: 3),
-          BoxShadow(color: highlight ? OkeyXColors.cyan : const Color(0xFFC8963F), spreadRadius: 5),
-          const BoxShadow(color: Color(0xFF5E3D10), spreadRadius: 6),
-          const BoxShadow(color: Color(0x99000000), blurRadius: 14, spreadRadius: 6, offset: Offset(0, 6)),
+          const BoxShadow(color: Color(0x99000000), blurRadius: 14, spreadRadius: 4, offset: Offset(0, 6)),
+          if (highlight) const BoxShadow(color: OkeyXColors.cyan, blurRadius: 16, spreadRadius: 4),
         ],
       ),
       alignment: Alignment.center,
@@ -575,6 +585,14 @@ class OkxAvatar extends StatelessWidget {
               child: CustomPaint(painter: _RingPainter(ring!.clamp(0, 1).toDouble())),
             ),
           inner,
+          // Blender ile işlenmiş pirinç çerçeve (3B görünüm).
+          Positioned(
+            left: -size * .13,
+            top: -size * .13,
+            width: size * 1.26,
+            height: size * 1.26,
+            child: IgnorePointer(child: Image.asset('assets/ui/bezel.webp', fit: BoxFit.contain, filterQuality: FilterQuality.medium, gaplessPlayback: true, errorBuilder: (_, __, ___) => const SizedBox.shrink())),
+          ),
           if (online)
             Positioned(
               right: -1,

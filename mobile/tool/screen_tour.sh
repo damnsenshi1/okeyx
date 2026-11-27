@@ -26,7 +26,7 @@ tap(){ # tap "METİN" ["ALTERNATİF" ...] → bulursa dokunur
 dismiss(){ # açılış pencerelerini kapat (ödül, öğretici, izinler)
   for k in 1 2 3 4; do
     dump
-    if xy=$(python3 "$HERE/ui_find.py" "$OUT/ui/son.xml" "Got it" "Anladım" "KAPAT" "ŞİMDİ DEĞİL" "SONRA" "ATLA" "TAMAM" "Allow" "İzin ver" "Don't allow" "İzin verme"); then
+    if xy=$(python3 "$HERE/ui_find.py" "$OUT/ui/son.xml" "Wait" "Got it" "Anladım" "KAPAT" "ŞİMDİ DEĞİL" "SONRA" "ATLA" "TAMAM" "Allow" "İzin ver" "Don't allow" "İzin verme"); then
       log "pencere kapatıldı → $xy"; adb shell input tap $xy; sleep 2
     else
       return 0

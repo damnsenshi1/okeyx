@@ -323,7 +323,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           return Stack(
             clipBehavior: Clip.none,
             children: [
-              Positioned.fill(child: RepaintBoundary(child: OkxFelt(theme: widget.preferences.tableTheme))),
+              Positioned.fill(child: RepaintBoundary(child: OkxFelt(theme: widget.preferences.tableTheme, photo: true))),
               // Üst çubuk
               Positioned(left: f.x(12), top: f.y(10), child: _stakeHud(f)),
               // Turbo: masaya yeni işlenen her yıldızlı taş için bir yıldız,
@@ -577,14 +577,26 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   Widget _meldChip(Map<String, dynamic> meld, double tw) {
     final owner = _integer(meld['owner_seat']);
     final tiles = _list(meld['tiles']).map(_map).toList();
+    final meldKey = '${meld['id'] ?? tiles.map((t) => t['id']).join('-')}';
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 3, 3, 4),
       decoration: BoxDecoration(color: const Color(0x2E000000), borderRadius: BorderRadius.circular(8)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        for (final t in tiles)
+        for (var i = 0; i < tiles.length; i++)
           Padding(
             padding: const EdgeInsets.only(right: 1.5),
-            child: SizedBox(width: tw, height: tw * 1.42, child: TileWidget(tile: _tile(t), skinId: _tileSkinForSeat(owner), bigNumber: _bigNumbers)),
+            // Yeni açılan per: taşlar sırayla yukarıdan masaya dizilir.
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey('meld-$meldKey-${tiles[i]['id']}'),
+              tween: Tween(begin: 0, end: 1),
+              duration: _reducedFx ? Duration.zero : Duration(milliseconds: 260 + i * 70),
+              curve: Interval((i * 70) / (260 + i * 70), 1, curve: Curves.easeOutBack),
+              builder: (context, v, child) => Opacity(
+                opacity: v.clamp(0.0, 1.0).toDouble(),
+                child: Transform.translate(offset: Offset(0, -tw * .9 * (1 - v)), child: child),
+              ),
+              child: SizedBox(width: tw, height: tw * 1.42, child: TileWidget(tile: _tile(tiles[i]), skinId: _tileSkinForSeat(owner), bigNumber: _bigNumbers)),
+            ),
           ),
       ]),
     );
@@ -597,7 +609,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
       final o = _integer(m['owner_seat']);
       if (!owners.contains(o)) owners.add(o);
     }
-    final tw = f.s(21).clamp(15.0, 30.0).toDouble();
+    final tw = f.s(23).clamp(16.0, 32.0).toDouble();
     final children = <Widget>[];
     for (final o in owners) {
       final p = _playerAtSeat(o);
@@ -1027,10 +1039,14 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     final glow = useful || canTake;
     return TweenAnimationBuilder<double>(
       key: ValueKey('discard-pile-$seat-${trail.last['id']}-$count'),
-      duration: _reducedFx ? Duration.zero : const Duration(milliseconds: 240),
-      curve: Curves.easeOutCubic,
-      tween: Tween(begin: .9, end: 1),
-      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+      duration: _reducedFx ? Duration.zero : const Duration(milliseconds: 360),
+      curve: Curves.easeOutBack,
+      tween: Tween(begin: 0, end: 1),
+      // Atılan taş yukarıdan hafif dönerek düşer ve çuhaya "oturur".
+      builder: (context, v, child) => Transform.translate(
+        offset: Offset(0, -th * .55 * (1 - v)),
+        child: Transform.rotate(angle: .22 * (1 - v), child: Transform.scale(scale: 1.18 - .18 * v, child: child)),
+      ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         SizedBox(
           width: tw + 12,
