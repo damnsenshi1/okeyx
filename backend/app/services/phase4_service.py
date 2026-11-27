@@ -82,7 +82,7 @@ DEFAULT_PHASE4_CONFIG: dict[str, Any] = {
         {"id":"daily_mega","sku":"okeyx.daily.1m","title":"GÜNLÜK MEGA","badge":"EN İYİ DEĞER","daily":True,"normal_price_hint":"₺79,99","enabled":True},
     ],
     "cosmetics": [
-        {"id": "rack_classic", "category": "rack", "name": "Klasik Ceviz", "currency": "coins", "price": 0, "rarity": "common", "default": True},
+        {"id": "rack_classic", "category": "rack", "name": "Klasik Gri Kadife", "currency": "coins", "price": 0, "rarity": "common", "default": True},
         {"id": "rack_walnut", "category": "rack", "name": "Anadolu Cevizi", "currency": "coins", "price": 32000, "rarity": "common"},
         {"id": "rack_sakura", "category": "rack", "name": "Sakura Istaka", "currency": "coins", "price": 42000, "rarity": "rare"},
         {"id": "rack_bosphorus", "category": "rack", "name": "Boğaz Turkuazı", "currency": "coins", "price": 58000, "rarity": "rare"},

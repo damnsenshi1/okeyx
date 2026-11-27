@@ -14,6 +14,9 @@ import '../../widgets/tile_widget.dart';
 /// vardır. Efsanevi/epik ürünlerin arkasında nefes alan bir ışık halkası olur.
 /// Önizlemeler gerçek oyun görselleriyle çizilir (ıstaka, taş, çuha).
 
+/// Mağaza kimliği → ıstaka görseli (varsayılan ıstaka gri kadifedir).
+String _rackAsset(String id) => id == 'rack_classic' || id.isEmpty ? 'rack_velvet' : id;
+
 Color rarityColor(String rarity) => switch (rarity) {
       'legendary' => const Color(0xFFFFC75A),
       'epic' => const Color(0xFFBC86FF),
@@ -196,8 +199,8 @@ class CosmeticPreview extends StatelessWidget {
               ..setEntry(3, 2, .002)
               ..rotateX(-.42),
             child: Stack(alignment: Alignment.center, children: [
-              Image.asset('assets/rack/${id}_back.webp', fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox()),
-              Image.asset('assets/rack/${id}_front.webp', fit: BoxFit.contain, errorBuilder: (_, __, ___) => _fallbackBar(accent)),
+              Image.asset('assets/rack/${_rackAsset(id)}_back.webp', fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox()),
+              Image.asset('assets/rack/${_rackAsset(id)}_front.webp', fit: BoxFit.contain, errorBuilder: (_, __, ___) => _fallbackBar(accent)),
             ]),
           ),
         );
@@ -523,7 +526,7 @@ Future<void> showTryOnTable(
                   bottom: 8,
                   height: h * .34,
                   child: Stack(alignment: Alignment.bottomCenter, children: [
-                    Positioned.fill(child: Image.asset('assets/rack/${rack}_back.webp', fit: BoxFit.fill, errorBuilder: (_, __, ___) => const SizedBox())),
+                    Positioned.fill(child: Image.asset('assets/rack/${_rackAsset(rack)}_back.webp', fit: BoxFit.fill, errorBuilder: (_, __, ___) => const SizedBox())),
                     Positioned(
                       left: 18,
                       right: 18,
@@ -540,7 +543,7 @@ Future<void> showTryOnTable(
                           ),
                       ]),
                     ),
-                    Positioned.fill(child: Image.asset('assets/rack/${rack}_front.webp', fit: BoxFit.fill, errorBuilder: (_, __, ___) => const SizedBox())),
+                    Positioned.fill(child: Image.asset('assets/rack/${_rackAsset(rack)}_front.webp', fit: BoxFit.fill, errorBuilder: (_, __, ___) => const SizedBox())),
                   ]),
                 ),
                 Positioned(

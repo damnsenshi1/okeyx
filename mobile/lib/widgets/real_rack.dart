@@ -33,7 +33,9 @@ String realRackStyle({String? equipped, String local = 'walnut'}) {
   return switch (local) {
     'oak' => 'classic',
     'ebony' => 'obsidian',
-    _ => 'walnut',
+    'walnut_wood' => 'walnut',
+    // Varsayılan: klasik gri kadife okey ıstakası.
+    _ => 'velvet',
   };
 }
 

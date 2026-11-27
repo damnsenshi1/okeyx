@@ -228,7 +228,8 @@ const okxFeltThemes = <(String, String)>[
   ('anthracite', 'Antrasit'),
 ];
 const okxRackStyles = <(String, String)>[
-  ('walnut', 'Ceviz'),
+  ('walnut', 'Gri kadife'),
+  ('walnut_wood', 'Ceviz'),
   ('oak', 'Meşe'),
   ('ebony', 'Abanoz'),
 ];

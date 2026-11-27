@@ -1,3 +1,7 @@
+OKEYX 20.6.1
+
+• Yeni varsayılan ıstaka: klasik gri kadife okey ıstakası (Ayarlar → Istaka: Gri kadife / Ceviz).
+
 OKEYX 20.6.0
 
 • Hediyeler: 40 hediye (yeni: Lokum, Döner, Ayran, Balon, Öpücük, Hayalet, Palyaço Burnu, Su Balonu, Yüze Pasta, Bomba, Altın Yağmuru, Konfeti, Unicorn, Şimşek, Pırlanta Yüzük).
