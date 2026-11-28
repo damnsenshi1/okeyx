@@ -330,11 +330,12 @@ class _UniformNumber extends StatelessWidget {
   Widget build(BuildContext context) {
     final tp = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr, maxLines: 1)..layout();
     final w = tp.width;
+    final h = tp.height;
     tp.dispose();
     final sx = w > maxWidth && w > 0 ? maxWidth / w : 1.0;
     return SizedBox(
       width: maxWidth,
-      height: tp.height,
+      height: h,
       child: OverflowBox(
         maxWidth: double.infinity,
         child: Transform(
