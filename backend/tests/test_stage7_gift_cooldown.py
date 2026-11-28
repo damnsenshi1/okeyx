@@ -28,10 +28,11 @@ def test_catalog_has_display_styles():
     assert GIFT_CATALOG['tomato']['style'] == 'stick'
     assert GIFT_CATALOG['dragon']['style'] == 'big'
     assert GIFT_CATALOG['tea']['style'] == 'float'
-    assert all(row['cooldown_s'] == 10.0 for row in GIFT_CATALOG.values())
+    # Küçük hediyeler 3 sn, tam ekran gösteriler 6 sn bekler.
+    assert all(row['cooldown_s'] == (6.0 if row['style'] == 'big' else 3.0) for row in GIFT_CATALOG.values())
 
 
-def test_same_gift_has_ten_second_cooldown(tmp_path, monkeypatch):
+def test_same_gift_has_short_cooldown(tmp_path, monkeypatch):
     _reset(); store = _store(tmp_path)
     monkeypatch.setattr(game, 'STORE', store)
     monkeypatch.setattr(game, '_persist_runtime', lambda force=False: None)
@@ -46,12 +47,12 @@ def test_same_gift_has_ten_second_cooldown(tmp_path, monkeypatch):
 
     out = send('slipper')
     assert out['ok'] is True and out['event']['gift_id'] == 'slipper' and out['event']['style'] == 'stick'
-    clock[0] += 3
+    clock[0] += 1.5
     with pytest.raises(HTTPException) as err:
         send('slipper')
     assert err.value.detail == 'gift_cooldown'
     # Başka bir hediye serbest (genel 0.7 sn sınırı geçti).
     assert send('tea')['ok'] is True
-    clock[0] += 7.5
+    clock[0] += 2
     assert send('slipper')['ok'] is True
     _reset()

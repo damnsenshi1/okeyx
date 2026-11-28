@@ -1,3 +1,10 @@
+OKEYX 20.8.1
+
+• Hediye: dokunduğun hediye anında gider (GÖNDER yok). Bekleyen bir hediyeye dokununca yerine başka hediye gitmez.
+• Aynı hediye bekleme süresi 10 sn → 3 sn (tam ekran gösteriler 6 sn).
+• Profil kartındaki HEDİYE GÖNDER artık hediye seçme ekranını açar (önceden doğrudan kahve gidiyordu).
+• Tüm hediyelerin animasyonu var: Yüze Pasta, Su Balonu, Bomba, Palyaço Burnu, Sansürlü Muz, Kalp/Öpücük, Balon, Hayalet, Ateş, Alkış, Simit/Lokum/Döner/Ayran, Yumruk, Pompa.
+
 OKEYX 20.8.0
 
 • Kural: soldan aldığın taş seri açılışında olmasa da aynı tur çifte ya da pere işlenebiliyorsa seri açabilirsin (taşı kullanmadan atamazsın).

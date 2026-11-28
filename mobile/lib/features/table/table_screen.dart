@@ -1730,7 +1730,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _openGiftPicker() async {
+  Future<void> _openGiftPicker({int? targetSeat}) async {
     final others = [_relativeSeat(1), _relativeSeat(2), _relativeSeat(3)].map(_playerAtSeat).where((p) => p.isNotEmpty).toList();
     if (others.isEmpty) {
       _tableNotice('Masada hediye gönderecek kimse yok.');
@@ -1752,7 +1752,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               color: Colors.transparent,
               child: _PlayerCardBody(
                 state: this,
-                player: others.first,
+                player: others.firstWhere((p) => targetSeat != null && _integer(p['seat']) == targetSeat, orElse: () => others.first),
                 giftMode: true,
                 targets: others,
                 onClose: () => Navigator.of(dialogContext).pop(),
@@ -1772,7 +1772,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     }
     final ok = await _sendChat('gift', giftId, toSeat: toSeat);
     if (ok) {
-      _giftCooldownUntil[giftId] = DateTime.now().millisecondsSinceEpoch + 10000;
+      final big = _kGifts.any((g) => g.id == giftId && g.style == 'big');
+      _giftCooldownUntil[giftId] = DateTime.now().millisecondsSinceEpoch + (big ? 6000 : 3000);
       if (mounted) setState(() {});
     }
     return ok;
@@ -2625,7 +2626,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
     _giftPlaying = true;
     _handleChatEvent(next);
     final def = _giftByIdOrName('${next['gift_id'] ?? ''}', '${next['value'] ?? ''}');
-    final wait = def?.style == 'big' ? 2900 : 1100;
+    final wait = def?.style == 'big' ? 2900 : 850;
     Future<void>.delayed(Duration(milliseconds: _reducedFx ? 200 : wait), () {
       _giftPlaying = false;
       _pumpGiftQueue();
@@ -3774,7 +3775,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   Row(children:[
                     if(targetId.isNotEmpty) Expanded(child:FilledButton.tonalIcon(onPressed:(){Navigator.pop(dialogContext);unawaited(_addTableFriend(targetId,name));},icon:const Icon(Icons.person_add_alt_1_rounded,size:15),label:const Text('ARKADAŞ EKLE',style:TextStyle(fontSize:9,fontWeight:FontWeight.w900)))),
                     if(targetId.isNotEmpty) const SizedBox(width:7),
-                    Expanded(child:OutlinedButton.icon(onPressed:(){Navigator.pop(dialogContext);unawaited(_sendChat('gift','coffee',toSeat:_integer(player['seat'])));},icon:const Icon(Icons.local_cafe_rounded,size:15),label:const Text('HEDİYE GÖNDER',style:TextStyle(fontSize:9,fontWeight:FontWeight.w900)))),
+                    Expanded(child:OutlinedButton.icon(onPressed:(){Navigator.pop(dialogContext);unawaited(_openGiftPicker(targetSeat:_integer(player['seat'])));},icon:const Icon(Icons.local_cafe_rounded,size:15),label:const Text('HEDİYE GÖNDER',style:TextStyle(fontSize:9,fontWeight:FontWeight.w900)))),
                   ]),
                   if(targetId.isNotEmpty) ...[
                     const SizedBox(height:7),
@@ -8012,6 +8013,7 @@ class _PlayerCardBodyState extends State<_PlayerCardBody> {
   late bool _gifts = widget.giftMode;
   late Map<String, dynamic> _target = widget.player;
   String _selected = 'coffee';
+  bool _everyone = false;
   bool _sending = false;
 
   _TableScreenState get t => widget.state;
@@ -8220,7 +8222,7 @@ class _PlayerCardBodyState extends State<_PlayerCardBody> {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: OkeyXFonts.serif, fontSize: 17, fontWeight: FontWeight.w700, color: OkeyXColors.cream)),
-            const Text('Hediyeler ücretsiz • her hediye 10 sn’de bir', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: OkeyXColors.muted)),
+            const Text('Dokun, hemen gitsin • ücretsiz', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: OkeyXColors.muted)),
           ]),
         ),
         _closeButton(),
@@ -8266,27 +8268,25 @@ class _PlayerCardBodyState extends State<_PlayerCardBody> {
           ),
           const SizedBox(width: 7),
         ],
+        // Hedef: seçili oyuncu ya da herkes (masaya). Hediyeye dokununca gider.
         Expanded(
-          child: OkxButton.ghost(
-            label: 'HERKESE',
-            icon: Icons.groups_rounded,
-            height: 38,
-            fontSize: 11.5,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            expand: true,
-            onTap: _sending ? null : () => unawaited(_send(everyone: true)),
-          ),
-        ),
-        const SizedBox(width: 7),
-        Expanded(
-          child: OkxButton(
-            label: 'GÖNDER',
-            icon: Icons.send_rounded,
-            height: 38,
-            fontSize: 12,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            expand: true,
-            onTap: _sending ? null : () => unawaited(_send()),
+          child: GestureDetector(
+            onTap: () => setState(() => _everyone = !_everyone),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: _everyone ? OkeyXColors.gold.withValues(alpha: .22) : const Color(0x4D000000),
+                border: Border.all(color: _everyone ? OkeyXColors.gold : OkeyXColors.line2, width: 1.4),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(_everyone ? Icons.check_circle_rounded : Icons.groups_rounded, size: 17, color: _everyone ? OkeyXColors.gold : OkeyXColors.cream),
+                const SizedBox(width: 6),
+                Text(_everyone ? 'HERKESE GİDECEK' : 'HERKESE AT', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: _everyone ? OkeyXColors.gold : OkeyXColors.cream)),
+              ]),
+            ),
           ),
         ),
       ]),
@@ -8296,7 +8296,15 @@ class _PlayerCardBodyState extends State<_PlayerCardBody> {
   Widget _giftCell(_GiftDef g, int cooldown) {
     final selected = _selected == g.id;
     return GestureDetector(
-      onTap: cooldown > 0 ? null : () => setState(() => _selected = g.id),
+      // Tek dokunuş: dokunduğun hediye hemen gider (seçili kalan başka hediye gitmez).
+      onTap: () {
+        if (cooldown > 0) {
+          t._tableNotice('${g.name} için $cooldown sn bekle.');
+          return;
+        }
+        setState(() => _selected = g.id);
+        unawaited(_send(everyone: _everyone));
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         decoration: BoxDecoration(
@@ -8487,6 +8495,8 @@ class _GiftFxPainter extends CustomPainter {
       case 'terlik':
       case 'fish':
       case 'rubber_chicken':
+      case 'punch':
+      case 'plunger':
         // PAT! yıldızı + terlik geri seker
         if (t < .4) {
           final q = Curves.easeOut.transform(t / .4);
@@ -8548,6 +8558,129 @@ class _GiftFxPainter extends CustomPainter {
             ..color = const Color(0xFF3FA9F5).withValues(alpha: (1 - q) * a));
         }
         _emoji(canvas, c + Offset(unit * .7, -unit * .3), unit * .6, opacity: a);
+      case 'pie': {
+        // Yüze pasta: krema ve vişne
+        _splat(canvas, c, main: const Color(0xFFFFF3E8), dark: const Color(0xFFE79AB6), yolk: const Color(0xFFD7263A));
+      }
+      case 'water': {
+        // Su balonu: mavi sıçrama + uçuşan damlalar
+        _splat(canvas, c, main: const Color(0xCC4FB8FF), dark: const Color(0xFF1C6FB8));
+        for (var i = 0; i < 12; i++) {
+          final b = _bits[i];
+          final q = Curves.easeOut.transform(t);
+          final p = c + Offset(b.dx * unit * 1.5 * q, b.dy * unit * 1.2 * q + unit * .8 * q * q);
+          canvas.drawOval(Rect.fromCenter(center: p, width: unit * .1, height: unit * .15), Paint()..color = const Color(0xFF8FD3FF).withValues(alpha: a * (1 - q * .7)));
+        }
+      }
+      case 'bomb': {
+        // Bomba: fitil → patlama halkası → duman
+        if (t < .18) {
+          _emoji(canvas, c, unit * .8, angle: math.sin(t * 80) * .15, opacity: a);
+          _drawSpark(canvas, c + Offset(unit * .25, -unit * .38), unit * .12 * (1 + math.sin(t * 90)), a);
+        } else {
+          final q = ((t - .18) / .82).clamp(0.0, 1.0);
+          final r = unit * (.3 + 1.4 * Curves.easeOut.transform(q));
+          canvas.drawCircle(c, r, Paint()..shader = RadialGradient(colors: [const Color(0xFFFFF3A0).withValues(alpha: (1 - q) * a), const Color(0xFFFF7A1A).withValues(alpha: (1 - q) * .9 * a), const Color(0x00FF3D00)]).createShader(Rect.fromCircle(center: c, radius: r)));
+          for (var i = 0; i < 8; i++) {
+            final b = _bits[i];
+            canvas.drawCircle(c + Offset(b.dx, b.dy) * unit * 1.2 * q, unit * (.18 + .2 * q), Paint()..color = const Color(0xFF4A4458).withValues(alpha: .55 * (1 - q) * a));
+          }
+          if (q < .6) {
+            final tp = TextPainter(text: TextSpan(text: 'BOOM!', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: unit * .5, color: const Color(0xFFFFE14D).withValues(alpha: 1 - q / .6), shadows: const [Shadow(color: Color(0xFFB8300A), blurRadius: 6)])), textDirection: TextDirection.ltr)..layout();
+            tp.paint(canvas, c - Offset(tp.width / 2, unit * 1.1));
+          }
+        }
+      }
+      case 'clown': {
+        // Palyaço burnu yapışır, HONK!
+        final pop = Curves.elasticOut.transform((t / .35).clamp(0.0, 1.0));
+        canvas.drawCircle(c, unit * .28 * pop, Paint()..color = const Color(0xFFE5222E).withValues(alpha: a));
+        canvas.drawCircle(c + Offset(-unit * .08, -unit * .09), unit * .08 * pop, Paint()..color = Colors.white.withValues(alpha: .7 * a));
+        if (t > .15 && t < .7) {
+          final q = (t - .15) / .55;
+          final tp = TextPainter(text: TextSpan(text: 'HONK!', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: unit * (.32 + .12 * q), color: const Color(0xFFFFD34D).withValues(alpha: 1 - q))), textDirection: TextDirection.ltr)..layout();
+          tp.paint(canvas, c + Offset(unit * .3, -unit * (.9 + .3 * q)));
+        }
+      }
+      case 'censored_banana': {
+        _emoji(canvas, c, unit * .9, angle: -.3, opacity: a);
+        final bar = Rect.fromCenter(center: c, width: unit * 1.3, height: unit * .3);
+        canvas.drawRect(bar, Paint()..color = Colors.black.withValues(alpha: a));
+        final tp = TextPainter(text: TextSpan(text: 'SANSÜR', style: TextStyle(fontSize: unit * .17, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white.withValues(alpha: a))), textDirection: TextDirection.ltr)..layout();
+        tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+      }
+      case 'heart':
+      case 'kalp':
+      case 'kiss': {
+        // Yükselen kalpler
+        for (var i = 0; i < 7; i++) {
+          final b = _bits[i];
+          final q = ((t - i * .06) / .8).clamp(0.0, 1.0);
+          if (q <= 0) continue;
+          final p = c + Offset(b.dx * unit * .6 + math.sin(q * 6 + i) * unit * .15, -q * unit * 1.6);
+          final tp = TextPainter(text: TextSpan(text: i == 0 ? emoji : '❤️', style: TextStyle(fontSize: unit * (i == 0 ? .8 : .32), color: Colors.white.withValues(alpha: (1 - q) * a))), textDirection: TextDirection.ltr)..layout();
+          tp.paint(canvas, p - Offset(tp.width / 2, tp.height / 2));
+        }
+      }
+      case 'balloon': {
+        // Balon yükselir, en üstte patlar
+        if (t < .7) {
+          final q = t / .7;
+          _emoji(canvas, c + Offset(math.sin(q * 8) * unit * .15, -q * unit * 1.5), unit * .8, angle: math.sin(q * 6) * .15, opacity: a);
+        } else {
+          final q = (t - .7) / .3;
+          final top = c + Offset(0, -unit * 1.5);
+          for (var i = 0; i < 10; i++) {
+            final b = _bits[i];
+            _drawSpark(canvas, top + Offset(b.dx, b.dy) * unit * .8 * q, unit * .1 * (1 - q), a);
+          }
+          final tp = TextPainter(text: TextSpan(text: 'PAT!', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: unit * .35, color: const Color(0xFFFF5A7A).withValues(alpha: 1 - q))), textDirection: TextDirection.ltr)..layout();
+          tp.paint(canvas, top - Offset(tp.width / 2, tp.height / 2));
+        }
+      }
+      case 'ghost': {
+        final sway = math.sin(t * math.pi * 4) * unit * .4;
+        _emoji(canvas, c + Offset(sway, -unit * .5 - t * unit * .6), unit * .9, angle: math.sin(t * 12) * .12, opacity: a * (t < .85 ? .9 : .9 * (1 - (t - .85) / .15)));
+        if (t > .2 && t < .75) {
+          final tp = TextPainter(text: TextSpan(text: 'BÖÖ!', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: unit * .34, color: Colors.white.withValues(alpha: .9 * a))), textDirection: TextDirection.ltr)..layout();
+          tp.paint(canvas, c + Offset(sway + unit * .4, -unit * 1.3));
+        }
+      }
+      case 'fire': {
+        for (var i = 0; i < 9; i++) {
+          final b = _bits[i];
+          final q = ((t * 1.6 + i * .11) % 1.0);
+          final p = c + Offset(b.dx * unit * .5, -q * unit * 1.2);
+          final tp = TextPainter(text: TextSpan(text: '🔥', style: TextStyle(fontSize: unit * (.5 - .3 * q), color: Colors.white.withValues(alpha: (1 - q) * a))), textDirection: TextDirection.ltr)..layout();
+          tp.paint(canvas, p - Offset(tp.width / 2, tp.height / 2));
+        }
+      }
+      case 'applause': {
+        for (var i = 0; i < 5; i++) {
+          final ang = -math.pi / 2 + (i - 2) * .55;
+          final q = Curves.easeOutBack.transform(((t - i * .05) / .4).clamp(0.0, 1.0));
+          final p = c + Offset(math.cos(ang), math.sin(ang)) * unit * .9 * q;
+          _emoji(canvas, p, unit * .45, angle: math.sin(t * 30 + i) * .25, opacity: a);
+        }
+        final tp = TextPainter(text: TextSpan(text: 'BRAVO!', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: unit * .34, color: const Color(0xFFFFD34D).withValues(alpha: a))), textDirection: TextDirection.ltr)..layout();
+        tp.paint(canvas, c + Offset(-tp.width / 2, unit * .35));
+      }
+      case 'simit':
+      case 'lokum':
+      case 'doner':
+      case 'ayran': {
+        // İkram: küçük tabak iner, üstünde yiyecek, parıltı (+ döner için buhar)
+        final land = Curves.easeOutBack.transform((t / .25).clamp(0.0, 1.0));
+        final plate = c + Offset(unit * .6, unit * .35 + (1 - land) * -unit * .5);
+        canvas.drawOval(Rect.fromCenter(center: plate + Offset(0, unit * .18), width: unit * .95, height: unit * .26), Paint()..color = const Color(0xFFF4F1EA).withValues(alpha: a));
+        canvas.drawOval(Rect.fromCenter(center: plate + Offset(0, unit * .18), width: unit * .95, height: unit * .26), Paint()..color = const Color(0xFFE0A63A).withValues(alpha: a)..style = PaintingStyle.stroke..strokeWidth = 2);
+        _emoji(canvas, plate - Offset(0, unit * .08), unit * .6, opacity: a);
+        if (kind == 'doner') _steam(canvas, plate - Offset(0, unit * .45));
+        for (var i = 0; i < 4; i++) {
+          final ang = t * math.pi * 3 + i * math.pi / 2;
+          _drawSpark(canvas, plate + Offset(math.cos(ang) * unit * .55, math.sin(ang) * unit * .25 - unit * .2), unit * .08, a);
+        }
+      }
       default:
         _emoji(canvas, c + Offset(0, -unit * .7 - t * unit * .4), unit * .75 * Curves.easeOutBack.transform((t / .25).clamp(0.0, 1.0)), opacity: a);
         for (var i = 0; i < 10; i++) {
