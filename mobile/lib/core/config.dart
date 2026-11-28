@@ -1,7 +1,7 @@
 class AppConfig {
   static const appName = 'OkeyX';
-  static const versionName = String.fromEnvironment('OKEYX_VERSION', defaultValue: '20.8.3');
-  static const buildNumber = int.fromEnvironment('OKEYX_BUILD', defaultValue: 283);
+  static const versionName = String.fromEnvironment('OKEYX_VERSION', defaultValue: '20.8.4');
+  static const buildNumber = int.fromEnvironment('OKEYX_BUILD', defaultValue: 284);
   static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   static const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
   /// Google Cloud'daki "Web application" OAuth istemci kimliği (gizli değil).

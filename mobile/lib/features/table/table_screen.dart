@@ -54,7 +54,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   String _connection = 'BAĞLANIYOR';
   String _error = '';
   String? _selectedTileId;
-  static const int _rackCols = 15;
+  static const int _rackCols = 18;
   static const int _rackRows = 2;
   static const int _rackSlotCount = _rackCols * _rackRows;
 
@@ -3880,8 +3880,14 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           var tileHeight = constraints.maxHeight
               .clamp(20.0, narrow ? 69.0 : 80.0)
               .toDouble();
-          var tileWidth = (tileHeight * .68)
-              .clamp(narrow ? 24.0 : 30.0, narrow ? 51.0 : 55.0)
+          // Istakanın tamamı kullanılsın: taş genişliği, 18 yuvanın ıstakayı
+          // soldan sağa dolduracağı kadar seçilir (taş oranı .62–.80 arası).
+          final rackInsetFit = compact ? 8.0 : 12.0;
+          final startFit = compact ? 3.0 : 5.0;
+          final fillWidth = (constraints.maxWidth - rackInsetFit - startFit - canonicalBreakCount * groupGap) / (_rackCols * .955);
+          var tileWidth = fillWidth
+              .clamp(tileHeight * .62, tileHeight * .80)
+              .clamp(narrow ? 20.0 : 26.0, narrow ? 60.0 : 64.0)
               .toDouble();
           // Taş görselinin iki yanında ~%4 şeffaf pay var; yuvalar bu payı
           // örtecek kadar sık dizilir, ıstakadaki taşlar gerçek gibi bitişik durur.

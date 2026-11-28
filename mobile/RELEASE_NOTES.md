@@ -1,3 +1,7 @@
+OKEYX 20.8.4
+
+• Istaka artık soldan sağa tamamen kullanılıyor: her sırada 18 yuva, taşlar ıstakayı dolduracak boyda.
+
 OKEYX 20.8.3
 
 • Taş sayıları her zaman taşın tam ortasında (20.8.2'de tek haneliler sola kaymıştı).
