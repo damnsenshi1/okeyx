@@ -337,11 +337,13 @@ class _UniformNumber extends StatelessWidget {
       width: maxWidth,
       height: h,
       child: OverflowBox(
+        minWidth: 0,
         maxWidth: double.infinity,
+        alignment: Alignment.center,
         child: Transform(
           alignment: Alignment.center,
           transform: Matrix4.diagonal3Values(sx, 1, 1),
-          child: Text(text, maxLines: 1, softWrap: false, style: style),
+          child: Text(text, maxLines: 1, softWrap: false, textAlign: TextAlign.center, style: style),
         ),
       ),
     );

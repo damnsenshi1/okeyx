@@ -1508,12 +1508,15 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
           Expanded(
             child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               if (!tight)
-                Text(
-                  ready ? 'AÇABİLİRSİN' : reached ? 'PERLERİ DÜZENLE' : 'AÇILIŞ • ${t - value} KALDI',
-                  maxLines: 1,
-                  overflow: TextOverflow.fade,
-                  softWrap: false,
-                  style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7, color: accent),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    ready ? 'AÇABİLİRSİN' : reached ? 'PERLERİ DÜZENLE' : '${t - value} KALDI',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7, color: accent),
+                  ),
                 ),
               const SizedBox(height: 3),
               ClipRRect(

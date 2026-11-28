@@ -1302,7 +1302,10 @@ class _HomeShellState extends State<HomeShell> {
     final chests = _map(_account['chests']);
     final keys = _integer(chests['keys']);
     final chestFreeDone = '${chests['last_free_day'] ?? ''}' == _todayKey;
-    final chestReady = keys > 0 || !chestFreeDone;
+    final chestLimit = math.max(1, _integer(_map(_rewardConfig['chest'])['daily_limit'], fallback: 5));
+    final chestOpened = '${chests['day'] ?? ''}' == _todayKey ? _integer(chests['opened_today']) : 0;
+    final chestFull = chestOpened >= chestLimit;
+    final chestReady = !chestFull && (keys > 0 || !chestFreeDone);
     final ready = (dailyDone ? 0 : 1) + (wheelUsed < wheelLimit ? 1 : 0) + (chestReady ? 1 : 0);
     Widget row(IconData icon, String title, String sub, String action, bool enabled, Future<void> Function() onTap, {bool green = false}) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 7),
@@ -1343,7 +1346,7 @@ class _HomeShellState extends State<HomeShell> {
         const SizedBox(height: 6),
         row(Icons.calendar_month_rounded, 'Günlük ödül', dailyDone ? '$_dailyResetText sonra yenilenir' : '${_integer(daily['streak']) + 1}. gün hazır', dailyDone ? 'ALINDI' : 'AL', !dailyDone, _claimDaily, green: true),
         row(Icons.casino_rounded, 'Şans çarkı', wheelUsed < wheelLimit ? '${wheelLimit - wheelUsed} ücretsiz çevirme' : '$_dailyResetText sonra', 'ÇEVİR', wheelUsed < wheelLimit, _spinWheel),
-        row(Icons.inventory_2_rounded, 'Sandık', keys > 0 ? '$keys anahtar' : (chestFreeDone ? '$_dailyResetText sonra ücretsiz' : 'Bugün ücretsiz'), 'AÇ', chestReady, _openChest),
+        row(Icons.inventory_2_rounded, 'Sandık', chestFull ? '$chestOpened/$chestLimit bugün • $_dailyResetText sonra' : keys > 0 ? '$keys anahtar • $chestOpened/$chestLimit bugün' : (chestFreeDone ? '$_dailyResetText sonra ücretsiz' : 'Bugün ücretsiz'), chestFull ? 'BİTTİ' : 'AÇ', chestReady, _openChest),
       ]),
     );
   }
@@ -2457,7 +2460,7 @@ class _HomeShellState extends State<HomeShell> {
       detail,
       canOpen
           ? FilledButton(onPressed: _busy ? null : _openChest, child: const Text('AÇ'))
-          : FilledButton(onPressed: null, child: Text(completed ? 'TAMAMLANDI' : 'ANAHTAR YOK')),
+          : FilledButton(onPressed: null, child: FittedBox(fit: BoxFit.scaleDown, child: Text(completed ? 'BİTTİ' : 'ANAHTAR YOK', maxLines: 1, softWrap: false))),
     );
   }
 
@@ -3628,7 +3631,7 @@ class _HomeShellState extends State<HomeShell> {
           await _showRewardBurst('ŞANS SANDIĞI', reward, Icons.inventory_2_rounded);
         } else {
           final code='${out['code'] ?? ''}';
-          _flash(code=='no_chest_key' ? 'Bugünkü ücretsiz sandık kullanıldı ve anahtarın kalmadı.' : 'Sandık şu anda açılamıyor.');
+          _flash(code=='no_chest_key' ? 'Bugünkü ücretsiz sandık kullanıldı ve anahtarın kalmadı.' : code=='daily_chest_limit' ? 'Bugünkü sandık hakkın doldu, yarın yenilenir.' : 'Sandık şu anda açılamıyor.');
         }
         unawaited(_refreshAccountBits());
       });

@@ -1,3 +1,9 @@
+OKEYX 20.8.3
+
+• Taş sayıları her zaman taşın tam ortasında (20.8.2'de tek haneliler sola kaymıştı).
+• Açılış çubuğundaki yazı artık kesilmiyor.
+• Sandık: günlük hak dolunca ana sayfada AÇ yerine BİTTİ yazar; TAMAMLANDI yazısının bölünmesi düzeltildi.
+
 OKEYX 20.8.2
 
 • Soldan gelen taş: zaten açabiliyor olsan bile taş açılış puanını artırıyorsa (ya da bir çift daha kuruyorsa) "İŞİNE YARAR" diye parlar ve kaç puana çıkacağını yazar.
