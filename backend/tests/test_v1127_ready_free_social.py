@@ -47,7 +47,8 @@ def test_direct_gifts_are_free_and_retry_safe(tmp_path,monkeypatch):
     assert store.get('p1')['chips']==before
     recipient=store.get('p2')
     assert len(recipient['gifts_received'])==1 and recipient['gifts_received'][0]['cost']==0
-    assert len([n for n in recipient['notifications'] if n['kind']=='gift_received'])==1
+    # Masa içi hediye ekranda oynar; telefona bildirim (push) düşmez.
+    assert len([n for n in recipient['notifications'] if n['kind']=='gift_received'])==0
 
 def test_gift_store_request_id_is_idempotent_and_bound_to_payload(tmp_path):
     store=_store(tmp_path)

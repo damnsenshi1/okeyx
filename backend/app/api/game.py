@@ -1485,7 +1485,7 @@ async def table_chat(room_id:str,body:ChatIn):
                 return {'ok':False,'code':'insufficient_coins','required':cost}
             value=str(gift['name'])
         elif from_id and to_id:
-            g=STORE.send_gift(from_id,to_id,value,body.request_id)
+            g=STORE.send_gift(from_id,to_id,value,body.request_id,notify=False)
             if not g.get('ok'):return g
             value=str(g.get('gift',{}).get('name') or gift['name'])
         else:

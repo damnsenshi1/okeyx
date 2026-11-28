@@ -352,6 +352,22 @@ class GameApiClient {
     return out;
   }
 
+  /// Masa hâlâ sunucuda mı? (Yeni masa açmaz.) Varsa durumu alıp true döner.
+  Future<bool> probeRoom() async {
+    final id = roomId;
+    final token = reconnectToken;
+    if (id == null || token == null || _disposed) return false;
+    try {
+      final state = await _get('/api/game/$id', {'seat': '$seat', 'reconnect_token': token});
+      onConnection(true, 'CANLI');
+      _acceptState(state);
+      unawaited(_connectSocket());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> refresh() async {
     final id = roomId;
     final token = reconnectToken;

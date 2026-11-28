@@ -198,12 +198,18 @@ class RemoteMirror:
 def restore_from_remote(kv, path: str) -> bool:
     """Yerel dosya yoksa Supabase'teki son anlık görüntüyü diske yazar (imza yüklemede doğrulanır)."""
     target = Path(path)
-    if target.exists():
-        return False
     try:
         row = kv.get(REMOTE_KEY)
         if not row or not row.get('b64'):
             return False
+        # Yerel dosya varsa bile uzaktaki daha yeniyse onu kullan: süreç
+        # yeniden başladığında diskte eski bir anlık görüntü kalmış olabilir.
+        if target.exists():
+            try:
+                if target.stat().st_mtime >= float(row.get('at') or 0):
+                    return False
+            except Exception:
+                pass
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(base64.b64decode(row['b64']))
         return True

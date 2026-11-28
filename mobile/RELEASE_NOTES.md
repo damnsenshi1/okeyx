@@ -1,3 +1,13 @@
+OKEYX 20.8.0
+
+• Kural: soldan aldığın taş seri açılışında olmasa da aynı tur çifte ya da pere işlenebiliyorsa seri açabilirsin (taşı kullanmadan atamazsın).
+• Açılış çubuğunda seri puanının yanında ÇİFT x/5 de her zaman görünür.
+• Sağ üstte MENÜ: Puan tablosu (2-3 elli maçlarda el el puanlar), masa ayarları, masadan çık.
+• Hediyeler her oyuncuda aynı sırayla ve bir kez oynar; kendi hediyen başkasınınkiyle çakışmaz.
+• Masa içi hediyeler telefona bildirim olarak düşmez (sadece profilden gönderilenler).
+• Sunucu güncellenirken kısa kopukluklarda "Masa kapandı" demek yerine 30 sn yeniden bağlanmayı dener; sunucu açılışta en yeni masa kaydını yükler.
+• Güvenlik (Codex incelemesi): başka koltuğun özel durumu sızmaz, engellenen oyuncu davet/hediye gönderemez, tekrarlanan istekler iki kez işlenmez.
+
 OKEYX 20.7.0
 
 • Yeni masa düzeni (101 Plus tarzı): ıstaka düz, önden görünür ve ekranın neredeyse tamamını kaplar; taşlar daha büyük.

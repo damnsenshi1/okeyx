@@ -406,9 +406,8 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                   SizedBox(width: gap * 2),
                   _pingIcon(f),
                   SizedBox(width: gap),
-                  _roundIcon(Icons.settings_rounded, () => unawaited(_showTableMenu()), f),
-                  SizedBox(width: gap),
-                  _roundIcon(Icons.logout_rounded, () => unawaited(_requestLeaveTable()), f),
+                  // Menü: puan tablosu, ayarlar, masadan çık (üst çubuk sadeleşir).
+                  _roundIcon(Icons.menu_rounded, () => unawaited(_showSideMenu()), f),
                 ]),
               ),
               // Seri ve çift alanları (ıstaka genişliğinde, ıstakaya kadar)
@@ -1453,7 +1452,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
 
   /// 101 açılış sayacı: büyük rakam, pirinç çerçeve, dolan altın şerit.
   /// Hazır olunca zümrüt ışık; hiçbir zaman ıstakanın üstüne taşmaz.
-  Widget _openingMeterBar(int value, int target, {required bool canOpen}) {
+  Widget _openingMeterBar(int value, int target, {required bool canOpen, int pairs = -1, int pairTarget = 5, bool pairReady = false}) {
     final t = target <= 0 ? 1 : target;
     final ready = canOpen;
     final reached = value >= t;
@@ -1487,6 +1486,26 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               Text(' / $t', style: const TextStyle(fontFamily: OkeyXFonts.number, fontSize: 12, height: 1, color: Color(0xB3FFE9B0))),
             ]),
           ),
+          // Çift sayısı da hep görünür: seri puanının yanında ÇİFT x/5.
+          if (pairs >= 0) ...[
+            const SizedBox(width: 7),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: (pairReady || pairs >= pairTarget ? emerald : const Color(0xFF6CE5FF)).withValues(alpha: .14),
+                border: Border.all(color: (pairReady || pairs >= pairTarget ? emerald : const Color(0xFF6CE5FF)).withValues(alpha: .7)),
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                  const Text('ÇİFT ', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .5, color: Color(0xFFBFF4FF))),
+                  Text('$pairs', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: 16, height: 1, color: pairReady || pairs >= pairTarget ? emerald : const Color(0xFF6CE5FF))),
+                  Text('/$pairTarget', style: const TextStyle(fontFamily: OkeyXFonts.number, fontSize: 10, height: 1, color: Color(0xB3BFF4FF))),
+                ]),
+              ),
+            ),
+          ],
           const SizedBox(width: 8),
           Expanded(
             child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1610,14 +1629,14 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         ready: true,
       );
     } else {
-      meter = _openingMeterBar(score, threshold, canOpen: _actions['open_series'] == true);
+      meter = _openingMeterBar(score, threshold, canOpen: _actions['open_series'] == true, pairs: pairs, pairTarget: pairThreshold, pairReady: _actions['open_pairs'] == true);
     }
 
     return LayoutBuilder(builder: (context, constraints) {
       // Çubuk ıstakanın üstündeki 42 tasarım pikseline sığar. İkinci satıra
       // geçmez; işlem butonları kendi yatay kaydırma alanında kalır.
       final available = constraints.maxWidth;
-      final meterWidth = (available * (buttons.isEmpty ? .56 : .36)).clamp(120.0, 250.0).toDouble();
+      final meterWidth = (available * (buttons.isEmpty ? .56 : .42)).clamp(150.0, 300.0).toDouble();
       return SizedBox(
         height: f.y(36),
         child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -3506,8 +3525,10 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
                     left:0,right:0,top:58,
                     child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:560),child:_errorBanner())),
                   ),
-                if (_error.contains('Masa artık mevcut değil'))
+                if (_error.contains('Masa artık mevcut değil') && _roomGoneConfirmed)
                   Positioned.fill(child: _roomClosedDialog()),
+                if (_error.contains('Masa artık mevcut değil') && !_roomGoneConfirmed)
+                  Positioned(left: 0, right: 0, top: 70, child: Center(child: _reconnectingPill())),
                 if (_eventText.isNotEmpty && _eventType != 'opened' && _eventType != 'one_tile')
                   Positioned(
                     top: 58,
@@ -5209,6 +5230,15 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
             reactions.add(event);
             setState(() => _state = {..._state, 'reactions': reactions});
           }
+          // Kendi hediyen de diğer oyuncularınkiyle aynı sıradan oynar:
+          // sunucudan geri geldiğinde ikinci kez oynamaz, başkasınınkiyle çakışmaz.
+          if (id.isNotEmpty && id != _lastQueuedGiftId && !_giftQueue.any((r) => '${r['id']}' == id)) {
+            _giftQueue.add(event);
+            _lastQueuedGiftId = id;
+            _pumpGiftQueue();
+          }
+          if (_vibrationEnabled) unawaited(HapticFeedback.selectionClick());
+          return true;
         } else {
           final chat = _list(_state['chat']).map(_map).where((e) => '${e['kind']}' != 'gift').toList();
           if (id.isNotEmpty && !chat.any((row) => '${row['id'] ?? ''}' == id)) {
@@ -6100,6 +6130,53 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
         ),
       );
 
+  // Sunucu güncellenirken (1–2 dk) masa kısa süre bulunamayabilir. Hemen
+  // "masa kapandı" demek yerine 30 sn boyunca yeniden bağlanmayı dene.
+  bool _roomGoneConfirmed = false;
+  bool _roomCheckRunning = false;
+
+  void _verifyRoomGone() {
+    if (_roomCheckRunning || _roomGoneConfirmed) return;
+    _roomCheckRunning = true;
+    () async {
+      for (var i = 0; i < 8; i++) {
+        await Future<void>.delayed(Duration(seconds: i < 2 ? 2 : 4));
+        if (!mounted) return;
+        try {
+          final ok = await _api.probeRoom();
+          if (!mounted) return;
+          if (ok) {
+            setState(() {
+              _error = '';
+              _roomCheckRunning = false;
+            });
+            _tableNotice('Bağlantı geri geldi, oyuna devam.');
+            return;
+          }
+        } catch (_) {}
+      }
+      if (mounted) {
+        setState(() {
+          _roomGoneConfirmed = true;
+          _roomCheckRunning = false;
+        });
+      }
+    }();
+  }
+
+  Widget _reconnectingPill() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _verifyRoomGone());
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(color: const Color(0xEE1B124A), borderRadius: BorderRadius.circular(16), border: Border.all(color: OkeyXColors.gold.withValues(alpha: .5))),
+      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.4)),
+        SizedBox(width: 10),
+        Text('Sunucuya yeniden bağlanılıyor…', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: Colors.white)),
+      ]),
+    );
+  }
+
   Widget _roomClosedDialog() => Material(
         color: const Color(0xCC000000),
         child: Center(
@@ -6488,6 +6565,156 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
   }
   String _money(int value) => '${value.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.')} altın';
   String _signedMoney(int value) => '${value >= 0 ? '+' : '-'}${_money(value.abs())}';
+
+  /// Sağ üst menü: puan tablosu, masa ayarları, çıkış.
+  Future<void> _showSideMenu() async {
+    if (!mounted) return;
+    final maxRounds = _integer(_state['max_rounds'], fallback: 1);
+    final roundIndex = _integer(_state['round_index'], fallback: 1);
+    final choice = await showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Menü',
+      barrierColor: const Color(0x99000000),
+      transitionDuration: const Duration(milliseconds: 220),
+      transitionBuilder: (context, a, _, child) => SlideTransition(
+        position: Tween(begin: const Offset(0, -.08), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+        child: FadeTransition(opacity: a, child: child),
+      ),
+      pageBuilder: (context, _, __) => SafeArea(
+        child: Align(
+          alignment: Alignment.topRight,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 54, right: 10),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 260,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF241657), Color(0xFF120B32)]),
+                  border: Border.all(color: OkeyXColors.gold.withValues(alpha: .45)),
+                  boxShadow: const [BoxShadow(color: Color(0xAA000000), blurRadius: 24, offset: Offset(0, 10))],
+                ),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  _menuRow(context, 'score', Icons.leaderboard_rounded, 'PUAN TABLOSU', 'El $roundIndex / $maxRounds'),
+                  _menuRow(context, 'settings', Icons.settings_rounded, 'MASA AYARLARI', 'Ses, titreşim, hediye, sohbet'),
+                  _menuRow(context, 'leave', Icons.logout_rounded, 'MASADAN ÇIK', null, danger: true),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case 'score':
+        await _showScoreTable();
+      case 'settings':
+        await _showTableMenu();
+      case 'leave':
+        await _requestLeaveTable();
+    }
+  }
+
+  Widget _menuRow(BuildContext ctx, String id, IconData icon, String title, String? sub, {bool danger = false}) => InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(ctx).pop(id),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Row(children: [
+            Icon(icon, color: danger ? OkeyXColors.danger : OkeyXColors.gold, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: .4, color: danger ? OkeyXColors.danger : Colors.white)),
+                if (sub != null) Text(sub, style: const TextStyle(fontSize: 10.5, color: Colors.white60, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+          ]),
+        ),
+      );
+
+  /// El el puan tablosu (2 ve 3 elli maçlarda maçın gidişatı).
+  Future<void> _showScoreTable() async {
+    final history = _list(_state['round_history']).map(_map).where((h) => h['cancelled'] != true).toList();
+    final totals = _map(_state['total_scores']);
+    final maxRounds = _integer(_state['max_rounds'], fallback: 1);
+    final players = [for (var seat = 0; seat < 4; seat++) _playerAtSeat(seat)];
+    final paired = '${_state['team_mode'] ?? ''}' == 'paired';
+    String nameOf(int seat) {
+      final p = players[seat];
+      final n = '${p['name'] ?? 'Oyuncu'}';
+      return seat == _viewerSeat ? '$n (sen)' : n;
+    }
+    // Düşük puan iyidir (101'de ceza puanı): sıralama toplam puana göre artan.
+    final order = [0, 1, 2, 3]..sort((a, b) => _integer(totals['$a']).compareTo(_integer(totals['$b'])));
+    await showDialog<void>(
+      context: context,
+      barrierColor: const Color(0xCC05030F),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 640),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF241657), Color(0xFF0F0A2C)]),
+            border: Border.all(color: OkeyXColors.gold.withValues(alpha: .5)),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              const Icon(Icons.leaderboard_rounded, color: OkeyXColors.gold),
+              const SizedBox(width: 8),
+              Expanded(child: Text('PUAN TABLOSU • ${history.length} / $maxRounds EL', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: .6, color: Colors.white))),
+              IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded, color: Colors.white70)),
+            ]),
+            const SizedBox(height: 6),
+            Flexible(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowHeight: 34,
+                  dataRowMinHeight: 34,
+                  dataRowMaxHeight: 40,
+                  columnSpacing: 22,
+                  headingTextStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: OkeyXColors.gold, letterSpacing: .5),
+                  dataTextStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white),
+                  columns: [
+                    const DataColumn(label: Text('OYUNCU')),
+                    for (var i = 0; i < maxRounds; i++) DataColumn(numeric: true, label: Text('${i + 1}. EL')),
+                    const DataColumn(numeric: true, label: Text('TOPLAM')),
+                  ],
+                  rows: [
+                    for (final seat in order)
+                      DataRow(
+                        color: WidgetStatePropertyAll(seat == _viewerSeat ? const Color(0x2254E2BE) : Colors.transparent),
+                        cells: [
+                          DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                            if (seat == order.first && history.isNotEmpty) const Padding(padding: EdgeInsets.only(right: 4), child: Text('👑')),
+                            Text(nameOf(seat)),
+                            if (paired) Text(seat % 2 == _viewerSeat % 2 ? '  • EŞİN' : '', style: const TextStyle(fontSize: 10, color: OkeyXColors.mint)),
+                          ])),
+                          for (var i = 0; i < maxRounds; i++)
+                            DataCell(Text(i < history.length ? '${_integer(_map(history[i]['scores'])['$seat'])}' : '—', style: TextStyle(color: i < history.length && _integer(history[i]['winner_seat'], fallback: -1) == seat ? OkeyXColors.mint : Colors.white))),
+                          DataCell(Text('${_integer(totals['$seat'])}', style: const TextStyle(fontFamily: OkeyXFonts.number, color: OkeyXColors.gold))),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text('Düşük puan kazandırır. Yeşil: o eli bitiren.', style: TextStyle(fontSize: 10.5, color: Colors.white54, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
+    );
+  }
 
   Future<void> _showTableMenu() async {
     if (!mounted) return;

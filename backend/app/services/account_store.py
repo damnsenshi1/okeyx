@@ -769,7 +769,7 @@ class AccountStore:
             req=[self.public(fid) for fid in a['friend_requests']]
             return {'friends':[x for x in friends if x],'requests':[x for x in req if x],'sent_requests':list(a.get('sent_friend_requests',[])),'recent_players':deepcopy(a['recent_players'])}
 
-    def send_gift(self,from_id:str,to_id:str,gift_type:str,request_id:str|None=None)->dict:
+    def send_gift(self,from_id:str,to_id:str,gift_type:str,request_id:str|None=None,notify:bool=True)->dict:
         if gift_type not in GIFT_CATALOG:return {'ok':False,'code':'gift_not_found'}
         if from_id==to_id:return {'ok':False,'code':'cannot_gift_self'}
         with self._lock:
@@ -791,7 +791,9 @@ class AccountStore:
                 requests[request_id]={'fingerprint':fingerprint,'result':deepcopy(result)}
                 if len(requests)>100:
                     for key in list(requests)[:-80]:requests.pop(key,None)
-            self.add_notification(to_id,'Yeni hediye',f'{a["name"]} sana {gift["name"]} gönderdi.','gift_received',{'from_id':from_id,'gift_id':item['id'],'gift_type':gift_type})
+            # Masa içi hediyeler (domates, çay…) ekranda zaten oynar; telefona
+            # bildirim yalnız profilden gönderilen hediyeler için düşer.
+            if notify:self.add_notification(to_id,'Yeni hediye',f'{a["name"]} sana {gift["name"]} gönderdi.','gift_received',{'from_id':from_id,'gift_id':item['id'],'gift_type':gift_type})
             self._save();return result
 
     def record_round(self,player_id:str,*,opening_mode:str|None=None,winner:bool=False,okey_finish:bool=False,pair_finish:bool=False):
