@@ -4,6 +4,26 @@ import 'package:okeyx_mobile/widgets/real_rack.dart';
 import 'package:okeyx_mobile/widgets/tile_widget.dart';
 
 void main() {
+  test('rack row fits narrow widths including leading inset and group gaps', () {
+    const width = 250.0;
+    const slots = 292.0;
+    const inset = 8.0;
+    final scale = rackContentScale(
+      availableWidth: width - inset,
+      slotContentWidth: slots,
+      leadingInset: 3,
+    );
+    expect(scale, closeTo((width - inset - 3) / slots, 1e-9));
+    expect(3 + slots * scale, lessThanOrEqualTo(width - inset + 1e-9));
+  });
+
+  test('rack row scale remains finite at zero and tiny constraints', () {
+    expect(rackContentScale(availableWidth: 0, slotContentWidth: 80, leadingInset: 5), 0);
+    expect(rackContentScale(availableWidth: 10, slotContentWidth: 80, leadingInset: 20), 0);
+    expect(rackContentScale(availableWidth: double.infinity, slotContentWidth: 80, leadingInset: 5), 0);
+  });
+
+
   test('kozmetik ve yerel tercih doğru ıstaka stiline eşlenir', () {
     expect(realRackStyle(equipped: 'rack_neon'), 'neon');
     expect(realRackStyle(equipped: 'rack_classic', local: 'oak'), 'classic');

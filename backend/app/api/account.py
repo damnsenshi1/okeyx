@@ -1,7 +1,7 @@
 from __future__ import annotations
 import secrets
 from fastapi import APIRouter, HTTPException, Header, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.services.account_store import STORE,GIFT_CATALOG,_day_key,seen_recently
 from app.core.config import settings
 import httpx
@@ -46,6 +46,7 @@ class GiftIn(BaseModel):
     from_id:str
     to_id:str
     gift_type:str
+    request_id:str|None=Field(default=None,max_length=80)
 
 class CoinTransferIn(BaseModel):
     from_id:str
@@ -185,11 +186,12 @@ def _force_local_relationship(me:str,target:str,relationship:str):
         a['friends']=[x for x in a['friends'] if x!=target]; b['friends']=[x for x in b['friends'] if x!=me]
         a['friend_requests']=[x for x in a['friend_requests'] if x!=target]; b['friend_requests']=[x for x in b['friend_requests'] if x!=me]
         a['sent_friend_requests']=[x for x in a['sent_friend_requests'] if x!=target]; b['sent_friend_requests']=[x for x in b['sent_friend_requests'] if x!=me]
-        if relationship=='friend':
+        blocked=target in a.get('blocked',[]) or me in b.get('blocked',[])
+        if relationship=='friend' and not blocked:
             a['friends'].append(target); b['friends'].append(me)
-        elif relationship=='sent':
+        elif relationship=='sent' and not blocked:
             a['sent_friend_requests'].append(target); b['friend_requests'].append(me)
-        elif relationship=='incoming':
+        elif relationship=='incoming' and not blocked:
             a['friend_requests'].append(target); b['sent_friend_requests'].append(me)
         STORE._save()
 
@@ -495,8 +497,8 @@ def gifts_catalog():
 @router.post('/social/gift')
 async def gift(body:GiftIn,x_account_token:str|None=Header(None)):
     _require_social(body.from_id,x_account_token,'gift_locked')
-    out=STORE.send_gift(body.from_id,body.to_id,body.gift_type)
-    await _refresh_tables(body.from_id,body.to_id)
+    out=STORE.send_gift(body.from_id,body.to_id,body.gift_type,body.request_id)
+    if out.get('ok'):await _refresh_tables(body.from_id,body.to_id)
     return out
 
 async def _refresh_tables(*ids:str)->None:
@@ -518,6 +520,7 @@ def invite(body:InviteIn,x_account_token:str|None=Header(None)):
     _require_social(body.from_id,x_account_token,'invite_locked')
     a=STORE.get(body.from_id);b=STORE.get(body.to_id)
     if not a or not b:return {'ok':False,'code':'user_not_found'}
+    if body.to_id in a.get('blocked',[]) or body.from_id in b.get('blocked',[]):return {'ok':False,'code':'relationship_blocked'}
     room_info={}
     try:
         from app.api.game import ROOM_META,ROOMS

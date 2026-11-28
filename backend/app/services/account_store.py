@@ -205,7 +205,7 @@ WEEKLY_MISSIONS=[
     {'id':'weekly_rounds_20','title':'20 el tamamla','target':20,'metric':'rounds','reward_chips':10000,'reward_xp':850},
 ]
 
-PUSH_KINDS={'friend_request','friend','invite','canak','vip','support','season','referral','tournament','daily_ready','event'}
+PUSH_KINDS={'friend_request','friend','invite','gift_received','canak','vip','support','season','referral','tournament','daily_ready','event'}
 
 class AccountStore:
     def __init__(self,path:Path=DATA_PATH,remote:'SupabaseKV|None'=None):
@@ -727,7 +727,9 @@ class AccountStore:
             if to_id in a.get('blocked',[]) or from_id in b.get('blocked',[]):return {'ok':False,'code':'relationship_blocked'}
             if to_id in a['friends']:return {'ok':False,'code':'already_friends'}
             if to_id in a.get('friend_requests',[]):return self.accept_friend(from_id,to_id)
-            if from_id not in b['friend_requests']:b['friend_requests'].append(from_id)
+            if from_id in b['friend_requests']:
+                return {'ok':True,'code':'already_requested'}
+            b['friend_requests'].append(from_id)
             if to_id not in a['sent_friend_requests']:a['sent_friend_requests'].append(to_id)
             self.add_notification(to_id,'Arkadaşlık isteği',f'{a["name"]} seni arkadaş olarak eklemek istiyor.','friend_request',{'from_id':from_id})
             self._save();return {'ok':True}
@@ -767,16 +769,30 @@ class AccountStore:
             req=[self.public(fid) for fid in a['friend_requests']]
             return {'friends':[x for x in friends if x],'requests':[x for x in req if x],'sent_requests':list(a.get('sent_friend_requests',[])),'recent_players':deepcopy(a['recent_players'])}
 
-    def send_gift(self,from_id:str,to_id:str,gift_type:str)->dict:
+    def send_gift(self,from_id:str,to_id:str,gift_type:str,request_id:str|None=None)->dict:
         if gift_type not in GIFT_CATALOG:return {'ok':False,'code':'gift_not_found'}
         if from_id==to_id:return {'ok':False,'code':'cannot_gift_self'}
         with self._lock:
             a=self._data['accounts'].get(from_id);b=self._data['accounts'].get(to_id)
             if not a or not b:return {'ok':False,'code':'user_not_found'}
+            if to_id in a.get('blocked',[]) or from_id in b.get('blocked',[]):return {'ok':False,'code':'relationship_blocked'}
+            request_id=(request_id or '').strip()[:80]
+            fingerprint=f'{to_id}:{gift_type}'
+            requests=a.setdefault('gift_requests',{})
+            if request_id and request_id in requests:
+                cached=requests[request_id]
+                if cached.get('fingerprint')!=fingerprint:return {'ok':False,'code':'idempotency_conflict'}
+                return deepcopy(cached['result'])
             gift=GIFT_CATALOG[gift_type]
             item={'id':uuid.uuid4().hex[:10],'from_id':from_id,'from_name':a['name'],'gift_type':gift_type,'name':gift['name'],'emoji':gift.get('emoji','🎁'),'cost':0,'persistent':bool(gift.get('persistent',False)),'created_at':_now()}
             b.setdefault('gifts_received',[]).insert(0,item);b['gifts_received']=b['gifts_received'][:80]
-            self._save();return {'ok':True,'gift':item,'cost':0,'wallet':{'coins':int(a.get('chips',0) or 0)}}
+            result={'ok':True,'gift':item,'cost':0,'wallet':{'coins':int(a.get('chips',0) or 0)}}
+            if request_id:
+                requests[request_id]={'fingerprint':fingerprint,'result':deepcopy(result)}
+                if len(requests)>100:
+                    for key in list(requests)[:-80]:requests.pop(key,None)
+            self.add_notification(to_id,'Yeni hediye',f'{a["name"]} sana {gift["name"]} gönderdi.','gift_received',{'from_id':from_id,'gift_id':item['id'],'gift_type':gift_type})
+            self._save();return result
 
     def record_round(self,player_id:str,*,opening_mode:str|None=None,winner:bool=False,okey_finish:bool=False,pair_finish:bool=False):
         with self._lock:
@@ -982,13 +998,20 @@ class AccountStore:
 
     def set_social_safety(self,player_id:str,target_id:str,kind:str,enabled:bool=True)->dict:
         if player_id==target_id:return {'ok':False,'code':'cannot_target_self'}
-        if target_id not in self._data['accounts']:return {'ok':False,'code':'user_not_found'}
         with self._lock:
-            a=self._data['accounts'][player_id]
+            a=self._data['accounts'].get(player_id);b=self._data['accounts'].get(target_id)
+            if not a or not b:return {'ok':False,'code':'user_not_found'}
             key='blocked' if kind=='block' else 'muted'
             arr=a.setdefault(key,[])
             if enabled and target_id not in arr:arr.append(target_id)
             if not enabled:a[key]=[x for x in arr if x!=target_id]
+            if kind=='block' and enabled:
+                a['friends']=[x for x in a.get('friends',[]) if x!=target_id]
+                b['friends']=[x for x in b.get('friends',[]) if x!=player_id]
+                a['friend_requests']=[x for x in a.get('friend_requests',[]) if x!=target_id]
+                b['friend_requests']=[x for x in b.get('friend_requests',[]) if x!=player_id]
+                a['sent_friend_requests']=[x for x in a.get('sent_friend_requests',[]) if x!=target_id]
+                b['sent_friend_requests']=[x for x in b.get('sent_friend_requests',[]) if x!=player_id]
             self._save();return {'ok':True,key:deepcopy(a[key])}
 
     def report_player(self,player_id:str,target_id:str,reason:str,room_id:str|None=None)->dict:

@@ -177,6 +177,8 @@ def test_opening_thresholds_exactly_101_and_five_pairs():
     pair = lambda i, c, n: [Tile(f'{i}a', c, n, False), Tile(f'{i}b', c, n, False)]
     five = [pair(i, Color.BLUE, i + 1) for i in range(5)]
     assert rules.validate_pair_opening(five).valid
+    triple = five[:4] + [[Tile('triple-a', Color.RED, 9, False), Tile('triple-b', Color.RED, 9, False), Tile('triple-c', Color.RED, 9, False)]]
+    assert not rules.validate_pair_opening(triple).valid
     assert not rules.validate_pair_opening(five[:4]).valid
     mismatched = five[:4] + [[Tile('p', Color.BLUE, 9, False), Tile('q', Color.RED, 9, False)]]
     assert not rules.validate_pair_opening(mismatched).valid

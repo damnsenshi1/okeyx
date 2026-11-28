@@ -8,6 +8,10 @@ from app.services.runtime_persistence import save_runtime, load_runtime, RemoteM
 from app.core.config import settings
 
 router=APIRouter(tags=['game'])
+MAX_SOCKET_MESSAGE_BYTES=16*1024
+
+def _socket_message_too_large(message:str)->bool:
+    return len(message.encode('utf-8'))>MAX_SOCKET_MESSAGE_BYTES
 
 def _now()->float:return time.time()
 
@@ -16,7 +20,7 @@ class ActionIn(BaseModel):
     kind:str
     payload:dict=Field(default_factory=dict)
     reconnect_token:str|None=None
-    request_id:str|None=None
+    request_id:str|None=Field(default=None,max_length=80)
 
 class CreateRoomIn(BaseModel):
     name:str='OkeyX Masası'
@@ -56,6 +60,7 @@ class ChatIn(BaseModel):
     kind:str='quick'  # quick | emoji | text | voice | gift
     value:str
     to_seat:int|None=None
+    request_id:str|None=Field(default=None,max_length=80)
 
 class LeaveIn(BaseModel):
     seat:int
@@ -249,7 +254,7 @@ def _ensure_meta(room_id:str,legacy:bool=False)->dict:
     if m:return m
     m={
         'owner_seat':0,'seat_tokens':{},'player_ids':{},'connected':{},'disconnect_at':{},
-        'afk_strikes':{0:0,1:0,2:0,3:0},'action_times':{},'chat_times':{},'dedupe':{},
+        'afk_strikes':{0:0,1:0,2:0,3:0},'action_times':{},'chat_times':{},'dedupe':{},'gift_dedupe':{},
         'economy_charged':False,'settled':False,'recorded_rounds':set(),'chat':[],'reactions':[],'legacy':legacy,'created_at':_now(),
         'password_hash':None,'invited_player_ids':set(),'chat_enabled':True,'gifts_enabled':True,'auto_rematch':False,
         'state_version':1,'quick_match':False,'bot_seats':set(),'spectators':{},'spectator_events':[]
@@ -972,17 +977,18 @@ async def quick_room(body:JoinRoomIn):
     account=_account(body.player_id,body.account_token)
     requested_fee=body.entry_fee if body.entry_fee in ALLOWED_ENTRY_FEES else 5000
     requested_turbo=bool(body.turbo) if body.turbo is not None else False
-    _preflight_balance(account,requested_fee,requested_turbo)
 
-    # If the same player already owns a live waiting quick room, restore it
-    # instead of creating duplicates on repeated taps/network retries.
+    # Reuse the player's active quick room, including a match that started
+    # after the first request. A retry must not create a second paid session.
     for rid,r in list(ROOMS.items()):
         meta=_ensure_meta(rid,legacy=True)
         seat=next((s for s,pid in meta.get('player_ids',{}).items() if pid==body.player_id),None)
-        if seat is not None and r.state.phase=='waiting' and meta.get('quick_match'):
-            _schedule_quick_fill(rid)
+        if seat is not None and not r.state.match_finished and meta.get('quick_match'):
+            if r.state.phase=='waiting':_schedule_quick_fill(rid)
             token=meta['seat_tokens'].get(seat) or _token();meta['seat_tokens'][seat]=token
             return {'room_id':rid,'seat':seat,'reconnect_token':token,'state':_state(rid,seat)}
+
+    _preflight_balance(account,requested_fee,requested_turbo)
 
     my_level=int(account.get('level',1) or 1)
     for rid,r in list(ROOMS.items()):
@@ -1067,19 +1073,19 @@ async def practice_room(body:JoinRoomIn):
 async def join_room(room_id:str,body:JoinRoomIn):
     r=ROOMS.get(room_id)
     if not r:raise HTTPException(404,'room_not_found')
-    if r.state.phase!='waiting':raise HTTPException(409,'room_already_started')
     account=_account(body.player_id,body.account_token)
-    _preflight_balance(account,r.state.entry_fee,r.state.turbo)
     m=_ensure_meta(room_id)
+    if body.player_id in m.get('player_ids',{}).values():
+        # Authenticated retry/rejoin of the same room, including after start.
+        seat=next(s for s,pid in m['player_ids'].items() if pid==body.player_id)
+        return {'room_id':room_id,'seat':seat,'reconnect_token':m['seat_tokens'][seat],'state':_state(room_id,seat)}
+    if r.state.phase!='waiting':raise HTTPException(409,'room_already_started')
+    _preflight_balance(account,r.state.entry_fee,r.state.turbo)
     password_hash=m.get('password_hash')
     invited=body.player_id in m.get('invited_player_ids',set())
     if password_hash and not invited:
         given=hashlib.sha256((body.password or '').encode('utf-8')).hexdigest()
         if not secrets.compare_digest(password_hash,given):raise HTTPException(401,'room_password_required')
-    if body.player_id in m.get('player_ids',{}).values():
-        # Authenticated rejoin of the same waiting room.
-        seat=next(s for s,pid in m['player_ids'].items() if pid==body.player_id)
-        return {'room_id':room_id,'seat':seat,'reconnect_token':m['seat_tokens'][seat],'state':_state(room_id,seat)}
     seat=body.seat if body.seat is not None and _seat_is_open(room_id,body.seat) else _free_human_seat(room_id)
     if seat is None:raise HTTPException(409,'room_full')
     token=_bind_human(room_id,seat,body.player_id,account['name'])
@@ -1137,8 +1143,9 @@ async def _execute_action(room_id:str,body:ActionIn):
     if not r:raise HTTPException(404,'room_not_found')
     m=_auth(room_id,body.seat,body.reconnect_token)
     _rate_limit(m,body.reconnect_token)
-    if body.request_id and body.request_id in m['dedupe']:
-        return m['dedupe'][body.request_id]
+    dedupe_key=f"{body.seat}:{body.request_id}" if body.request_id else None
+    if dedupe_key and dedupe_key in m['dedupe']:
+        return m['dedupe'][dedupe_key]
 
     # A valid reconnect token restores a human seat if a disconnect bot had taken it.
     if body.seat in m['player_ids'] and r.state.player(body.seat).bot:
@@ -1153,7 +1160,7 @@ async def _execute_action(room_id:str,body:ActionIn):
         owner=int(m.get('owner_seat',0) or 0)
         if not m.get('quick_match') and body.seat!=owner:
             response={'ok':False,'code':'host_only','payload':{},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-            if body.request_id:m['dedupe'][body.request_id]=response
+            if dedupe_key:m['dedupe'][dedupe_key]=response
             return response
         if not m.get('quick_match'):
             # Özel masada Hazır sistemi yok. Dört koltuk gerçek oyuncu veya
@@ -1161,12 +1168,12 @@ async def _execute_action(room_id:str,body:ActionIn):
             open_seats=[seat for seat in range(4) if seat not in m.get('player_ids',{}) and not (seat in m.setdefault('bot_seats',set()) and r.state.player(seat).bot)]
             if open_seats:
                 response={'ok':False,'code':'empty_seats','payload':{'seats':open_seats},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-                if body.request_id:m['dedupe'][body.request_id]=response
+                if dedupe_key:m['dedupe'][dedupe_key]=response
                 return response
             not_ready=[seat for seat in m.get('player_ids',{}) if seat!=owner and seat not in m.setdefault('ready_seats',set())]
             if not_ready and not bool((body.payload or {}).get('force')):
                 response={'ok':False,'code':'players_not_ready','payload':{'seats':not_ready},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-                if body.request_id:m['dedupe'][body.request_id]=response
+                if dedupe_key:m['dedupe'][dedupe_key]=response
                 return response
         # Hızlı eşleşmede varsayılan akış 15 sn gerçek oyuncu arar. Ancak
         # masa sahibi boş koltuklara BOT EKLE ile bot koyduysa bu botlar da
@@ -1181,11 +1188,11 @@ async def _execute_action(room_id:str,body:ActionIn):
                         'humans':humans,'bots':bots,'occupied':occupied,'empty':4-occupied,'required':4,
                     },'request_id':body.request_id,'state':_state(room_id,body.seat),
                 }
-                if body.request_id:m['dedupe'][body.request_id]=response
+                if dedupe_key:m['dedupe'][dedupe_key]=response
                 return response
             if body.seat != int(m.get('owner_seat',0) or 0):
                 response={'ok':False,'code':'host_only','payload':{},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-                if body.request_id:m['dedupe'][body.request_id]=response
+                if dedupe_key:m['dedupe'][dedupe_key]=response
                 return response
         ok,code=_charge_entries(room_id)
         if not ok:
@@ -1222,8 +1229,8 @@ async def _execute_action(room_id:str,body:ActionIn):
     # state, so every processed action advances a monotonic revision.
     _touch(room_id)
     response={'ok':result.ok,'code':result.code,'payload':result.payload or {},'request_id':body.request_id,'state':_state(room_id,body.seat)}
-    if body.request_id:
-        m['dedupe'][body.request_id]=response
+    if dedupe_key:
+        m['dedupe'][dedupe_key]=response
         if len(m['dedupe'])>80:
             for k in list(m['dedupe'])[:-60]:m['dedupe'].pop(k,None)
     # Acting client receives the canonical state in the action result. Peers
@@ -1421,6 +1428,9 @@ async def table_chat(room_id:str,body:ChatIn):
     r=ROOMS.get(room_id)
     if not r:raise HTTPException(404,'room_not_found')
     m=_auth(room_id,body.seat,body.reconnect_token)
+    gift_request_key=f'{body.seat}:{body.request_id}' if body.kind=='gift' and body.request_id else None
+    if gift_request_key and gift_request_key in m.setdefault('gift_dedupe',{}):
+        return m['gift_dedupe'][gift_request_key]
     sender_id=m.get('player_ids',{}).get(body.seat)
     if sender_id:
         from app.services.phase4_service import Phase4Service
@@ -1475,7 +1485,7 @@ async def table_chat(room_id:str,body:ChatIn):
                 return {'ok':False,'code':'insufficient_coins','required':cost}
             value=str(gift['name'])
         elif from_id and to_id:
-            g=STORE.send_gift(from_id,to_id,value)
+            g=STORE.send_gift(from_id,to_id,value,body.request_id)
             if not g.get('ok'):return g
             value=str(g.get('gift',{}).get('name') or gift['name'])
         else:
@@ -1490,8 +1500,13 @@ async def table_chat(room_id:str,body:ChatIn):
         event['gift_id']=gift_id
         event['style']=str(GIFT_CATALOG[gift_id].get('style','float'))
     _touch(room_id)
+    result={'ok':True,'event':event}
+    if gift_request_key:
+        cache=m['gift_dedupe'];cache[gift_request_key]=result
+        if len(cache)>80:
+            for key in list(cache)[:-60]:cache.pop(key,None)
     await _broadcast(room_id)
-    return {'ok':True,'event':event}
+    return result
 
 @router.websocket('/game/{room_id}/ws')
 async def game_ws(ws:WebSocket,room_id:str,seat:int=0,reconnect_token:str|None=None):
@@ -1509,12 +1524,20 @@ async def game_ws(ws:WebSocket,room_id:str,seat:int=0,reconnect_token:str|None=N
     SOCKETS.setdefault(room_id,{}).setdefault(seat,[]).append(ws)
     _touch(room_id)
     await _broadcast(room_id)
+    last_ping_at=0.0
+    last_sync_at=0.0
     try:
         while True:
             msg=await ws.receive_text()
+            if _socket_message_too_large(msg):
+                await ws.close(code=1009)
+                return
             if msg=='ping':
-                m['connected'][seat]=True
-                await ws.send_text('pong')
+                now=_now()
+                if now-last_ping_at>=0.5:
+                    last_ping_at=now
+                    m['connected'][seat]=True
+                    await ws.send_text('pong')
                 continue
             # V8 supports low-latency authoritative actions over the existing
             # authenticated game socket. HTTP remains a fallback for old clients.
@@ -1543,6 +1566,11 @@ async def game_ws(ws:WebSocket,room_id:str,seat:int=0,reconnect_token:str|None=N
                 except Exception as exc:
                     await ws.send_json({'type':'action_result','ok':False,'code':'socket_action_failed','request_id':packet.get('request_id'),'payload':{'error':type(exc).__name__},'state':_state(room_id,seat)})
             elif kind=='sync':
+                now=_now()
+                if now-last_sync_at<0.1:
+                    await ws.send_json({'type':'error','code':'sync_rate_limited'})
+                    continue
+                last_sync_at=now
                 await ws.send_json({'type':'state','state':_state(room_id,seat)})
             else:
                 await ws.send_json({'type':'error','code':'unknown_socket_message'})

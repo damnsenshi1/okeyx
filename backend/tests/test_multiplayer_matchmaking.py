@@ -71,4 +71,14 @@ def test_quick_match_four_humans_autostarts_same_authoritative_room(tmp_path, mo
     assert len(game.ROOM_META[room_id]['player_ids']) == 4
     assert int(final['state_version']) > 1
 
+    # Retried create/join requests must reuse the started match even after
+    # entry fees have reduced the player's wallet.
+    store._data['accounts']['p1']['chips'] = 0
+    store._save()
+    retry_quick = asyncio.run(game.quick_room(_join(store, 'p1')))
+    retry_join = asyncio.run(game.join_room(room_id, _join(store, 'p1')))
+    assert retry_quick['room_id'] == room_id and retry_quick['seat'] == results[0]['seat']
+    assert retry_join['room_id'] == room_id and retry_join['seat'] == results[0]['seat']
+    assert len(game.ROOMS) == 1
+
     _reset_runtime()

@@ -189,6 +189,9 @@ class GameApiClient {
     if (id == null || token == null) {
       throw const GameApiException('game_session_missing');
     }
+    final requestId = kind == 'gift'
+        ? '${DateTime.now().microsecondsSinceEpoch}-${_requestSequence++}'
+        : null;
     debugPrint('OKEYX_CHAT_REQUEST: room=$id seat=$seat kind=$kind to=${toSeat ?? '-'}');
     final out = await _post('/api/game/$id/chat', {
       'seat': seat,
@@ -196,6 +199,7 @@ class GameApiClient {
       'kind': kind,
       'value': value,
       'to_seat': toSeat,
+      if (requestId != null) 'request_id': requestId,
     });
     debugPrint('OKEYX_CHAT_RESULT: room=$id kind=$kind ok=${out['ok']} event=${_map(out['event'])['id'] ?? ''}');
     return out;

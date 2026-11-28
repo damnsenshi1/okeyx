@@ -63,8 +63,8 @@ jobs:
       - name: Paketler ve analiz
         working-directory: mobile
         shell: bash
-        continue-on-error: true
         run: |
+          set -o pipefail
           mkdir -p ../tour_out
           flutter pub get
           flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee ../tour_out/analiz.txt
@@ -72,8 +72,8 @@ jobs:
       - name: Testler
         working-directory: mobile
         shell: bash
-        continue-on-error: true
         run: |
+          set -o pipefail
           flutter test --reporter expanded 2>&1 | tee ../tour_out/testler.txt
           # Görsel kontrol: ıstaka kaplamalarının ekran görüntüsü
           OKEYX_GOLDENS=1 flutter test test/rack_golden_test.dart --update-goldens 2>&1 | tail -20 | tee -a ../tour_out/testler.txt || true

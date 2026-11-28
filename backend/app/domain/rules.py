@@ -129,6 +129,7 @@ class Rules101:
 
     def validate_pair_opening(self, pairs: Sequence[Sequence[Tile]], minimum_pairs:int=5)->ValidationResult:
         if len(pairs)<minimum_pairs: return ValidationResult(False, reason='not_enough_pairs')
+        if any(len(pair)!=2 for pair in pairs): return ValidationResult(False, reason='pair_size')
         score=0
         for p in pairs:
             r=self.validate_pair(p)
