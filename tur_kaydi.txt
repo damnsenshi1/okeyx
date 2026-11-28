@@ -1,0 +1,46 @@
+[05:50:27] uygulama başlatılıyor
+[05:51:17] ekran: 01_acilis.png (0 bayt)
+[05:51:27] UYARI: ekran dökümü alınamadı
+[05:51:27] ekran: 02_giris.png (0 bayt)
+[05:51:27] UYARI: ekran dökümü alınamadı
+[05:51:29] UYARI: ekran dökümü alınamadı
+[05:51:31] UYARI: ekran dökümü alınamadı
+[05:51:33] BULUNAMADI: MİSAFİR OYNA MISAFIR
+[05:51:33] UYARI: ekran dökümü alınamadı
+[05:51:36] UYARI: ekran dökümü alınamadı
+[05:51:36] ekran: 03_ana_sayfa.png (0 bayt)
+[05:51:40] UYARI: ekran dökümü alınamadı
+[05:51:40] ekran: 04_ana_sayfa_2.png (0 bayt)
+[05:51:40] UYARI: ekran dökümü alınamadı
+[05:51:42] UYARI: ekran dökümü alınamadı
+[05:51:44] UYARI: ekran dökümü alınamadı
+[05:51:46] BULUNAMADI: Masalar
+[05:51:47] ekran: 05_masalar.png (0 bayt)
+[05:51:47] UYARI: ekran dökümü alınamadı
+[05:51:49] UYARI: ekran dökümü alınamadı
+[05:51:51] UYARI: ekran dökümü alınamadı
+[05:51:53] BULUNAMADI: MASA KUR
+[05:51:56] UYARI: ekran dökümü alınamadı
+[05:51:58] UYARI: ekran dökümü alınamadı
+[05:52:00] UYARI: ekran dökümü alınamadı
+[05:52:02] BULUNAMADI: HIZLI OYNA OYNA
+[05:52:02] UYARI: ekran dökümü alınamadı
+[05:52:02] ekran: 06_bekleme_odasi.png (0 bayt)
+[05:52:07] UYARI: ekran dökümü alınamadı
+[05:52:07] ekran: 07_masa_1.png (0 bayt)
+[05:52:12] UYARI: ekran dökümü alınamadı
+[05:52:12] ekran: 08_masa_2.png (0 bayt)
+[05:52:17] UYARI: ekran dökümü alınamadı
+[05:52:17] ekran: 09_masa_3.png (0 bayt)
+[05:52:22] UYARI: ekran dökümü alınamadı
+[05:52:22] ekran: 10_masa_4.png (0 bayt)
+[05:52:30] ekran: 11_masa_5.png (0 bayt)
+[05:52:38] ekran: 12_masa_6.png (0 bayt)
+[05:52:46] ekran: 13_masa_7.png (0 bayt)
+[05:52:54] ekran: 14_masa_8.png (0 bayt)
+[05:53:02] ekran: 15_masa_9.png (0 bayt)
+[05:53:10] ekran: 16_masa_10.png (0 bayt)
+[05:53:18] ekran: 17_masa_11.png (0 bayt)
+[05:53:26] ekran: 18_masa_12.png (0 bayt)
+[05:55:09] ekran: 19_son.png (0 bayt)
+[05:55:09] tur bitti

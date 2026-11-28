@@ -1,0 +1,20 @@
+00:00 +0: loading /home/runner/work/okeyx/okeyx/mobile/test/app_config_test.dart
+00:00 +0: /home/runner/work/okeyx/okeyx/mobile/test/app_config_test.dart: varsayılan sürüm bilgisi pubspec ile aynı
+00:00 +1: /home/runner/work/okeyx/okeyx/mobile/test/tutorial_screen_test.dart: öğretici adımlar ilerler ve soru cevaplanmadan geçilmez
+00:01 +2: /home/runner/work/okeyx/okeyx/mobile/test/tutorial_screen_test.dart: öğretici adımlar ilerler ve soru cevaplanmadan geçilmez
+00:01 +3: /home/runner/work/okeyx/okeyx/mobile/test/real_rack_test.dart: rack row fits narrow widths including leading inset and group gaps
+00:01 +4: /home/runner/work/okeyx/okeyx/mobile/test/real_rack_test.dart: rack row scale remains finite at zero and tiny constraints
+00:01 +5: /home/runner/work/okeyx/okeyx/mobile/test/real_rack_test.dart: kozmetik ve yerel tercih doğru ıstaka stiline eşlenir
+00:01 +6: /home/runner/work/okeyx/okeyx/mobile/test/real_rack_test.dart: taş gövdesi varlık yolu bilinen kaplamalara eşlenir
+00:01 +7: /home/runner/work/okeyx/okeyx/mobile/test/real_rack_test.dart: ıstaka iki sırayı katmanlar arasında çizer, taşma yok
+00:02 +8: /home/runner/work/okeyx/okeyx/mobile/test/tile_widget_test.dart: taş sayısı görünür ve taşma olmaz
+00:02 +9: /home/runner/work/okeyx/okeyx/mobile/test/tile_widget_test.dart: taş sayısı görünür ve taşma olmaz
+00:02 +10: /home/runner/work/okeyx/okeyx/mobile/test/tile_widget_test.dart: çok küçük alanda da hata vermez
+00:02 +11: /home/runner/work/okeyx/okeyx/mobile/test/tile_widget_test.dart: copyWith yüzü değiştirir, kimliği korur
+00:02 +12: All tests passed!
+
+::group::✅ Passing tests
+✅ ıstaka kaplamaları görsel
+::endgroup::
+
+🎉 1 test passed.
