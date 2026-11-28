@@ -1,0 +1,45 @@
+11-28 05:29:04.964 D/AndroidRuntime( 3741): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-28 05:29:04.974 I/AndroidRuntime( 3741): Using default boot image
+11-28 05:29:04.974 I/AndroidRuntime( 3741): Leaving lock profiling enabled
+11-28 05:29:05.138 D/AndroidRuntime( 3741): Calling main entry com.android.commands.monkey.Monkey
+11-28 05:29:05.294 I/NearbyDiscovery( 1390): java.util.concurrent.TimeoutException: Timed out waiting for Task
+11-28 05:29:05.650 I/AndroidRuntime( 3741): VM exiting with result code 0.
+11-28 05:29:06.354 W/FontLog ( 1390): java.util.concurrent.TimeoutException: Waited 10000 milliseconds (plus 124074 nanoseconds delay) for dlrl@7781421[status=PENDING]
+11-28 05:29:06.359 W/AiAiAutofill( 1597): java.lang.SecurityException: caller is not user's Augmented Autofill Service
+11-28 05:29:06.862 D/StrictMode( 1749): 	at android.os.Parcel.readExceptionCode(Parcel.java:3002)
+11-28 05:29:06.862 D/StrictMode( 1749): 	at android.database.DatabaseUtils.readExceptionFromParcel(DatabaseUtils.java:139)
+11-28 05:29:06.862 D/StrictMode( 1749): 	at android.os.Parcel.readExceptionCode(Parcel.java:3002)
+11-28 05:29:06.862 D/StrictMode( 1749): 	at android.database.DatabaseUtils.readExceptionFromParcel(DatabaseUtils.java:139)
+11-28 05:29:07.541 E/SystemServiceRegistry(  993): android.os.ServiceManager$ServiceNotFoundException: No service published for: ethernet
+11-28 05:29:07.857 W/Icing   ( 1431): Failed to get Lockbox signed-in status: java.util.concurrent.TimeoutException: Timed out waiting for Task
+11-28 05:29:08.328 E/SystemServiceRegistry(  993): android.os.ServiceManager$ServiceNotFoundException: No service published for: ethernet
+11-28 05:29:08.373 W/Icing   ( 1431): Failed to get Lockbox signed-in status: java.util.concurrent.TimeoutException: Timed out waiting for Task
+11-28 05:29:08.914 W/Telephony( 1040): registerMmTelCapabilityCallback: registration failed, no ImsService available. Exception: code: 1
+11-28 05:29:08.914 W/Telephony( 1040): registerImsRegistrationCallback: registration failed, no ImsService available. Exception: code: 1
+11-28 05:29:09.018 W/Telephony( 1040): registerMmTelCapabilityCallback: registration failed, no ImsService available. Exception: code: 1
+11-28 05:29:09.765 I/flutter ( 3811): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(105)] Using the Impeller rendering backend (OpenGLES).
+11-28 05:29:09.885 W/Telephony( 1040): registerMmTelCapabilityCallback: registration failed, no ImsService available. Exception: code: 1
+11-28 05:29:11.172 W/Telephony( 1040): registerMmTelCapabilityCallback: registration failed, no ImsService available. Exception: code: 1
+11-28 05:29:11.365 E/OneSearchSuggestProvider( 1080): io.grpc.StatusRuntimeException: UNKNOWN
+11-28 05:29:11.366 W/Telephony( 1040): registerImsRegistrationCallback: registration failed, no ImsService available. Exception: code: 1
+11-28 05:29:11.830 E/SystemServiceRegistry(  993): android.os.ServiceManager$ServiceNotFoundException: No service published for: ethernet
+11-28 05:29:12.140 E/constellation( 1431): java.io.IOException: AUTHENTICATION_FAILED
+11-28 05:29:12.363 I/flutter ( 3811): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(105)] Using the Impeller rendering backend (OpenGLES).
+11-28 05:29:12.550 W/Telephony( 1040): registerMmTelCapabilityCallback: registration failed, no ImsService available. Exception: code: 1
+11-28 05:29:12.910 W/AiAiAutofill( 1597): java.lang.SecurityException: caller is not user's Augmented Autofill Service
+11-28 05:29:12.966 W/Telephony( 1040): registerMmTelCapabilityCallback: registration failed, no ImsService available. Exception: code: 1
+11-28 05:29:13.435 I/NearbyDiscovery( 1390): java.util.concurrent.TimeoutException: Timed out waiting for Task
+11-28 05:29:14.047 E/PackageManager(  520): java.util.concurrent.TimeoutException: [Optimistic Bind] Didn't bind to resolver in time!
+11-28 05:29:14.133 W/GCM-GMS ( 1431): Failed to get registration: java.io.IOException: AUTHENTICATION_FAILED
+11-28 05:29:14.245 E/dlpn    ( 1390): RuntimeException while executing runnable dlqc{qze@492ec6a} with executor MoreExecutors.directExecutor()
+11-28 05:29:14.245 E/dlpn    ( 1390): java.lang.NullPointerException: Attempt to get length of null array
+11-28 05:29:15.233 I/NearbyDiscovery( 1390): java.util.concurrent.TimeoutException: Timed out waiting for Task
+11-28 05:29:15.365 W/Conscrypt( 1390): Could not set socket write timeout: java.net.SocketException: Socket closed
+11-28 05:29:15.401 W/Conscrypt( 1431): Could not set socket write timeout: java.net.SocketException: Socket closed
+11-28 05:29:15.418 W/Conscrypt( 1390): Could not set socket write timeout: java.net.SocketException: Socket closed
+11-28 05:29:15.577 W/Conscrypt( 1390): Could not set socket write timeout: java.net.SocketException: Socket closed
+11-28 05:29:15.648 W/Conscrypt( 1431): Could not set socket write timeout: java.net.SocketException: Socket closed
+11-28 05:29:15.850 W/SnapshotHandler( 1734): java.io.FileNotFoundException: /data/user/0/com.google.android.googlequicksearchbox/files/phenotype/shared/com.google.android.libraries.notifications#com.google.android.googlequicksearchbox.pb: open failed: ENOENT (No such file or directory)
+11-28 05:29:15.850 W/SnapshotHandler( 1734): Caused by: android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+11-28 05:29:16.053 W/Conscrypt( 1390): Could not set socket write timeout: java.net.SocketException: Socket closed
+11-28 05:29:16.209 E/bwel    ( 1390): java.util.concurrent.TimeoutException: Timed out waiting for Task
