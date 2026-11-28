@@ -1163,8 +1163,7 @@ class Room:
         current_score,_,_,_,_=self._assisted_preview_cached(viewer)
         current_pair_count=len(find_pairs(self.service.rules,p.hand))
         current_pairs=pair_plan_including(self.service.rules,p.hand,minimum=s.min_opening_pairs)
-        if current_score>=s.min_opening_score or current_pairs:
-            return None
+        already=bool(current_score>=s.min_opening_score or current_pairs)
 
         tile=s.discard_piles[left][-1]
         hand=list(p.hand)+[tile]
@@ -1185,12 +1184,17 @@ class Room:
             required_id=tile.id
         )
         pair_count=len(pairs) if pairs else 0
+        if already:
+            # Zaten açabiliyor: soldaki taş ancak açılışı BÜYÜTÜYORSA (daha çok
+            # seri puanı ya da bir çift daha) "işine yarar" diye parlar.
+            if series and series_score<=current_score:series=None
+            if pairs and pair_count<=current_pair_count:pairs=None
         if not series and not pairs:
             return None
 
         kind='both' if series and pairs else ('pairs' if pairs else 'series')
         return {
-            'can_open':True,'tile_id':tile.id,'kind':kind,
+            'can_open':True,'tile_id':tile.id,'kind':kind,'improves':already,
             'current_series_score':current_score,'series_score':series_score,'series_gain':max(0,series_score-current_score),
             'current_pair_count':current_pair_count,'pair_count':pair_count,'pair_gain':max(0,pair_count-current_pair_count),
             'series_threshold':s.min_opening_score,'pair_threshold':s.min_opening_pairs,
@@ -1360,7 +1364,12 @@ class Room:
                 elif not viewer_p.opened and left_opportunity and left_opportunity.get('tile_id')==lt.id:
                     left_useful_tile_id=lt.id
                     kind=str(left_opportunity.get('kind') or '')
-                    if kind in ('series','both') and int(left_opportunity.get('series_score',0) or 0)>0:
+                    tail='İŞİNE YARAR' if left_opportunity.get('improves') else None
+                    if tail and kind in ('series','both'):
+                        left_useful_reason=f"{int(left_opportunity.get('current_series_score',0) or 0)} → {int(left_opportunity.get('series_score',0) or 0)} • {tail}"
+                    elif tail:
+                        left_useful_reason=f"{int(left_opportunity.get('current_pair_count',0) or 0)}/5 → {int(left_opportunity.get('pair_count',0) or 0)}/5 • {tail}"
+                    elif kind in ('series','both') and int(left_opportunity.get('series_score',0) or 0)>0:
                         left_useful_reason=f"{int(left_opportunity.get('current_series_score',0) or 0)} → {int(left_opportunity.get('series_score',0) or 0)} • AÇAR"
                     elif kind in ('pairs','both'):
                         left_useful_reason=f"{int(left_opportunity.get('current_pair_count',0) or 0)}/5 → {int(left_opportunity.get('pair_count',0) or 0)}/5 • ÇİFT AÇAR"

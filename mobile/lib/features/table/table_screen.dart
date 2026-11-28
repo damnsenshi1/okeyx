@@ -1392,7 +1392,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               Text.rich(TextSpan(children: [
                 const TextSpan(text: 'Soldaki '),
                 TextSpan(text: tileName, style: const TextStyle(color: OkeyXColors.mint, fontWeight: FontWeight.w900)),
-                TextSpan(text: pairsOnly ? ' ile çift açabilirsin' : ' ile açabilirsin'),
+                TextSpan(text: hint['improves'] == true ? ' işine yarar' : (pairsOnly ? ' ile çift açabilirsin' : ' ile açabilirsin')),
               ]), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: OkeyXColors.cream)),
               const SizedBox(width: 8),
               Container(
@@ -1499,9 +1499,7 @@ class _TableScreenState extends State<TableScreen> with WidgetsBindingObserver {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                  const Text('ÇİFT ', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .5, color: Color(0xFFBFF4FF))),
-                  Text('$pairs', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: 16, height: 1, color: pairReady || pairs >= pairTarget ? emerald : const Color(0xFF6CE5FF))),
-                  Text('/$pairTarget', style: const TextStyle(fontFamily: OkeyXFonts.number, fontSize: 10, height: 1, color: Color(0xB3BFF4FF))),
+                  Text('ÇİFT $pairs/$pairTarget', style: TextStyle(fontFamily: OkeyXFonts.number, fontSize: 14, height: 1, letterSpacing: .4, color: pairReady || pairs >= pairTarget ? emerald : const Color(0xFF6CE5FF))),
                 ]),
               ),
             ),

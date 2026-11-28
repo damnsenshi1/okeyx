@@ -1,3 +1,9 @@
+OKEYX 20.8.2
+
+• Soldan gelen taş: zaten açabiliyor olsan bile taş açılış puanını artırıyorsa (ya da bir çift daha kuruyorsa) "İŞİNE YARAR" diye parlar ve kaç puana çıkacağını yazar.
+• Taşlardaki sayılar eşit boyda: 10-13 artık 1-9'dan küçük görünmez.
+• Açılış çubuğundaki ÇİFT x/5 yazısı tek boyda.
+
 OKEYX 20.8.1
 
 • Hediye: dokunduğun hediye anında gider (GÖNDER yok). Bekleyen bir hediyeye dokununca yerine başka hediye gitmez.

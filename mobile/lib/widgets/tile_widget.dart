@@ -119,23 +119,22 @@ class TileWidget extends StatelessWidget {
                           left: 0,
                           right: 0,
                           child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                '${tile.number}',
-                                maxLines: 1,
-                                style: TextStyle(
-                                  fontFamily: OkeyXFonts.number,
-                                  fontSize: math.min(faceH * (bigNumber ? .56 : .48), faceW * (tile.number >= 10 ? (bigNumber ? .66 : .58) : (bigNumber ? .92 : .80))),
-                                  height: 1,
-                                  letterSpacing: -.8,
-                                  color: color,
-                                  // Oyma: üst kenarda gölge, alt kenarda ışık.
-                                  shadows: const [
-                                    Shadow(color: Color(0xCCFFFFFF), offset: Offset(0, 1.0)),
-                                    Shadow(color: Color(0x59000000), offset: Offset(0, -.8), blurRadius: .6),
-                                  ],
-                                ),
+                            child: _UniformNumber(
+                              text: '${tile.number}',
+                              maxWidth: faceW * .92,
+                              style: TextStyle(
+                                fontFamily: OkeyXFonts.number,
+                                // Tek ve çift haneli sayılar AYNI yükseklikte:
+                                // 10-13 küçültülmez, gerekirse yalnız yatayda daraltılır.
+                                fontSize: math.min(faceH * (bigNumber ? .56 : .48), faceW * (bigNumber ? .92 : .80)),
+                                height: 1,
+                                letterSpacing: tile.number >= 10 ? -1.4 : -.8,
+                                color: color,
+                                // Oyma: üst kenarda gölge, alt kenarda ışık.
+                                shadows: const [
+                                  Shadow(color: Color(0xCCFFFFFF), offset: Offset(0, 1.0)),
+                                  Shadow(color: Color(0x59000000), offset: Offset(0, -.8), blurRadius: .6),
+                                ],
                               ),
                             ),
                           ),
@@ -317,3 +316,33 @@ _TileSkinStyle _skin(String id) => switch (id) {
       'tiles_carbon' => const _TileSkinStyle([Color(0xFFF8F8F7), Color(0xFFE5E5E1), Color(0xFFB9BAB6)], [Color(0xFF8D9093), Color(0xFF3E4245)], Color(0xFF575B5F)),
       _ => const _TileSkinStyle([Color(0xFFFFFEF8), Color(0xFFF8F0DC), Color(0xFFECDFBF)], [Color(0xFFD8C599), Color(0xFF7B6640)], Color(0xFFB8A07A)),
     };
+
+
+/// Sayıyı hep aynı yazı boyunda çizer; sığmazsa yalnız yatayda daraltır,
+/// böylece 7 ile 12 aynı boyda görünür.
+class _UniformNumber extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+  final double maxWidth;
+  const _UniformNumber({required this.text, required this.style, required this.maxWidth});
+
+  @override
+  Widget build(BuildContext context) {
+    final tp = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr, maxLines: 1)..layout();
+    final w = tp.width;
+    tp.dispose();
+    final sx = w > maxWidth && w > 0 ? maxWidth / w : 1.0;
+    return SizedBox(
+      width: maxWidth,
+      height: tp.height,
+      child: OverflowBox(
+        maxWidth: double.infinity,
+        child: Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.diagonal3Values(sx, 1, 1),
+          child: Text(text, maxLines: 1, softWrap: false, style: style),
+        ),
+      ),
+    );
+  }
+}
