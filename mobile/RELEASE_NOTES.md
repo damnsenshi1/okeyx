@@ -1,3 +1,7 @@
+OKEYX 20.8.5
+
+• Yeni logo: Kahvehane klasiği (ıstakada 1–okey–13 ve çay bardağı). Uygulama simgesi, açılış ekranı, giriş ve ana sayfa logosu değişti.
+
 OKEYX 20.8.4
 
 • Istaka artık soldan sağa tamamen kullanılıyor: her sırada 18 yuva, taşlar ıstakayı dolduracak boyda.
