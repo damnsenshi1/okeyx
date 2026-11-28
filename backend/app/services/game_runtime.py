@@ -303,6 +303,16 @@ class Room:
             # a legal open/layoff; repair stale metadata instead of freezing.
             if not any(t.id==pending for t in p.hand):
                 p.pending_left_tile_id=None;p.pending_left_from_seat=None
+            elif p.opened and p.opening_mode=='series':
+                # Açtı ama soldan aldığı taşı henüz kullanmadı: süre bitince taş
+                # kendiliğinden çifte/pere işlenir (kural gereği kullanılmalı).
+                for attempt in (lambda:self.service.layoff_pair(seat,pending),lambda:self.auto_add_pairs(seat),lambda:self.service.auto_layoff(seat)):
+                    try:attempt()
+                    except Exception:pass
+                    if not any(t.id==pending for t in p.hand):break
+                if any(t.id==pending for t in p.hand):
+                    rr=self.return_left(seat)
+                    if not rr.ok:return ActionResult(False,f'afk_return_left:{rr.code}')
             else:
                 rr=self.return_left(seat)
                 if not rr.ok:return ActionResult(False,f'afk_return_left:{rr.code}')
@@ -792,6 +802,10 @@ class Room:
         p=self.state.player(seat);required=p.pending_left_tile_id
         if not p.opened:
             groups=find_series_groups(self.service.rules,p.hand,self.state.min_opening_score,required,len(p.hand)-1)
+            if not groups and required:
+                # Soldan alınan taş seride olmasa da aynı tur çifte/pere işlenebiliyorsa aç.
+                alt=find_series_groups(self.service.rules,p.hand,self.state.min_opening_score,None,len(p.hand)-1)
+                if alt and self.service.left_tile_usable_after(p,{t.id for g in alt for t in g},alt):groups=alt
             if not groups:return ActionResult(False,'no_101_opening_with_left' if required else 'no_101_opening')
         else:
             if p.opening_mode!='series':return ActionResult(False,'wrong_opening_mode')
@@ -1259,7 +1273,11 @@ class Room:
             if required is None:
                 result['open_series']=bool(cached_preview and cached_preview[0] >= s.min_opening_score and cached_preview[1] <= max_used)
             else:
-                result['open_series']=bool(find_series_groups(self.service.rules,p.hand,s.min_opening_score,required,max_used))
+                ok_series=bool(find_series_groups(self.service.rules,p.hand,s.min_opening_score,required,max_used))
+                if not ok_series:
+                    alt=find_series_groups(self.service.rules,p.hand,s.min_opening_score,None,max_used)
+                    ok_series=bool(alt and self.service.left_tile_usable_after(p,{t.id for g in alt for t in g},alt))
+                result['open_series']=ok_series
             result['open_pairs']=bool(pair_plan_including(self.service.rules,p.hand,s.min_opening_pairs,required))
         else:
             if p.opening_mode=='series':

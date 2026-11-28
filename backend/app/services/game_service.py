@@ -44,7 +44,7 @@ class GameService:
             if not groups:return False
             used={t.id for g in groups for t in g}
             if len(used)>=len(hand_ids):return False
-            if p.pending_left_tile_id and p.pending_left_tile_id not in used:return False
+            if p.pending_left_tile_id and p.pending_left_tile_id not in used and not self.left_tile_usable_after(p,used,groups):return False
             if not p.opened:
                 r=self.rules.validate_series_opening(groups,self.state.min_opening_score if threshold is None else threshold)
                 return bool(r.valid)
@@ -151,7 +151,7 @@ class GameService:
         if not p.opened:
             r=self.rules.validate_series_opening(resolved,threshold)
             if not r.valid:return ActionResult(False,r.reason,{'score':r.score,'required':threshold})
-            if p.pending_left_tile_id and p.pending_left_tile_id not in used:
+            if p.pending_left_tile_id and p.pending_left_tile_id not in used and not self.left_tile_usable_after(p,used,resolved):
                 return ActionResult(False,'left_tile_must_be_in_opening')
             self._begin_table_transaction(p)
             p.opened=True;p.opening_mode='series';p.opening_score=r.score
@@ -267,6 +267,29 @@ class GameService:
                     self.state.player(owner).penalty+=101;penalized=owner
                 return ActionResult(True,'okey_reclaimed',{'reclaimed_okey_id':reclaimed.id,'meld_id':meld_id,'replacement_tile_id':tile_id,'position':i,'penalized_seat':penalized})
         return ActionResult(False,'tile_does_not_replace_okey')
+
+    def left_tile_usable_after(self,p,used:set,new_groups:list)->bool:
+        """Soldan alınan taş açılış perlerinde değilse, aynı tur içinde hâlâ
+        kullanılabiliyor mu? (Yeni/eski bir pere işlenebilir ya da elindeki
+        eşiyle çift olarak eklenebilir.) Kullanılmadan taş atılamaz; bu yüzden
+        açılışa ancak taş gerçekten kullanılabiliyorsa izin verilir."""
+        tid=p.pending_left_tile_id
+        if not tid or tid in used:return True
+        tile=next((t for t in p.hand if t.id==tid),None)
+        if tile is None:return True
+        remaining=[t for t in p.hand if t.id not in used and t.id!=tid]
+        if not remaining:return False  # bitiş için atılacak bir taş kalmalı
+        if self._matching_open_pair(tile) is not None:return True
+        if self._pair_area_open() and len(remaining)>=2:
+            if any(self.rules.validate_pair([tile,o]).valid for o in remaining):return True
+        for m in self.state.melds:
+            if m.meld_type!=MeldType.PAIR and self.rules.can_layoff(m,tile)[0]:return True
+        for g in new_groups:
+            vr=self.rules.validate_meld(g)
+            if not vr.valid:continue
+            fake=Meld('tmp',-1,vr.meld_type or MeldType.RUN,self.rules.canonical_meld_order(g,vr.meld_type or MeldType.RUN))
+            if self.rules.can_layoff(fake,tile)[0]:return True
+        return False
 
     def _pair_area_open(self)->bool:
         return any(m.meld_type==MeldType.PAIR for m in self.state.melds)
